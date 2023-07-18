@@ -72,6 +72,11 @@ __KERNEL_RCSID(0, "$NetBSD: subr_prf.c,v 1.201 2023/07/17 22:57:35 riastradh Exp
 
 #include <net/if.h>
 
+#ifdef __WASM
+#include <wasm/wasm_module.h>
+void kern_console_log(char *, unsigned int bufsz, int flags, int level) __WASM_IMPORT(kern, console_log);
+#endif
+
 static kmutex_t kprintf_mtx;
 static bool kprintf_inited = false;
 
@@ -269,6 +274,9 @@ vpanic(const char *fmt, va_list ap)
 
 		vsnprintf(scratchstr, sizeof(scratchstr), fmt, ap);
 		kprintf_internal("%s", TOLOG|TOCONS, NULL, NULL, scratchstr);
+#ifdef __WASM
+		kern_console_log(scratchstr, sizeof(scratchstr), 0, 0);
+#endif
 		panicstr = scratchstr;
 	} else {
 		kprintf(fmt, TOLOG|TOCONS, NULL, NULL, ap);

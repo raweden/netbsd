@@ -55,6 +55,10 @@
 
 #include <machine/endian.h>
 
+#ifdef __WASM
+#include <wasm/wasm_module.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/stdarg.h>
 
@@ -327,7 +331,15 @@ int	kcopy(const void *, void *, size_t);
 #endif /* KERNEL */
 
 int	copystr(const void *, void *, size_t, size_t *);
-#if defined(_KERNEL) && defined(KASAN)
+#if defined(_KERNEL) && defined(__WASM)
+int	wasm_copyinstr(const void *, void *, size_t, size_t *) __WASM_IMPORT(kern, __copyinstr);
+int	wasm_copyoutstr(const void *, void *, size_t, size_t *) __WASM_IMPORT(kern, __copyoutstr);
+int	wasm_copyin(const void *, void *, size_t) __WASM_IMPORT(kern, __copyin);
+int	copyout(const void *, void *, size_t) __WASM_IMPORT(kern, __copyout);
+#define copyinstr	wasm_copyinstr
+#define copyoutstr	wasm_copyoutstr
+#define copyin		wasm_copyin
+#elif defined(_KERNEL) && defined(KASAN)
 int	kasan_copyinstr(const void *, void *, size_t, size_t *);
 int	kasan_copyoutstr(const void *, void *, size_t, size_t *);
 int	kasan_copyin(const void *, void *, size_t);

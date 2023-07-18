@@ -37,6 +37,10 @@
 #include <stdint.h>
 #endif
 
+#ifdef __WASM
+#include <machine/atomic.h>
+#endif
+
 #if defined(_KERNEL) && defined(_KERNEL_OPT)
 #include "opt_kasan.h"
 #include "opt_kcsan.h"
@@ -201,7 +205,69 @@ void		membar_datadep_consumer(void);
 
 __END_DECLS
 
-#if defined(KASAN)
+#if defined(__WASM)
+#define atomic_add_32		wasm_atomic_add_32
+#define atomic_add_int		wasm_atomic_add_int
+#define atomic_add_long		wasm_atomic_add_long
+#define atomic_add_ptr		wasm_atomic_add_ptr
+#define atomic_add_64		wasm_atomic_add_64
+#define atomic_add_32_nv	wasm_atomic_add_32_nv
+#define atomic_add_int_nv	wasm_atomic_add_int_nv
+#define atomic_add_long_nv	wasm_atomic_add_long_nv
+#define atomic_add_ptr_nv	wasm_atomic_add_ptr_nv
+#define atomic_add_64_nv	wasm_atomic_add_64_nv
+#define atomic_and_32		wasm_atomic_and_32
+#define atomic_and_uint		wasm_atomic_and_uint
+#define atomic_and_ulong	wasm_atomic_and_ulong
+#define atomic_and_64		wasm_atomic_and_64
+#define atomic_and_32_nv	wasm_atomic_and_32_nv
+#define atomic_and_uint_nv	wasm_atomic_and_uint_nv
+#define atomic_and_ulong_nv	wasm_atomic_and_ulong_nv
+#define atomic_and_64_nv	wasm_atomic_and_64_nv
+#define atomic_or_32		wasm_atomic_or_32
+#define atomic_or_uint		wasm_atomic_or_uint
+#define atomic_or_ulong		wasm_atomic_or_ulong
+#define atomic_or_64		wasm_atomic_or_64
+#define atomic_or_32_nv		wasm_atomic_or_32_nv
+#define atomic_or_uint_nv	wasm_atomic_or_uint_nv
+#define atomic_or_ulong_nv	wasm_atomic_or_ulong_nv
+#define atomic_or_64_nv		wasm_atomic_or_64_nv
+#define atomic_cas_32		wasm_atomic_cas_32
+#define atomic_cas_uint		wasm_atomic_cas_uint
+#define atomic_cas_ulong	wasm_atomic_cas_ulong
+#define atomic_cas_ptr		wasm_atomic_cas_ptr
+#define atomic_cas_64		wasm_atomic_cas_64
+#define atomic_cas_32_ni	wasm_atomic_cas_32_ni
+#define atomic_cas_uint_ni	wasm_atomic_cas_uint_ni
+#define atomic_cas_ulong_ni	wasm_atomic_cas_ulong_ni
+#define atomic_cas_ptr_ni	wasm_atomic_cas_ptr_ni
+#define atomic_cas_64_ni	wasm_atomic_cas_64_ni
+#define atomic_swap_32		wasm_atomic_swap_32
+#define atomic_swap_uint	wasm_atomic_swap_uint
+#define atomic_swap_ulong	wasm_atomic_swap_ulong
+#define atomic_swap_ptr		wasm_atomic_swap_ptr
+#define atomic_swap_64		wasm_atomic_swap_64
+#define atomic_dec_32		wasm_atomic_dec_32
+#define atomic_dec_uint		wasm_atomic_dec_uint
+#define atomic_dec_ulong	wasm_atomic_dec_ulong
+#define atomic_dec_ptr		wasm_atomic_dec_ptr
+#define atomic_dec_64		wasm_atomic_dec_64
+#define atomic_dec_32_nv	wasm_atomic_dec_32_nv
+#define atomic_dec_uint_nv	wasm_atomic_dec_uint_nv
+#define atomic_dec_ulong_nv	wasm_atomic_dec_ulong_nv
+#define atomic_dec_ptr_nv	wasm_atomic_dec_ptr_nv
+#define atomic_dec_64_nv	wasm_atomic_dec_64_nv
+#define atomic_inc_32		wasm_atomic_inc_32
+#define atomic_inc_uint		wasm_atomic_inc_uint
+#define atomic_inc_ulong	wasm_atomic_inc_ulong
+#define atomic_inc_ptr		wasm_atomic_inc_ptr
+#define atomic_inc_64		wasm_atomic_inc_64
+#define atomic_inc_32_nv	wasm_atomic_inc_32_nv
+#define atomic_inc_uint_nv	wasm_atomic_inc_uint_nv
+#define atomic_inc_ulong_nv	wasm_atomic_inc_ulong_nv
+#define atomic_inc_ptr_nv	wasm_atomic_inc_ptr_nv
+#define atomic_inc_64_nv	wasm_atomic_inc_64_nv
+#elif defined(KASAN)
 #define atomic_add_32		kasan_atomic_add_32
 #define atomic_add_int		kasan_atomic_add_int
 #define atomic_add_long		kasan_atomic_add_long

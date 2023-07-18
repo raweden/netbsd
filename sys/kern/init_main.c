@@ -247,6 +247,10 @@ int	shutting_down __read_mostly;	/* system is shutting down */
 
 int	start_init_exec;		/* semaphore for start_init() */
 
+#ifdef __WASM
+#define main mi_startup
+#endif
+
 static void check_console(struct lwp *l);
 static void start_init(void *);
 static void configure(void);
