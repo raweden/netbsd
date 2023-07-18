@@ -1,0 +1,4610 @@
+Terminals unused in grammar
+
+    AND
+    PACKAGE
+
+
+Grammar
+
+    0 $accept: configuration $end
+
+    1 configuration: topthings machine_spec definition_part selection_part
+
+    2 topthings: ε
+    3          | topthings topthing
+
+    4 topthing: '\n'
+    5         | SOURCE filename '\n'
+    6         | BUILD filename '\n'
+
+    7 machine_spec: XMACHINE WORD '\n'
+    8             | XMACHINE WORD WORD '\n'
+    9             | XMACHINE WORD WORD subarches '\n'
+   10             | IOCONF WORD '\n'
+   11             | error
+
+   12 subarches: WORD
+   13          | subarches WORD
+
+   14 no: NO
+   15   | CNO
+
+   16 definition_part: definitions ENDDEFS
+
+   17 definitions: ε
+   18            | definitions '\n'
+   19            | definitions definition '\n'
+   20            | definitions error '\n'
+   21            | definitions ENDFILE
+
+   22 definition: define_file
+   23           | define_object
+   24           | define_device_major
+   25           | define_prefix
+   26           | define_buildprefix
+   27           | define_devclass
+   28           | define_filesystems
+   29           | define_attribute
+   30           | define_option
+   31           | define_flag
+   32           | define_obsolete_flag
+   33           | define_param
+   34           | define_obsolete_param
+   35           | define_device
+   36           | define_device_attachment
+   37           | define_maxpartitions
+   38           | define_maxusers
+   39           | define_makeoptions
+   40           | define_pseudo
+   41           | define_pseudodev
+   42           | define_major
+   43           | define_version
+
+   44 define_file: XFILE filename fopts fflags rule
+
+   45 define_object: XOBJECT filename fopts oflags
+
+   46 define_device_major: DEVICE_MAJOR WORD device_major_char device_major_block fopts devnodes
+
+   47 define_prefix: PREFIX filename
+   48              | PREFIX
+
+   49 define_buildprefix: BUILDPREFIX filename
+   50                   | BUILDPREFIX WORD
+   51                   | BUILDPREFIX
+
+   52 define_devclass: DEVCLASS WORD
+
+   53 define_filesystems: DEFFS deffses optdepend_list
+
+   54 define_attribute: DEFINE WORD interface_opt depend_list
+
+   55 define_option: DEFOPT optfile_opt defopts optdepend_list
+
+   56 define_flag: DEFFLAG optfile_opt defopts optdepend_list
+
+   57 define_obsolete_flag: OBSOLETE DEFFLAG optfile_opt defopts
+
+   58 define_param: DEFPARAM optfile_opt defopts optdepend_list
+
+   59 define_obsolete_param: OBSOLETE DEFPARAM optfile_opt defopts
+
+   60 define_device: DEVICE devbase interface_opt depend_list
+
+   61 define_device_attachment: ATTACH devbase AT atlist devattach_opt depend_list
+
+   62 define_maxpartitions: MAXPARTITIONS int32
+
+   63 define_maxusers: MAXUSERS int32 int32 int32
+
+   64 define_makeoptions: MAKEOPTIONS condmkopt_list
+
+   65 define_pseudo: DEFPSEUDO devbase interface_opt depend_list
+
+   66 define_pseudodev: DEFPSEUDODEV devbase interface_opt depend_list
+
+   67 define_major: MAJOR '{' majorlist '}'
+
+   68 define_version: VERSION int32
+
+   69 fopts: ε
+   70      | condexpr
+
+   71 fflags: ε
+   72       | fflags fflag
+
+   73 fflag: NEEDS_COUNT
+   74      | NEEDS_FLAG
+
+   75 rule: ε
+   76     | COMPILE_WITH stringvalue
+
+   77 oflags: ε
+   78       | oflags oflag
+
+   79 oflag: NEEDS_FLAG
+
+   80 device_major_char: ε
+   81                  | CHAR int32
+
+   82 device_major_block: ε
+   83                   | BLOCK int32
+
+   84 devnodes: ε
+   85         | devnodetype ',' devnodeflags
+   86         | devnodetype
+
+   87 devnodetype: SINGLE
+   88            | VECTOR '=' devnode_dims
+
+   89 devnode_dims: NUMBER
+   90             | NUMBER ':' NUMBER
+
+   91 devnodeflags: LINKZERO
+
+   92 deffses: deffs
+   93        | deffses deffs
+
+   94 deffs: WORD
+
+   95 interface_opt: ε
+   96              | '{' '}'
+   97              | '{' loclist '}'
+
+   98 loclist: locdef
+   99        | locdef ',' loclist
+
+  100 locdef: locname locdefault
+  101       | locname
+  102       | '[' locname locdefault ']'
+  103       | locname '[' int32 ']'
+  104       | locname '[' int32 ']' locdefaults
+  105       | '[' locname '[' int32 ']' locdefaults ']'
+
+  106 locname: WORD
+  107        | QSTRING
+
+  108 locdefault: '=' value
+
+  109 locdefaults: '=' '{' values '}'
+
+  110 depend_list: ε
+  111            | ':' depends
+
+  112 depends: depend
+  113        | depends ',' depend
+
+  114 depend: WORD
+
+  115 optdepend_list: ε
+  116               | ':' optdepends
+
+  117 optdepends: optdepend
+  118           | optdepends ',' optdepend
+
+  119 optdepend: WORD
+
+  120 atlist: atname
+  121       | atlist ',' atname
+
+  122 atname: WORD
+  123       | ROOT
+
+  124 defopts: defopt
+  125        | defopts defopt
+
+  126 defopt: WORD
+  127       | WORD '=' value
+  128       | WORD COLONEQ value
+  129       | WORD '=' value COLONEQ value
+
+  130 condmkopt_list: condmkoption
+  131               | condmkopt_list ',' condmkoption
+
+  132 condmkoption: condexpr mkvarname PLUSEQ value
+
+  133 devbase: WORD
+
+  134 devattach_opt: ε
+  135              | WITH WORD
+
+  136 majorlist: majordef
+  137          | majorlist ',' majordef
+
+  138 majordef: devbase '=' int32
+
+  139 int32: NUMBER
+
+  140 selection_part: selections
+
+  141 selections: ε
+  142           | selections '\n'
+  143           | selections selection '\n'
+  144           | selections error '\n'
+
+  145 selection: definition
+  146          | select_attr
+  147          | select_no_attr
+  148          | select_no_filesystems
+  149          | select_filesystems
+  150          | select_no_makeoptions
+  151          | select_makeoptions
+  152          | select_no_options
+  153          | select_options
+  154          | select_maxusers
+  155          | select_ident
+  156          | select_no_ident
+  157          | select_config
+  158          | select_no_config
+  159          | select_no_pseudodev
+  160          | select_pseudodev
+  161          | select_pseudoroot
+  162          | select_no_device_instance_attachment
+  163          | select_no_device_attachment
+  164          | select_no_device_instance
+  165          | select_device_instance
+
+  166 select_attr: SELECT WORD
+
+  167 select_no_attr: no SELECT WORD
+
+  168 $@1: ε
+
+  169 select_no_filesystems: no FILE_SYSTEM $@1 no_fs_list
+
+  170 select_filesystems: FILE_SYSTEM fs_list
+
+  171 $@2: ε
+
+  172 select_no_makeoptions: no MAKEOPTIONS $@2 no_mkopt_list
+
+  173 select_makeoptions: MAKEOPTIONS mkopt_list
+
+  174 $@3: ε
+
+  175 select_no_options: no OPTIONS $@3 no_opt_list
+
+  176 select_options: OPTIONS opt_list
+
+  177 select_maxusers: MAXUSERS int32
+
+  178 select_ident: IDENT stringvalue
+
+  179 select_no_ident: no IDENT
+
+  180 select_config: CONFIG conf root_spec sysparam_list
+
+  181 select_no_config: no CONFIG WORD
+
+  182 select_no_pseudodev: no PSEUDO_DEVICE WORD
+
+  183 select_pseudodev: PSEUDO_DEVICE WORD npseudo
+
+  184 select_pseudoroot: PSEUDO_ROOT device_instance
+
+  185 select_no_device_instance_attachment: no device_instance AT attachment
+
+  186 select_no_device_attachment: no DEVICE AT attachment
+
+  187 select_no_device_instance: no device_instance
+
+  188 select_device_instance: device_instance AT attachment locators device_flags
+
+  189 fs_list: fsoption
+  190        | fs_list ',' fsoption
+
+  191 fsoption: WORD
+
+  192 no_fs_list: no_fsoption
+  193           | no_fs_list ',' no_fsoption
+
+  194 no_fsoption: WORD
+
+  195 mkopt_list: mkoption
+  196           | mkopt_list ',' mkoption
+
+  197 mkoption: mkvarname '=' value
+  198         | mkvarname PLUSEQ value
+
+  199 no_mkopt_list: no_mkoption
+  200              | no_mkopt_list ',' no_mkoption
+
+  201 no_mkoption: WORD
+
+  202 opt_list: option
+  203         | opt_list ',' option
+
+  204 option: WORD
+  205       | WORD '=' value
+
+  206 no_opt_list: no_option
+  207            | no_opt_list ',' no_option
+
+  208 no_option: WORD
+
+  209 conf: WORD
+
+  210 root_spec: ROOT on_opt dev_spec
+  211          | ROOT on_opt dev_spec fs_spec
+
+  212 dev_spec: '?'
+  213         | QSTRING
+  214         | WORD
+  215         | major_minor
+
+  216 major_minor: MAJOR NUMBER MINOR NUMBER
+
+  217 fs_spec: TYPE '?'
+  218        | TYPE WORD
+
+  219 sysparam_list: ε
+  220              | sysparam_list sysparam
+
+  221 sysparam: DUMPS on_opt dev_spec
+
+  222 npseudo: ε
+  223        | int32
+
+  224 device_instance: WORD
+  225                | WORD '*'
+
+  226 attachment: ROOT
+  227           | WORD
+  228           | WORD '?'
+
+  229 locators: ε
+  230         | locators locator
+
+  231 locator: WORD '?'
+  232        | WORD values
+
+  233 device_flags: ε
+  234             | FLAGS int32
+
+  235 condexpr: cond_or_expr
+
+  236 cond_or_expr: cond_and_expr
+  237             | cond_or_expr '|' cond_and_expr
+
+  238 cond_and_expr: cond_prefix_expr
+  239              | cond_and_expr '&' cond_prefix_expr
+
+  240 cond_prefix_expr: cond_base_expr
+
+  241 cond_base_expr: condatom
+  242               | '!' condatom
+  243               | '(' condexpr ')'
+
+  244 condatom: WORD
+
+  245 mkvarname: QSTRING
+  246          | WORD
+
+  247 optfile_opt: ε
+  248            | filename
+
+  249 filename: QSTRING
+  250         | PATHNAME
+
+  251 value: QSTRING
+  252      | WORD
+  253      | EMPTYSTRING
+  254      | signed_number
+
+  255 stringvalue: QSTRING
+  256            | WORD
+
+  257 values: value
+  258       | value ',' values
+
+  259 signed_number: NUMBER
+  260              | '-' NUMBER
+
+  261 on_opt: ε
+  262       | ON
+
+
+Terminals, with rules where they appear
+
+    $end (0) 0
+    '\n' (10) 4 5 6 7 8 9 10 18 19 20 142 143 144
+    '!' (33) 242
+    '&' (38) 239
+    '(' (40) 243
+    ')' (41) 243
+    '*' (42) 225
+    ',' (44) 85 99 113 118 121 131 137 190 193 196 200 203 207 258
+    '-' (45) 260
+    ':' (58) 90 111 116
+    '=' (61) 88 108 109 127 129 138 197 205
+    '?' (63) 212 217 228 231
+    '[' (91) 102 103 104 105
+    ']' (93) 102 103 104 105
+    '{' (123) 67 96 97 109
+    '|' (124) 237
+    '}' (125) 67 96 97 109
+    error (256) 11 20 144
+    AND (258)
+    AT (259) 61 185 186 188
+    ATTACH (260) 61
+    BLOCK (261) 83
+    BUILD (262) 6
+    CHAR (263) 81
+    COLONEQ (264) 128 129
+    COMPILE_WITH (265) 76
+    CONFIG (266) 180 181
+    DEFFS (267) 53
+    DEFINE (268) 54
+    DEFOPT (269) 55
+    DEFPARAM (270) 58 59
+    DEFFLAG (271) 56 57
+    DEFPSEUDO (272) 65
+    DEFPSEUDODEV (273) 66
+    DEVICE (274) 60 186
+    DEVCLASS (275) 52
+    DUMPS (276) 221
+    DEVICE_MAJOR (277) 46
+    ENDFILE (278) 21
+    XFILE (279) 44
+    FILE_SYSTEM (280) 169 170
+    FLAGS (281) 234
+    IDENT (282) 178 179
+    IOCONF (283) 10
+    LINKZERO (284) 91
+    XMACHINE (285) 7 8 9
+    MAJOR (286) 67 216
+    MAKEOPTIONS (287) 64 172 173
+    MAXUSERS (288) 63 177
+    MAXPARTITIONS (289) 62
+    MINOR (290) 216
+    NEEDS_COUNT (291) 73
+    NEEDS_FLAG (292) 74 79
+    NO (293) 14
+    CNO (294) 15
+    XOBJECT (295) 45
+    OBSOLETE (296) 57 59
+    ON (297) 262
+    OPTIONS (298) 175 176
+    PACKAGE (299)
+    PLUSEQ (300) 132 198
+    PREFIX (301) 47 48
+    BUILDPREFIX (302) 49 50 51
+    PSEUDO_DEVICE (303) 182 183
+    PSEUDO_ROOT (304) 184
+    ROOT (305) 123 210 211 226
+    SELECT (306) 166 167
+    SINGLE (307) 87
+    SOURCE (308) 5
+    TYPE (309) 217 218
+    VECTOR (310) 88
+    VERSION (311) 68
+    WITH (312) 135
+    NUMBER <num> (313) 89 90 139 216 259 260
+    PATHNAME <str> (314) 250
+    QSTRING <str> (315) 107 213 245 249 251 255
+    WORD <str> (316) 7 8 9 10 12 13 46 50 52 54 94 106 114 119 122 126 127 128 129 133 135 166 167 181 182 183 191 194 201 204 205 208 209 214 218 224 225 227 228 231 232 244 246 252 256
+    EMPTYSTRING <str> (317) 253
+    ENDDEFS (318) 16
+
+
+Nonterminals, with rules where they appear
+
+    $accept (80)
+        on left: 0
+    configuration (81)
+        on left: 1
+        on right: 0
+    topthings (82)
+        on left: 2 3
+        on right: 1 3
+    topthing (83)
+        on left: 4 5 6
+        on right: 3
+    machine_spec (84)
+        on left: 7 8 9 10 11
+        on right: 1
+    subarches <list> (85)
+        on left: 12 13
+        on right: 9 13
+    no <i32> (86)
+        on left: 14 15
+        on right: 167 169 172 175 179 181 182 185 186 187
+    definition_part (87)
+        on left: 16
+        on right: 1
+    definitions (88)
+        on left: 17 18 19 20 21
+        on right: 16 18 19 20 21
+    definition (89)
+        on left: 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43
+        on right: 19 145
+    define_file (90)
+        on left: 44
+        on right: 22
+    define_object (91)
+        on left: 45
+        on right: 23
+    define_device_major (92)
+        on left: 46
+        on right: 24
+    define_prefix (93)
+        on left: 47 48
+        on right: 25
+    define_buildprefix (94)
+        on left: 49 50 51
+        on right: 26
+    define_devclass (95)
+        on left: 52
+        on right: 27
+    define_filesystems (96)
+        on left: 53
+        on right: 28
+    define_attribute (97)
+        on left: 54
+        on right: 29
+    define_option (98)
+        on left: 55
+        on right: 30
+    define_flag (99)
+        on left: 56
+        on right: 31
+    define_obsolete_flag (100)
+        on left: 57
+        on right: 32
+    define_param (101)
+        on left: 58
+        on right: 33
+    define_obsolete_param (102)
+        on left: 59
+        on right: 34
+    define_device (103)
+        on left: 60
+        on right: 35
+    define_device_attachment (104)
+        on left: 61
+        on right: 36
+    define_maxpartitions (105)
+        on left: 62
+        on right: 37
+    define_maxusers (106)
+        on left: 63
+        on right: 38
+    define_makeoptions (107)
+        on left: 64
+        on right: 39
+    define_pseudo (108)
+        on left: 65
+        on right: 40
+    define_pseudodev (109)
+        on left: 66
+        on right: 41
+    define_major (110)
+        on left: 67
+        on right: 42
+    define_version (111)
+        on left: 68
+        on right: 43
+    fopts <condexpr> (112)
+        on left: 69 70
+        on right: 44 45 46
+    fflags <flag> (113)
+        on left: 71 72
+        on right: 44 72
+    fflag <flag> (114)
+        on left: 73 74
+        on right: 72
+    rule <str> (115)
+        on left: 75 76
+        on right: 44
+    oflags <flag> (116)
+        on left: 77 78
+        on right: 45 78
+    oflag <flag> (117)
+        on left: 79
+        on right: 78
+    device_major_char <devmajor> (118)
+        on left: 80 81
+        on right: 46
+    device_major_block <devmajor> (119)
+        on left: 82 83
+        on right: 46
+    devnodes <list> (120)
+        on left: 84 85 86
+        on right: 46
+    devnodetype <list> (121)
+        on left: 87 88
+        on right: 85 86
+    devnode_dims <list> (122)
+        on left: 89 90
+        on right: 88
+    devnodeflags <list> (123)
+        on left: 91
+        on right: 85
+    deffses <list> (124)
+        on left: 92 93
+        on right: 53 93
+    deffs <str> (125)
+        on left: 94
+        on right: 92 93
+    interface_opt <loclist> (126)
+        on left: 95 96 97
+        on right: 54 60 65 66
+    loclist <loclist> (127)
+        on left: 98 99
+        on right: 97 99
+    locdef <loclist> (128)
+        on left: 100 101 102 103 104 105
+        on right: 98 99
+    locname <str> (129)
+        on left: 106 107
+        on right: 100 101 102 103 104 105
+    locdefault <str> (130)
+        on left: 108
+        on right: 100 102
+    locdefaults <loclist> (131)
+        on left: 109
+        on right: 104 105
+    depend_list <attrlist> (132)
+        on left: 110 111
+        on right: 54 60 61 65 66
+    depends <attrlist> (133)
+        on left: 112 113
+        on right: 111 113
+    depend <attr> (134)
+        on left: 114
+        on right: 112 113
+    optdepend_list <list> (135)
+        on left: 115 116
+        on right: 53 55 56 58
+    optdepends <list> (136)
+        on left: 117 118
+        on right: 116 118
+    optdepend <str> (137)
+        on left: 119
+        on right: 117 118
+    atlist <list> (138)
+        on left: 120 121
+        on right: 61 121
+    atname <str> (139)
+        on left: 122 123
+        on right: 120 121
+    defopts <defoptlist> (140)
+        on left: 124 125
+        on right: 55 56 57 58 59 125
+    defopt <defoptlist> (141)
+        on left: 126 127 128 129
+        on right: 124 125
+    condmkopt_list (142)
+        on left: 130 131
+        on right: 64 131
+    condmkoption (143)
+        on left: 132
+        on right: 130 131
+    devbase <devb> (144)
+        on left: 133
+        on right: 60 61 65 66 138
+    devattach_opt <deva> (145)
+        on left: 134 135
+        on right: 61
+    majorlist (146)
+        on left: 136 137
+        on right: 67 137
+    majordef (147)
+        on left: 138
+        on right: 136 137
+    int32 <i32> (148)
+        on left: 139
+        on right: 62 63 68 81 83 103 104 105 138 177 223 234
+    selection_part (149)
+        on left: 140
+        on right: 1
+    selections (150)
+        on left: 141 142 143 144
+        on right: 140 142 143 144
+    selection (151)
+        on left: 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162 163 164 165
+        on right: 143
+    select_attr (152)
+        on left: 166
+        on right: 146
+    select_no_attr (153)
+        on left: 167
+        on right: 147
+    select_no_filesystems (154)
+        on left: 169
+        on right: 148
+    $@1 (155)
+        on left: 168
+        on right: 169
+    select_filesystems (156)
+        on left: 170
+        on right: 149
+    select_no_makeoptions (157)
+        on left: 172
+        on right: 150
+    $@2 (158)
+        on left: 171
+        on right: 172
+    select_makeoptions (159)
+        on left: 173
+        on right: 151
+    select_no_options (160)
+        on left: 175
+        on right: 152
+    $@3 (161)
+        on left: 174
+        on right: 175
+    select_options (162)
+        on left: 176
+        on right: 153
+    select_maxusers (163)
+        on left: 177
+        on right: 154
+    select_ident (164)
+        on left: 178
+        on right: 155
+    select_no_ident (165)
+        on left: 179
+        on right: 156
+    select_config (166)
+        on left: 180
+        on right: 157
+    select_no_config (167)
+        on left: 181
+        on right: 158
+    select_no_pseudodev (168)
+        on left: 182
+        on right: 159
+    select_pseudodev (169)
+        on left: 183
+        on right: 160
+    select_pseudoroot (170)
+        on left: 184
+        on right: 161
+    select_no_device_instance_attachment (171)
+        on left: 185
+        on right: 162
+    select_no_device_attachment (172)
+        on left: 186
+        on right: 163
+    select_no_device_instance (173)
+        on left: 187
+        on right: 164
+    select_device_instance (174)
+        on left: 188
+        on right: 165
+    fs_list (175)
+        on left: 189 190
+        on right: 170 190
+    fsoption (176)
+        on left: 191
+        on right: 189 190
+    no_fs_list (177)
+        on left: 192 193
+        on right: 169 193
+    no_fsoption (178)
+        on left: 194
+        on right: 192 193
+    mkopt_list (179)
+        on left: 195 196
+        on right: 173 196
+    mkoption (180)
+        on left: 197 198
+        on right: 195 196
+    no_mkopt_list (181)
+        on left: 199 200
+        on right: 172 200
+    no_mkoption (182)
+        on left: 201
+        on right: 199 200
+    opt_list (183)
+        on left: 202 203
+        on right: 176 203
+    option (184)
+        on left: 204 205
+        on right: 202 203
+    no_opt_list (185)
+        on left: 206 207
+        on right: 175 207
+    no_option (186)
+        on left: 208
+        on right: 206 207
+    conf (187)
+        on left: 209
+        on right: 180
+    root_spec (188)
+        on left: 210 211
+        on right: 180
+    dev_spec <list> (189)
+        on left: 212 213 214 215
+        on right: 210 211 221
+    major_minor <val> (190)
+        on left: 216
+        on right: 215
+    fs_spec <str> (191)
+        on left: 217 218
+        on right: 211
+    sysparam_list (192)
+        on left: 219 220
+        on right: 180 220
+    sysparam (193)
+        on left: 221
+        on right: 220
+    npseudo <i32> (194)
+        on left: 222 223
+        on right: 183
+    device_instance <str> (195)
+        on left: 224 225
+        on right: 184 185 187 188
+    attachment <str> (196)
+        on left: 226 227 228
+        on right: 185 186 188
+    locators <loclist> (197)
+        on left: 229 230
+        on right: 188 230
+    locator <loclist> (198)
+        on left: 231 232
+        on right: 230
+    device_flags <i32> (199)
+        on left: 233 234
+        on right: 188
+    condexpr <condexpr> (200)
+        on left: 235
+        on right: 70 132 243
+    cond_or_expr <condexpr> (201)
+        on left: 236 237
+        on right: 235 237
+    cond_and_expr <condexpr> (202)
+        on left: 238 239
+        on right: 236 237 239
+    cond_prefix_expr <condexpr> (203)
+        on left: 240
+        on right: 238 239
+    cond_base_expr <condexpr> (204)
+        on left: 241 242 243
+        on right: 240
+    condatom <condexpr> (205)
+        on left: 244
+        on right: 241 242
+    mkvarname <str> (206)
+        on left: 245 246
+        on right: 132 197 198
+    optfile_opt <str> (207)
+        on left: 247 248
+        on right: 55 56 57 58 59
+    filename <str> (208)
+        on left: 249 250
+        on right: 5 6 44 45 47 49 248
+    value <str> (209)
+        on left: 251 252 253 254
+        on right: 108 127 128 129 132 197 198 205 257 258
+    stringvalue <str> (210)
+        on left: 255 256
+        on right: 76 178
+    values <loclist> (211)
+        on left: 257 258
+        on right: 109 232 258
+    signed_number <num> (212)
+        on left: 259 260
+        on right: 254
+    on_opt (213)
+        on left: 261 262
+        on right: 210 211 221
+
+
+State 0
+
+    0 $accept: • configuration $end
+
+    $default  reduce using rule 2 (topthings)
+
+    configuration  go to state 1
+    topthings      go to state 2
+
+
+State 1
+
+    0 $accept: configuration • $end
+
+    $end  shift, and go to state 3
+
+
+State 2
+
+    1 configuration: topthings • machine_spec definition_part selection_part
+    3 topthings: topthings • topthing
+
+    error     shift, and go to state 4
+    BUILD     shift, and go to state 5
+    IOCONF    shift, and go to state 6
+    XMACHINE  shift, and go to state 7
+    SOURCE    shift, and go to state 8
+    '\n'      shift, and go to state 9
+
+    topthing      go to state 10
+    machine_spec  go to state 11
+
+
+State 3
+
+    0 $accept: configuration $end •
+
+    $default  accept
+
+
+State 4
+
+   11 machine_spec: error •
+
+    $default  reduce using rule 11 (machine_spec)
+
+
+State 5
+
+    6 topthing: BUILD • filename '\n'
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    filename  go to state 14
+
+
+State 6
+
+   10 machine_spec: IOCONF • WORD '\n'
+
+    WORD  shift, and go to state 15
+
+
+State 7
+
+    7 machine_spec: XMACHINE • WORD '\n'
+    8             | XMACHINE • WORD WORD '\n'
+    9             | XMACHINE • WORD WORD subarches '\n'
+
+    WORD  shift, and go to state 16
+
+
+State 8
+
+    5 topthing: SOURCE • filename '\n'
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    filename  go to state 17
+
+
+State 9
+
+    4 topthing: '\n' •
+
+    $default  reduce using rule 4 (topthing)
+
+
+State 10
+
+    3 topthings: topthings topthing •
+
+    $default  reduce using rule 3 (topthings)
+
+
+State 11
+
+    1 configuration: topthings machine_spec • definition_part selection_part
+
+    $default  reduce using rule 17 (definitions)
+
+    definition_part  go to state 18
+    definitions      go to state 19
+
+
+State 12
+
+  250 filename: PATHNAME •
+
+    $default  reduce using rule 250 (filename)
+
+
+State 13
+
+  249 filename: QSTRING •
+
+    $default  reduce using rule 249 (filename)
+
+
+State 14
+
+    6 topthing: BUILD filename • '\n'
+
+    '\n'  shift, and go to state 20
+
+
+State 15
+
+   10 machine_spec: IOCONF WORD • '\n'
+
+    '\n'  shift, and go to state 21
+
+
+State 16
+
+    7 machine_spec: XMACHINE WORD • '\n'
+    8             | XMACHINE WORD • WORD '\n'
+    9             | XMACHINE WORD • WORD subarches '\n'
+
+    WORD  shift, and go to state 22
+    '\n'  shift, and go to state 23
+
+
+State 17
+
+    5 topthing: SOURCE filename • '\n'
+
+    '\n'  shift, and go to state 24
+
+
+State 18
+
+    1 configuration: topthings machine_spec definition_part • selection_part
+
+    $default  reduce using rule 141 (selections)
+
+    selection_part  go to state 25
+    selections      go to state 26
+
+
+State 19
+
+   16 definition_part: definitions • ENDDEFS
+   18 definitions: definitions • '\n'
+   19            | definitions • definition '\n'
+   20            | definitions • error '\n'
+   21            | definitions • ENDFILE
+
+    error          shift, and go to state 27
+    ATTACH         shift, and go to state 28
+    DEFFS          shift, and go to state 29
+    DEFINE         shift, and go to state 30
+    DEFOPT         shift, and go to state 31
+    DEFPARAM       shift, and go to state 32
+    DEFFLAG        shift, and go to state 33
+    DEFPSEUDO      shift, and go to state 34
+    DEFPSEUDODEV   shift, and go to state 35
+    DEVICE         shift, and go to state 36
+    DEVCLASS       shift, and go to state 37
+    DEVICE_MAJOR   shift, and go to state 38
+    ENDFILE        shift, and go to state 39
+    XFILE          shift, and go to state 40
+    MAJOR          shift, and go to state 41
+    MAKEOPTIONS    shift, and go to state 42
+    MAXUSERS       shift, and go to state 43
+    MAXPARTITIONS  shift, and go to state 44
+    XOBJECT        shift, and go to state 45
+    OBSOLETE       shift, and go to state 46
+    PREFIX         shift, and go to state 47
+    BUILDPREFIX    shift, and go to state 48
+    VERSION        shift, and go to state 49
+    ENDDEFS        shift, and go to state 50
+    '\n'           shift, and go to state 51
+
+    definition                go to state 52
+    define_file               go to state 53
+    define_object             go to state 54
+    define_device_major       go to state 55
+    define_prefix             go to state 56
+    define_buildprefix        go to state 57
+    define_devclass           go to state 58
+    define_filesystems        go to state 59
+    define_attribute          go to state 60
+    define_option             go to state 61
+    define_flag               go to state 62
+    define_obsolete_flag      go to state 63
+    define_param              go to state 64
+    define_obsolete_param     go to state 65
+    define_device             go to state 66
+    define_device_attachment  go to state 67
+    define_maxpartitions      go to state 68
+    define_maxusers           go to state 69
+    define_makeoptions        go to state 70
+    define_pseudo             go to state 71
+    define_pseudodev          go to state 72
+    define_major              go to state 73
+    define_version            go to state 74
+
+
+State 20
+
+    6 topthing: BUILD filename '\n' •
+
+    $default  reduce using rule 6 (topthing)
+
+
+State 21
+
+   10 machine_spec: IOCONF WORD '\n' •
+
+    $default  reduce using rule 10 (machine_spec)
+
+
+State 22
+
+    8 machine_spec: XMACHINE WORD WORD • '\n'
+    9             | XMACHINE WORD WORD • subarches '\n'
+
+    WORD  shift, and go to state 75
+    '\n'  shift, and go to state 76
+
+    subarches  go to state 77
+
+
+State 23
+
+    7 machine_spec: XMACHINE WORD '\n' •
+
+    $default  reduce using rule 7 (machine_spec)
+
+
+State 24
+
+    5 topthing: SOURCE filename '\n' •
+
+    $default  reduce using rule 5 (topthing)
+
+
+State 25
+
+    1 configuration: topthings machine_spec definition_part selection_part •
+
+    $default  reduce using rule 1 (configuration)
+
+
+State 26
+
+  140 selection_part: selections •
+  142 selections: selections • '\n'
+  143           | selections • selection '\n'
+  144           | selections • error '\n'
+
+    error          shift, and go to state 78
+    ATTACH         shift, and go to state 28
+    CONFIG         shift, and go to state 79
+    DEFFS          shift, and go to state 29
+    DEFINE         shift, and go to state 30
+    DEFOPT         shift, and go to state 31
+    DEFPARAM       shift, and go to state 32
+    DEFFLAG        shift, and go to state 33
+    DEFPSEUDO      shift, and go to state 34
+    DEFPSEUDODEV   shift, and go to state 35
+    DEVICE         shift, and go to state 36
+    DEVCLASS       shift, and go to state 37
+    DEVICE_MAJOR   shift, and go to state 38
+    XFILE          shift, and go to state 40
+    FILE_SYSTEM    shift, and go to state 80
+    IDENT          shift, and go to state 81
+    MAJOR          shift, and go to state 41
+    MAKEOPTIONS    shift, and go to state 82
+    MAXUSERS       shift, and go to state 83
+    MAXPARTITIONS  shift, and go to state 44
+    NO             shift, and go to state 84
+    CNO            shift, and go to state 85
+    XOBJECT        shift, and go to state 45
+    OBSOLETE       shift, and go to state 46
+    OPTIONS        shift, and go to state 86
+    PREFIX         shift, and go to state 47
+    BUILDPREFIX    shift, and go to state 48
+    PSEUDO_DEVICE  shift, and go to state 87
+    PSEUDO_ROOT    shift, and go to state 88
+    SELECT         shift, and go to state 89
+    VERSION        shift, and go to state 49
+    WORD           shift, and go to state 90
+    '\n'           shift, and go to state 91
+
+    $end  reduce using rule 140 (selection_part)
+
+    no                                    go to state 92
+    definition                            go to state 93
+    define_file                           go to state 53
+    define_object                         go to state 54
+    define_device_major                   go to state 55
+    define_prefix                         go to state 56
+    define_buildprefix                    go to state 57
+    define_devclass                       go to state 58
+    define_filesystems                    go to state 59
+    define_attribute                      go to state 60
+    define_option                         go to state 61
+    define_flag                           go to state 62
+    define_obsolete_flag                  go to state 63
+    define_param                          go to state 64
+    define_obsolete_param                 go to state 65
+    define_device                         go to state 66
+    define_device_attachment              go to state 67
+    define_maxpartitions                  go to state 68
+    define_maxusers                       go to state 69
+    define_makeoptions                    go to state 70
+    define_pseudo                         go to state 71
+    define_pseudodev                      go to state 72
+    define_major                          go to state 73
+    define_version                        go to state 74
+    selection                             go to state 94
+    select_attr                           go to state 95
+    select_no_attr                        go to state 96
+    select_no_filesystems                 go to state 97
+    select_filesystems                    go to state 98
+    select_no_makeoptions                 go to state 99
+    select_makeoptions                    go to state 100
+    select_no_options                     go to state 101
+    select_options                        go to state 102
+    select_maxusers                       go to state 103
+    select_ident                          go to state 104
+    select_no_ident                       go to state 105
+    select_config                         go to state 106
+    select_no_config                      go to state 107
+    select_no_pseudodev                   go to state 108
+    select_pseudodev                      go to state 109
+    select_pseudoroot                     go to state 110
+    select_no_device_instance_attachment  go to state 111
+    select_no_device_attachment           go to state 112
+    select_no_device_instance             go to state 113
+    select_device_instance                go to state 114
+    device_instance                       go to state 115
+
+
+State 27
+
+   20 definitions: definitions error • '\n'
+
+    '\n'  shift, and go to state 116
+
+
+State 28
+
+   61 define_device_attachment: ATTACH • devbase AT atlist devattach_opt depend_list
+
+    WORD  shift, and go to state 117
+
+    devbase  go to state 118
+
+
+State 29
+
+   53 define_filesystems: DEFFS • deffses optdepend_list
+
+    WORD  shift, and go to state 119
+
+    deffses  go to state 120
+    deffs    go to state 121
+
+
+State 30
+
+   54 define_attribute: DEFINE • WORD interface_opt depend_list
+
+    WORD  shift, and go to state 122
+
+
+State 31
+
+   55 define_option: DEFOPT • optfile_opt defopts optdepend_list
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    $default  reduce using rule 247 (optfile_opt)
+
+    optfile_opt  go to state 123
+    filename     go to state 124
+
+
+State 32
+
+   58 define_param: DEFPARAM • optfile_opt defopts optdepend_list
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    $default  reduce using rule 247 (optfile_opt)
+
+    optfile_opt  go to state 125
+    filename     go to state 124
+
+
+State 33
+
+   56 define_flag: DEFFLAG • optfile_opt defopts optdepend_list
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    $default  reduce using rule 247 (optfile_opt)
+
+    optfile_opt  go to state 126
+    filename     go to state 124
+
+
+State 34
+
+   65 define_pseudo: DEFPSEUDO • devbase interface_opt depend_list
+
+    WORD  shift, and go to state 117
+
+    devbase  go to state 127
+
+
+State 35
+
+   66 define_pseudodev: DEFPSEUDODEV • devbase interface_opt depend_list
+
+    WORD  shift, and go to state 117
+
+    devbase  go to state 128
+
+
+State 36
+
+   60 define_device: DEVICE • devbase interface_opt depend_list
+
+    WORD  shift, and go to state 117
+
+    devbase  go to state 129
+
+
+State 37
+
+   52 define_devclass: DEVCLASS • WORD
+
+    WORD  shift, and go to state 130
+
+
+State 38
+
+   46 define_device_major: DEVICE_MAJOR • WORD device_major_char device_major_block fopts devnodes
+
+    WORD  shift, and go to state 131
+
+
+State 39
+
+   21 definitions: definitions ENDFILE •
+
+    $default  reduce using rule 21 (definitions)
+
+
+State 40
+
+   44 define_file: XFILE • filename fopts fflags rule
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    filename  go to state 132
+
+
+State 41
+
+   67 define_major: MAJOR • '{' majorlist '}'
+
+    '{'  shift, and go to state 133
+
+
+State 42
+
+   64 define_makeoptions: MAKEOPTIONS • condmkopt_list
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    condmkopt_list    go to state 137
+    condmkoption      go to state 138
+    condexpr          go to state 139
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 43
+
+   63 define_maxusers: MAXUSERS • int32 int32 int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 146
+
+
+State 44
+
+   62 define_maxpartitions: MAXPARTITIONS • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 147
+
+
+State 45
+
+   45 define_object: XOBJECT • filename fopts oflags
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    filename  go to state 148
+
+
+State 46
+
+   57 define_obsolete_flag: OBSOLETE • DEFFLAG optfile_opt defopts
+   59 define_obsolete_param: OBSOLETE • DEFPARAM optfile_opt defopts
+
+    DEFPARAM  shift, and go to state 149
+    DEFFLAG   shift, and go to state 150
+
+
+State 47
+
+   47 define_prefix: PREFIX • filename
+   48              | PREFIX •
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    $default  reduce using rule 48 (define_prefix)
+
+    filename  go to state 151
+
+
+State 48
+
+   49 define_buildprefix: BUILDPREFIX • filename
+   50                   | BUILDPREFIX • WORD
+   51                   | BUILDPREFIX •
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+    WORD      shift, and go to state 152
+
+    $default  reduce using rule 51 (define_buildprefix)
+
+    filename  go to state 153
+
+
+State 49
+
+   68 define_version: VERSION • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 154
+
+
+State 50
+
+   16 definition_part: definitions ENDDEFS •
+
+    $default  reduce using rule 16 (definition_part)
+
+
+State 51
+
+   18 definitions: definitions '\n' •
+
+    $default  reduce using rule 18 (definitions)
+
+
+State 52
+
+   19 definitions: definitions definition • '\n'
+
+    '\n'  shift, and go to state 155
+
+
+State 53
+
+   22 definition: define_file •
+
+    $default  reduce using rule 22 (definition)
+
+
+State 54
+
+   23 definition: define_object •
+
+    $default  reduce using rule 23 (definition)
+
+
+State 55
+
+   24 definition: define_device_major •
+
+    $default  reduce using rule 24 (definition)
+
+
+State 56
+
+   25 definition: define_prefix •
+
+    $default  reduce using rule 25 (definition)
+
+
+State 57
+
+   26 definition: define_buildprefix •
+
+    $default  reduce using rule 26 (definition)
+
+
+State 58
+
+   27 definition: define_devclass •
+
+    $default  reduce using rule 27 (definition)
+
+
+State 59
+
+   28 definition: define_filesystems •
+
+    $default  reduce using rule 28 (definition)
+
+
+State 60
+
+   29 definition: define_attribute •
+
+    $default  reduce using rule 29 (definition)
+
+
+State 61
+
+   30 definition: define_option •
+
+    $default  reduce using rule 30 (definition)
+
+
+State 62
+
+   31 definition: define_flag •
+
+    $default  reduce using rule 31 (definition)
+
+
+State 63
+
+   32 definition: define_obsolete_flag •
+
+    $default  reduce using rule 32 (definition)
+
+
+State 64
+
+   33 definition: define_param •
+
+    $default  reduce using rule 33 (definition)
+
+
+State 65
+
+   34 definition: define_obsolete_param •
+
+    $default  reduce using rule 34 (definition)
+
+
+State 66
+
+   35 definition: define_device •
+
+    $default  reduce using rule 35 (definition)
+
+
+State 67
+
+   36 definition: define_device_attachment •
+
+    $default  reduce using rule 36 (definition)
+
+
+State 68
+
+   37 definition: define_maxpartitions •
+
+    $default  reduce using rule 37 (definition)
+
+
+State 69
+
+   38 definition: define_maxusers •
+
+    $default  reduce using rule 38 (definition)
+
+
+State 70
+
+   39 definition: define_makeoptions •
+
+    $default  reduce using rule 39 (definition)
+
+
+State 71
+
+   40 definition: define_pseudo •
+
+    $default  reduce using rule 40 (definition)
+
+
+State 72
+
+   41 definition: define_pseudodev •
+
+    $default  reduce using rule 41 (definition)
+
+
+State 73
+
+   42 definition: define_major •
+
+    $default  reduce using rule 42 (definition)
+
+
+State 74
+
+   43 definition: define_version •
+
+    $default  reduce using rule 43 (definition)
+
+
+State 75
+
+   12 subarches: WORD •
+
+    $default  reduce using rule 12 (subarches)
+
+
+State 76
+
+    8 machine_spec: XMACHINE WORD WORD '\n' •
+
+    $default  reduce using rule 8 (machine_spec)
+
+
+State 77
+
+    9 machine_spec: XMACHINE WORD WORD subarches • '\n'
+   13 subarches: subarches • WORD
+
+    WORD  shift, and go to state 156
+    '\n'  shift, and go to state 157
+
+
+State 78
+
+  144 selections: selections error • '\n'
+
+    '\n'  shift, and go to state 158
+
+
+State 79
+
+  180 select_config: CONFIG • conf root_spec sysparam_list
+
+    WORD  shift, and go to state 159
+
+    conf  go to state 160
+
+
+State 80
+
+  170 select_filesystems: FILE_SYSTEM • fs_list
+
+    WORD  shift, and go to state 161
+
+    fs_list   go to state 162
+    fsoption  go to state 163
+
+
+State 81
+
+  178 select_ident: IDENT • stringvalue
+
+    QSTRING  shift, and go to state 164
+    WORD     shift, and go to state 165
+
+    stringvalue  go to state 166
+
+
+State 82
+
+   64 define_makeoptions: MAKEOPTIONS • condmkopt_list
+  173 select_makeoptions: MAKEOPTIONS • mkopt_list
+
+    QSTRING  shift, and go to state 167
+    WORD     shift, and go to state 168
+    '!'      shift, and go to state 135
+    '('      shift, and go to state 136
+
+    condmkopt_list    go to state 137
+    condmkoption      go to state 138
+    mkopt_list        go to state 169
+    mkoption          go to state 170
+    condexpr          go to state 139
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+    mkvarname         go to state 171
+
+
+State 83
+
+   63 define_maxusers: MAXUSERS • int32 int32 int32
+  177 select_maxusers: MAXUSERS • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 172
+
+
+State 84
+
+   14 no: NO •
+
+    $default  reduce using rule 14 (no)
+
+
+State 85
+
+   15 no: CNO •
+
+    $default  reduce using rule 15 (no)
+
+
+State 86
+
+  176 select_options: OPTIONS • opt_list
+
+    WORD  shift, and go to state 173
+
+    opt_list  go to state 174
+    option    go to state 175
+
+
+State 87
+
+  183 select_pseudodev: PSEUDO_DEVICE • WORD npseudo
+
+    WORD  shift, and go to state 176
+
+
+State 88
+
+  184 select_pseudoroot: PSEUDO_ROOT • device_instance
+
+    WORD  shift, and go to state 90
+
+    device_instance  go to state 177
+
+
+State 89
+
+  166 select_attr: SELECT • WORD
+
+    WORD  shift, and go to state 178
+
+
+State 90
+
+  224 device_instance: WORD •
+  225                | WORD • '*'
+
+    '*'  shift, and go to state 179
+
+    $default  reduce using rule 224 (device_instance)
+
+
+State 91
+
+  142 selections: selections '\n' •
+
+    $default  reduce using rule 142 (selections)
+
+
+State 92
+
+  167 select_no_attr: no • SELECT WORD
+  169 select_no_filesystems: no • FILE_SYSTEM $@1 no_fs_list
+  172 select_no_makeoptions: no • MAKEOPTIONS $@2 no_mkopt_list
+  175 select_no_options: no • OPTIONS $@3 no_opt_list
+  179 select_no_ident: no • IDENT
+  181 select_no_config: no • CONFIG WORD
+  182 select_no_pseudodev: no • PSEUDO_DEVICE WORD
+  185 select_no_device_instance_attachment: no • device_instance AT attachment
+  186 select_no_device_attachment: no • DEVICE AT attachment
+  187 select_no_device_instance: no • device_instance
+
+    CONFIG         shift, and go to state 180
+    DEVICE         shift, and go to state 181
+    FILE_SYSTEM    shift, and go to state 182
+    IDENT          shift, and go to state 183
+    MAKEOPTIONS    shift, and go to state 184
+    OPTIONS        shift, and go to state 185
+    PSEUDO_DEVICE  shift, and go to state 186
+    SELECT         shift, and go to state 187
+    WORD           shift, and go to state 90
+
+    device_instance  go to state 188
+
+
+State 93
+
+  145 selection: definition •
+
+    $default  reduce using rule 145 (selection)
+
+
+State 94
+
+  143 selections: selections selection • '\n'
+
+    '\n'  shift, and go to state 189
+
+
+State 95
+
+  146 selection: select_attr •
+
+    $default  reduce using rule 146 (selection)
+
+
+State 96
+
+  147 selection: select_no_attr •
+
+    $default  reduce using rule 147 (selection)
+
+
+State 97
+
+  148 selection: select_no_filesystems •
+
+    $default  reduce using rule 148 (selection)
+
+
+State 98
+
+  149 selection: select_filesystems •
+
+    $default  reduce using rule 149 (selection)
+
+
+State 99
+
+  150 selection: select_no_makeoptions •
+
+    $default  reduce using rule 150 (selection)
+
+
+State 100
+
+  151 selection: select_makeoptions •
+
+    $default  reduce using rule 151 (selection)
+
+
+State 101
+
+  152 selection: select_no_options •
+
+    $default  reduce using rule 152 (selection)
+
+
+State 102
+
+  153 selection: select_options •
+
+    $default  reduce using rule 153 (selection)
+
+
+State 103
+
+  154 selection: select_maxusers •
+
+    $default  reduce using rule 154 (selection)
+
+
+State 104
+
+  155 selection: select_ident •
+
+    $default  reduce using rule 155 (selection)
+
+
+State 105
+
+  156 selection: select_no_ident •
+
+    $default  reduce using rule 156 (selection)
+
+
+State 106
+
+  157 selection: select_config •
+
+    $default  reduce using rule 157 (selection)
+
+
+State 107
+
+  158 selection: select_no_config •
+
+    $default  reduce using rule 158 (selection)
+
+
+State 108
+
+  159 selection: select_no_pseudodev •
+
+    $default  reduce using rule 159 (selection)
+
+
+State 109
+
+  160 selection: select_pseudodev •
+
+    $default  reduce using rule 160 (selection)
+
+
+State 110
+
+  161 selection: select_pseudoroot •
+
+    $default  reduce using rule 161 (selection)
+
+
+State 111
+
+  162 selection: select_no_device_instance_attachment •
+
+    $default  reduce using rule 162 (selection)
+
+
+State 112
+
+  163 selection: select_no_device_attachment •
+
+    $default  reduce using rule 163 (selection)
+
+
+State 113
+
+  164 selection: select_no_device_instance •
+
+    $default  reduce using rule 164 (selection)
+
+
+State 114
+
+  165 selection: select_device_instance •
+
+    $default  reduce using rule 165 (selection)
+
+
+State 115
+
+  188 select_device_instance: device_instance • AT attachment locators device_flags
+
+    AT  shift, and go to state 190
+
+
+State 116
+
+   20 definitions: definitions error '\n' •
+
+    $default  reduce using rule 20 (definitions)
+
+
+State 117
+
+  133 devbase: WORD •
+
+    $default  reduce using rule 133 (devbase)
+
+
+State 118
+
+   61 define_device_attachment: ATTACH devbase • AT atlist devattach_opt depend_list
+
+    AT  shift, and go to state 191
+
+
+State 119
+
+   94 deffs: WORD •
+
+    $default  reduce using rule 94 (deffs)
+
+
+State 120
+
+   53 define_filesystems: DEFFS deffses • optdepend_list
+   93 deffses: deffses • deffs
+
+    WORD  shift, and go to state 119
+    ':'   shift, and go to state 192
+
+    $default  reduce using rule 115 (optdepend_list)
+
+    deffs           go to state 193
+    optdepend_list  go to state 194
+
+
+State 121
+
+   92 deffses: deffs •
+
+    $default  reduce using rule 92 (deffses)
+
+
+State 122
+
+   54 define_attribute: DEFINE WORD • interface_opt depend_list
+
+    '{'  shift, and go to state 195
+
+    $default  reduce using rule 95 (interface_opt)
+
+    interface_opt  go to state 196
+
+
+State 123
+
+   55 define_option: DEFOPT optfile_opt • defopts optdepend_list
+
+    WORD  shift, and go to state 197
+
+    defopts  go to state 198
+    defopt   go to state 199
+
+
+State 124
+
+  248 optfile_opt: filename •
+
+    $default  reduce using rule 248 (optfile_opt)
+
+
+State 125
+
+   58 define_param: DEFPARAM optfile_opt • defopts optdepend_list
+
+    WORD  shift, and go to state 197
+
+    defopts  go to state 200
+    defopt   go to state 199
+
+
+State 126
+
+   56 define_flag: DEFFLAG optfile_opt • defopts optdepend_list
+
+    WORD  shift, and go to state 197
+
+    defopts  go to state 201
+    defopt   go to state 199
+
+
+State 127
+
+   65 define_pseudo: DEFPSEUDO devbase • interface_opt depend_list
+
+    '{'  shift, and go to state 195
+
+    $default  reduce using rule 95 (interface_opt)
+
+    interface_opt  go to state 202
+
+
+State 128
+
+   66 define_pseudodev: DEFPSEUDODEV devbase • interface_opt depend_list
+
+    '{'  shift, and go to state 195
+
+    $default  reduce using rule 95 (interface_opt)
+
+    interface_opt  go to state 203
+
+
+State 129
+
+   60 define_device: DEVICE devbase • interface_opt depend_list
+
+    '{'  shift, and go to state 195
+
+    $default  reduce using rule 95 (interface_opt)
+
+    interface_opt  go to state 204
+
+
+State 130
+
+   52 define_devclass: DEVCLASS WORD •
+
+    $default  reduce using rule 52 (define_devclass)
+
+
+State 131
+
+   46 define_device_major: DEVICE_MAJOR WORD • device_major_char device_major_block fopts devnodes
+
+    CHAR  shift, and go to state 205
+
+    $default  reduce using rule 80 (device_major_char)
+
+    device_major_char  go to state 206
+
+
+State 132
+
+   44 define_file: XFILE filename • fopts fflags rule
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    $default  reduce using rule 69 (fopts)
+
+    fopts             go to state 207
+    condexpr          go to state 208
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 133
+
+   67 define_major: MAJOR '{' • majorlist '}'
+
+    WORD  shift, and go to state 117
+
+    devbase    go to state 209
+    majorlist  go to state 210
+    majordef   go to state 211
+
+
+State 134
+
+  244 condatom: WORD •
+
+    $default  reduce using rule 244 (condatom)
+
+
+State 135
+
+  242 cond_base_expr: '!' • condatom
+
+    WORD  shift, and go to state 134
+
+    condatom  go to state 212
+
+
+State 136
+
+  243 cond_base_expr: '(' • condexpr ')'
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    condexpr          go to state 213
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 137
+
+   64 define_makeoptions: MAKEOPTIONS condmkopt_list •
+  131 condmkopt_list: condmkopt_list • ',' condmkoption
+
+    ','  shift, and go to state 214
+
+    $default  reduce using rule 64 (define_makeoptions)
+
+
+State 138
+
+  130 condmkopt_list: condmkoption •
+
+    $default  reduce using rule 130 (condmkopt_list)
+
+
+State 139
+
+  132 condmkoption: condexpr • mkvarname PLUSEQ value
+
+    QSTRING  shift, and go to state 167
+    WORD     shift, and go to state 215
+
+    mkvarname  go to state 216
+
+
+State 140
+
+  235 condexpr: cond_or_expr •
+  237 cond_or_expr: cond_or_expr • '|' cond_and_expr
+
+    '|'  shift, and go to state 217
+
+    $default  reduce using rule 235 (condexpr)
+
+
+State 141
+
+  236 cond_or_expr: cond_and_expr •
+  239 cond_and_expr: cond_and_expr • '&' cond_prefix_expr
+
+    '&'  shift, and go to state 218
+
+    $default  reduce using rule 236 (cond_or_expr)
+
+
+State 142
+
+  238 cond_and_expr: cond_prefix_expr •
+
+    $default  reduce using rule 238 (cond_and_expr)
+
+
+State 143
+
+  240 cond_prefix_expr: cond_base_expr •
+
+    $default  reduce using rule 240 (cond_prefix_expr)
+
+
+State 144
+
+  241 cond_base_expr: condatom •
+
+    $default  reduce using rule 241 (cond_base_expr)
+
+
+State 145
+
+  139 int32: NUMBER •
+
+    $default  reduce using rule 139 (int32)
+
+
+State 146
+
+   63 define_maxusers: MAXUSERS int32 • int32 int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 219
+
+
+State 147
+
+   62 define_maxpartitions: MAXPARTITIONS int32 •
+
+    $default  reduce using rule 62 (define_maxpartitions)
+
+
+State 148
+
+   45 define_object: XOBJECT filename • fopts oflags
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    $default  reduce using rule 69 (fopts)
+
+    fopts             go to state 220
+    condexpr          go to state 208
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 149
+
+   59 define_obsolete_param: OBSOLETE DEFPARAM • optfile_opt defopts
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    $default  reduce using rule 247 (optfile_opt)
+
+    optfile_opt  go to state 221
+    filename     go to state 124
+
+
+State 150
+
+   57 define_obsolete_flag: OBSOLETE DEFFLAG • optfile_opt defopts
+
+    PATHNAME  shift, and go to state 12
+    QSTRING   shift, and go to state 13
+
+    $default  reduce using rule 247 (optfile_opt)
+
+    optfile_opt  go to state 222
+    filename     go to state 124
+
+
+State 151
+
+   47 define_prefix: PREFIX filename •
+
+    $default  reduce using rule 47 (define_prefix)
+
+
+State 152
+
+   50 define_buildprefix: BUILDPREFIX WORD •
+
+    $default  reduce using rule 50 (define_buildprefix)
+
+
+State 153
+
+   49 define_buildprefix: BUILDPREFIX filename •
+
+    $default  reduce using rule 49 (define_buildprefix)
+
+
+State 154
+
+   68 define_version: VERSION int32 •
+
+    $default  reduce using rule 68 (define_version)
+
+
+State 155
+
+   19 definitions: definitions definition '\n' •
+
+    $default  reduce using rule 19 (definitions)
+
+
+State 156
+
+   13 subarches: subarches WORD •
+
+    $default  reduce using rule 13 (subarches)
+
+
+State 157
+
+    9 machine_spec: XMACHINE WORD WORD subarches '\n' •
+
+    $default  reduce using rule 9 (machine_spec)
+
+
+State 158
+
+  144 selections: selections error '\n' •
+
+    $default  reduce using rule 144 (selections)
+
+
+State 159
+
+  209 conf: WORD •
+
+    $default  reduce using rule 209 (conf)
+
+
+State 160
+
+  180 select_config: CONFIG conf • root_spec sysparam_list
+
+    ROOT  shift, and go to state 223
+
+    root_spec  go to state 224
+
+
+State 161
+
+  191 fsoption: WORD •
+
+    $default  reduce using rule 191 (fsoption)
+
+
+State 162
+
+  170 select_filesystems: FILE_SYSTEM fs_list •
+  190 fs_list: fs_list • ',' fsoption
+
+    ','  shift, and go to state 225
+
+    $default  reduce using rule 170 (select_filesystems)
+
+
+State 163
+
+  189 fs_list: fsoption •
+
+    $default  reduce using rule 189 (fs_list)
+
+
+State 164
+
+  255 stringvalue: QSTRING •
+
+    $default  reduce using rule 255 (stringvalue)
+
+
+State 165
+
+  256 stringvalue: WORD •
+
+    $default  reduce using rule 256 (stringvalue)
+
+
+State 166
+
+  178 select_ident: IDENT stringvalue •
+
+    $default  reduce using rule 178 (select_ident)
+
+
+State 167
+
+  245 mkvarname: QSTRING •
+
+    $default  reduce using rule 245 (mkvarname)
+
+
+State 168
+
+  244 condatom: WORD •
+  246 mkvarname: WORD •
+
+    PLUSEQ    reduce using rule 246 (mkvarname)
+    '='       reduce using rule 246 (mkvarname)
+    $default  reduce using rule 244 (condatom)
+
+
+State 169
+
+  173 select_makeoptions: MAKEOPTIONS mkopt_list •
+  196 mkopt_list: mkopt_list • ',' mkoption
+
+    ','  shift, and go to state 226
+
+    $default  reduce using rule 173 (select_makeoptions)
+
+
+State 170
+
+  195 mkopt_list: mkoption •
+
+    $default  reduce using rule 195 (mkopt_list)
+
+
+State 171
+
+  197 mkoption: mkvarname • '=' value
+  198         | mkvarname • PLUSEQ value
+
+    PLUSEQ  shift, and go to state 227
+    '='     shift, and go to state 228
+
+
+State 172
+
+   63 define_maxusers: MAXUSERS int32 • int32 int32
+  177 select_maxusers: MAXUSERS int32 •
+
+    NUMBER  shift, and go to state 145
+
+    $default  reduce using rule 177 (select_maxusers)
+
+    int32  go to state 219
+
+
+State 173
+
+  204 option: WORD •
+  205       | WORD • '=' value
+
+    '='  shift, and go to state 229
+
+    $default  reduce using rule 204 (option)
+
+
+State 174
+
+  176 select_options: OPTIONS opt_list •
+  203 opt_list: opt_list • ',' option
+
+    ','  shift, and go to state 230
+
+    $default  reduce using rule 176 (select_options)
+
+
+State 175
+
+  202 opt_list: option •
+
+    $default  reduce using rule 202 (opt_list)
+
+
+State 176
+
+  183 select_pseudodev: PSEUDO_DEVICE WORD • npseudo
+
+    NUMBER  shift, and go to state 145
+
+    $default  reduce using rule 222 (npseudo)
+
+    int32    go to state 231
+    npseudo  go to state 232
+
+
+State 177
+
+  184 select_pseudoroot: PSEUDO_ROOT device_instance •
+
+    $default  reduce using rule 184 (select_pseudoroot)
+
+
+State 178
+
+  166 select_attr: SELECT WORD •
+
+    $default  reduce using rule 166 (select_attr)
+
+
+State 179
+
+  225 device_instance: WORD '*' •
+
+    $default  reduce using rule 225 (device_instance)
+
+
+State 180
+
+  181 select_no_config: no CONFIG • WORD
+
+    WORD  shift, and go to state 233
+
+
+State 181
+
+  186 select_no_device_attachment: no DEVICE • AT attachment
+
+    AT  shift, and go to state 234
+
+
+State 182
+
+  169 select_no_filesystems: no FILE_SYSTEM • $@1 no_fs_list
+
+    $default  reduce using rule 168 ($@1)
+
+    $@1  go to state 235
+
+
+State 183
+
+  179 select_no_ident: no IDENT •
+
+    $default  reduce using rule 179 (select_no_ident)
+
+
+State 184
+
+  172 select_no_makeoptions: no MAKEOPTIONS • $@2 no_mkopt_list
+
+    $default  reduce using rule 171 ($@2)
+
+    $@2  go to state 236
+
+
+State 185
+
+  175 select_no_options: no OPTIONS • $@3 no_opt_list
+
+    $default  reduce using rule 174 ($@3)
+
+    $@3  go to state 237
+
+
+State 186
+
+  182 select_no_pseudodev: no PSEUDO_DEVICE • WORD
+
+    WORD  shift, and go to state 238
+
+
+State 187
+
+  167 select_no_attr: no SELECT • WORD
+
+    WORD  shift, and go to state 239
+
+
+State 188
+
+  185 select_no_device_instance_attachment: no device_instance • AT attachment
+  187 select_no_device_instance: no device_instance •
+
+    AT  shift, and go to state 240
+
+    $default  reduce using rule 187 (select_no_device_instance)
+
+
+State 189
+
+  143 selections: selections selection '\n' •
+
+    $default  reduce using rule 143 (selections)
+
+
+State 190
+
+  188 select_device_instance: device_instance AT • attachment locators device_flags
+
+    ROOT  shift, and go to state 241
+    WORD  shift, and go to state 242
+
+    attachment  go to state 243
+
+
+State 191
+
+   61 define_device_attachment: ATTACH devbase AT • atlist devattach_opt depend_list
+
+    ROOT  shift, and go to state 244
+    WORD  shift, and go to state 245
+
+    atlist  go to state 246
+    atname  go to state 247
+
+
+State 192
+
+  116 optdepend_list: ':' • optdepends
+
+    WORD  shift, and go to state 248
+
+    optdepends  go to state 249
+    optdepend   go to state 250
+
+
+State 193
+
+   93 deffses: deffses deffs •
+
+    $default  reduce using rule 93 (deffses)
+
+
+State 194
+
+   53 define_filesystems: DEFFS deffses optdepend_list •
+
+    $default  reduce using rule 53 (define_filesystems)
+
+
+State 195
+
+   96 interface_opt: '{' • '}'
+   97              | '{' • loclist '}'
+
+    QSTRING  shift, and go to state 251
+    WORD     shift, and go to state 252
+    '}'      shift, and go to state 253
+    '['      shift, and go to state 254
+
+    loclist  go to state 255
+    locdef   go to state 256
+    locname  go to state 257
+
+
+State 196
+
+   54 define_attribute: DEFINE WORD interface_opt • depend_list
+
+    ':'  shift, and go to state 258
+
+    $default  reduce using rule 110 (depend_list)
+
+    depend_list  go to state 259
+
+
+State 197
+
+  126 defopt: WORD •
+  127       | WORD • '=' value
+  128       | WORD • COLONEQ value
+  129       | WORD • '=' value COLONEQ value
+
+    COLONEQ  shift, and go to state 260
+    '='      shift, and go to state 261
+
+    $default  reduce using rule 126 (defopt)
+
+
+State 198
+
+   55 define_option: DEFOPT optfile_opt defopts • optdepend_list
+  125 defopts: defopts • defopt
+
+    WORD  shift, and go to state 197
+    ':'   shift, and go to state 192
+
+    $default  reduce using rule 115 (optdepend_list)
+
+    optdepend_list  go to state 262
+    defopt          go to state 263
+
+
+State 199
+
+  124 defopts: defopt •
+
+    $default  reduce using rule 124 (defopts)
+
+
+State 200
+
+   58 define_param: DEFPARAM optfile_opt defopts • optdepend_list
+  125 defopts: defopts • defopt
+
+    WORD  shift, and go to state 197
+    ':'   shift, and go to state 192
+
+    $default  reduce using rule 115 (optdepend_list)
+
+    optdepend_list  go to state 264
+    defopt          go to state 263
+
+
+State 201
+
+   56 define_flag: DEFFLAG optfile_opt defopts • optdepend_list
+  125 defopts: defopts • defopt
+
+    WORD  shift, and go to state 197
+    ':'   shift, and go to state 192
+
+    $default  reduce using rule 115 (optdepend_list)
+
+    optdepend_list  go to state 265
+    defopt          go to state 263
+
+
+State 202
+
+   65 define_pseudo: DEFPSEUDO devbase interface_opt • depend_list
+
+    ':'  shift, and go to state 258
+
+    $default  reduce using rule 110 (depend_list)
+
+    depend_list  go to state 266
+
+
+State 203
+
+   66 define_pseudodev: DEFPSEUDODEV devbase interface_opt • depend_list
+
+    ':'  shift, and go to state 258
+
+    $default  reduce using rule 110 (depend_list)
+
+    depend_list  go to state 267
+
+
+State 204
+
+   60 define_device: DEVICE devbase interface_opt • depend_list
+
+    ':'  shift, and go to state 258
+
+    $default  reduce using rule 110 (depend_list)
+
+    depend_list  go to state 268
+
+
+State 205
+
+   81 device_major_char: CHAR • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 269
+
+
+State 206
+
+   46 define_device_major: DEVICE_MAJOR WORD device_major_char • device_major_block fopts devnodes
+
+    BLOCK  shift, and go to state 270
+
+    $default  reduce using rule 82 (device_major_block)
+
+    device_major_block  go to state 271
+
+
+State 207
+
+   44 define_file: XFILE filename fopts • fflags rule
+
+    $default  reduce using rule 71 (fflags)
+
+    fflags  go to state 272
+
+
+State 208
+
+   70 fopts: condexpr •
+
+    $default  reduce using rule 70 (fopts)
+
+
+State 209
+
+  138 majordef: devbase • '=' int32
+
+    '='  shift, and go to state 273
+
+
+State 210
+
+   67 define_major: MAJOR '{' majorlist • '}'
+  137 majorlist: majorlist • ',' majordef
+
+    '}'  shift, and go to state 274
+    ','  shift, and go to state 275
+
+
+State 211
+
+  136 majorlist: majordef •
+
+    $default  reduce using rule 136 (majorlist)
+
+
+State 212
+
+  242 cond_base_expr: '!' condatom •
+
+    $default  reduce using rule 242 (cond_base_expr)
+
+
+State 213
+
+  243 cond_base_expr: '(' condexpr • ')'
+
+    ')'  shift, and go to state 276
+
+
+State 214
+
+  131 condmkopt_list: condmkopt_list ',' • condmkoption
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    condmkoption      go to state 277
+    condexpr          go to state 139
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 215
+
+  246 mkvarname: WORD •
+
+    $default  reduce using rule 246 (mkvarname)
+
+
+State 216
+
+  132 condmkoption: condexpr mkvarname • PLUSEQ value
+
+    PLUSEQ  shift, and go to state 278
+
+
+State 217
+
+  237 cond_or_expr: cond_or_expr '|' • cond_and_expr
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    cond_and_expr     go to state 279
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 218
+
+  239 cond_and_expr: cond_and_expr '&' • cond_prefix_expr
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    cond_prefix_expr  go to state 280
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 219
+
+   63 define_maxusers: MAXUSERS int32 int32 • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 281
+
+
+State 220
+
+   45 define_object: XOBJECT filename fopts • oflags
+
+    $default  reduce using rule 77 (oflags)
+
+    oflags  go to state 282
+
+
+State 221
+
+   59 define_obsolete_param: OBSOLETE DEFPARAM optfile_opt • defopts
+
+    WORD  shift, and go to state 197
+
+    defopts  go to state 283
+    defopt   go to state 199
+
+
+State 222
+
+   57 define_obsolete_flag: OBSOLETE DEFFLAG optfile_opt • defopts
+
+    WORD  shift, and go to state 197
+
+    defopts  go to state 284
+    defopt   go to state 199
+
+
+State 223
+
+  210 root_spec: ROOT • on_opt dev_spec
+  211          | ROOT • on_opt dev_spec fs_spec
+
+    ON  shift, and go to state 285
+
+    $default  reduce using rule 261 (on_opt)
+
+    on_opt  go to state 286
+
+
+State 224
+
+  180 select_config: CONFIG conf root_spec • sysparam_list
+
+    $default  reduce using rule 219 (sysparam_list)
+
+    sysparam_list  go to state 287
+
+
+State 225
+
+  190 fs_list: fs_list ',' • fsoption
+
+    WORD  shift, and go to state 161
+
+    fsoption  go to state 288
+
+
+State 226
+
+  196 mkopt_list: mkopt_list ',' • mkoption
+
+    QSTRING  shift, and go to state 167
+    WORD     shift, and go to state 215
+
+    mkoption   go to state 289
+    mkvarname  go to state 171
+
+
+State 227
+
+  198 mkoption: mkvarname PLUSEQ • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 295
+    signed_number  go to state 296
+
+
+State 228
+
+  197 mkoption: mkvarname '=' • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 297
+    signed_number  go to state 296
+
+
+State 229
+
+  205 option: WORD '=' • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 298
+    signed_number  go to state 296
+
+
+State 230
+
+  203 opt_list: opt_list ',' • option
+
+    WORD  shift, and go to state 173
+
+    option  go to state 299
+
+
+State 231
+
+  223 npseudo: int32 •
+
+    $default  reduce using rule 223 (npseudo)
+
+
+State 232
+
+  183 select_pseudodev: PSEUDO_DEVICE WORD npseudo •
+
+    $default  reduce using rule 183 (select_pseudodev)
+
+
+State 233
+
+  181 select_no_config: no CONFIG WORD •
+
+    $default  reduce using rule 181 (select_no_config)
+
+
+State 234
+
+  186 select_no_device_attachment: no DEVICE AT • attachment
+
+    ROOT  shift, and go to state 241
+    WORD  shift, and go to state 242
+
+    attachment  go to state 300
+
+
+State 235
+
+  169 select_no_filesystems: no FILE_SYSTEM $@1 • no_fs_list
+
+    WORD  shift, and go to state 301
+
+    no_fs_list   go to state 302
+    no_fsoption  go to state 303
+
+
+State 236
+
+  172 select_no_makeoptions: no MAKEOPTIONS $@2 • no_mkopt_list
+
+    WORD  shift, and go to state 304
+
+    no_mkopt_list  go to state 305
+    no_mkoption    go to state 306
+
+
+State 237
+
+  175 select_no_options: no OPTIONS $@3 • no_opt_list
+
+    WORD  shift, and go to state 307
+
+    no_opt_list  go to state 308
+    no_option    go to state 309
+
+
+State 238
+
+  182 select_no_pseudodev: no PSEUDO_DEVICE WORD •
+
+    $default  reduce using rule 182 (select_no_pseudodev)
+
+
+State 239
+
+  167 select_no_attr: no SELECT WORD •
+
+    $default  reduce using rule 167 (select_no_attr)
+
+
+State 240
+
+  185 select_no_device_instance_attachment: no device_instance AT • attachment
+
+    ROOT  shift, and go to state 241
+    WORD  shift, and go to state 242
+
+    attachment  go to state 310
+
+
+State 241
+
+  226 attachment: ROOT •
+
+    $default  reduce using rule 226 (attachment)
+
+
+State 242
+
+  227 attachment: WORD •
+  228           | WORD • '?'
+
+    '?'  shift, and go to state 311
+
+    $default  reduce using rule 227 (attachment)
+
+
+State 243
+
+  188 select_device_instance: device_instance AT attachment • locators device_flags
+
+    $default  reduce using rule 229 (locators)
+
+    locators  go to state 312
+
+
+State 244
+
+  123 atname: ROOT •
+
+    $default  reduce using rule 123 (atname)
+
+
+State 245
+
+  122 atname: WORD •
+
+    $default  reduce using rule 122 (atname)
+
+
+State 246
+
+   61 define_device_attachment: ATTACH devbase AT atlist • devattach_opt depend_list
+  121 atlist: atlist • ',' atname
+
+    WITH  shift, and go to state 313
+    ','   shift, and go to state 314
+
+    $default  reduce using rule 134 (devattach_opt)
+
+    devattach_opt  go to state 315
+
+
+State 247
+
+  120 atlist: atname •
+
+    $default  reduce using rule 120 (atlist)
+
+
+State 248
+
+  119 optdepend: WORD •
+
+    $default  reduce using rule 119 (optdepend)
+
+
+State 249
+
+  116 optdepend_list: ':' optdepends •
+  118 optdepends: optdepends • ',' optdepend
+
+    ','  shift, and go to state 316
+
+    $default  reduce using rule 116 (optdepend_list)
+
+
+State 250
+
+  117 optdepends: optdepend •
+
+    $default  reduce using rule 117 (optdepends)
+
+
+State 251
+
+  107 locname: QSTRING •
+
+    $default  reduce using rule 107 (locname)
+
+
+State 252
+
+  106 locname: WORD •
+
+    $default  reduce using rule 106 (locname)
+
+
+State 253
+
+   96 interface_opt: '{' '}' •
+
+    $default  reduce using rule 96 (interface_opt)
+
+
+State 254
+
+  102 locdef: '[' • locname locdefault ']'
+  105       | '[' • locname '[' int32 ']' locdefaults ']'
+
+    QSTRING  shift, and go to state 251
+    WORD     shift, and go to state 252
+
+    locname  go to state 317
+
+
+State 255
+
+   97 interface_opt: '{' loclist • '}'
+
+    '}'  shift, and go to state 318
+
+
+State 256
+
+   98 loclist: locdef •
+   99        | locdef • ',' loclist
+
+    ','  shift, and go to state 319
+
+    $default  reduce using rule 98 (loclist)
+
+
+State 257
+
+  100 locdef: locname • locdefault
+  101       | locname •
+  103       | locname • '[' int32 ']'
+  104       | locname • '[' int32 ']' locdefaults
+
+    '='  shift, and go to state 320
+    '['  shift, and go to state 321
+
+    $default  reduce using rule 101 (locdef)
+
+    locdefault  go to state 322
+
+
+State 258
+
+  111 depend_list: ':' • depends
+
+    WORD  shift, and go to state 323
+
+    depends  go to state 324
+    depend   go to state 325
+
+
+State 259
+
+   54 define_attribute: DEFINE WORD interface_opt depend_list •
+
+    $default  reduce using rule 54 (define_attribute)
+
+
+State 260
+
+  128 defopt: WORD COLONEQ • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 326
+    signed_number  go to state 296
+
+
+State 261
+
+  127 defopt: WORD '=' • value
+  129       | WORD '=' • value COLONEQ value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 327
+    signed_number  go to state 296
+
+
+State 262
+
+   55 define_option: DEFOPT optfile_opt defopts optdepend_list •
+
+    $default  reduce using rule 55 (define_option)
+
+
+State 263
+
+  125 defopts: defopts defopt •
+
+    $default  reduce using rule 125 (defopts)
+
+
+State 264
+
+   58 define_param: DEFPARAM optfile_opt defopts optdepend_list •
+
+    $default  reduce using rule 58 (define_param)
+
+
+State 265
+
+   56 define_flag: DEFFLAG optfile_opt defopts optdepend_list •
+
+    $default  reduce using rule 56 (define_flag)
+
+
+State 266
+
+   65 define_pseudo: DEFPSEUDO devbase interface_opt depend_list •
+
+    $default  reduce using rule 65 (define_pseudo)
+
+
+State 267
+
+   66 define_pseudodev: DEFPSEUDODEV devbase interface_opt depend_list •
+
+    $default  reduce using rule 66 (define_pseudodev)
+
+
+State 268
+
+   60 define_device: DEVICE devbase interface_opt depend_list •
+
+    $default  reduce using rule 60 (define_device)
+
+
+State 269
+
+   81 device_major_char: CHAR int32 •
+
+    $default  reduce using rule 81 (device_major_char)
+
+
+State 270
+
+   83 device_major_block: BLOCK • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 328
+
+
+State 271
+
+   46 define_device_major: DEVICE_MAJOR WORD device_major_char device_major_block • fopts devnodes
+
+    WORD  shift, and go to state 134
+    '!'   shift, and go to state 135
+    '('   shift, and go to state 136
+
+    $default  reduce using rule 69 (fopts)
+
+    fopts             go to state 329
+    condexpr          go to state 208
+    cond_or_expr      go to state 140
+    cond_and_expr     go to state 141
+    cond_prefix_expr  go to state 142
+    cond_base_expr    go to state 143
+    condatom          go to state 144
+
+
+State 272
+
+   44 define_file: XFILE filename fopts fflags • rule
+   72 fflags: fflags • fflag
+
+    COMPILE_WITH  shift, and go to state 330
+    NEEDS_COUNT   shift, and go to state 331
+    NEEDS_FLAG    shift, and go to state 332
+
+    $default  reduce using rule 75 (rule)
+
+    fflag  go to state 333
+    rule   go to state 334
+
+
+State 273
+
+  138 majordef: devbase '=' • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 335
+
+
+State 274
+
+   67 define_major: MAJOR '{' majorlist '}' •
+
+    $default  reduce using rule 67 (define_major)
+
+
+State 275
+
+  137 majorlist: majorlist ',' • majordef
+
+    WORD  shift, and go to state 117
+
+    devbase   go to state 209
+    majordef  go to state 336
+
+
+State 276
+
+  243 cond_base_expr: '(' condexpr ')' •
+
+    $default  reduce using rule 243 (cond_base_expr)
+
+
+State 277
+
+  131 condmkopt_list: condmkopt_list ',' condmkoption •
+
+    $default  reduce using rule 131 (condmkopt_list)
+
+
+State 278
+
+  132 condmkoption: condexpr mkvarname PLUSEQ • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 337
+    signed_number  go to state 296
+
+
+State 279
+
+  237 cond_or_expr: cond_or_expr '|' cond_and_expr •
+  239 cond_and_expr: cond_and_expr • '&' cond_prefix_expr
+
+    '&'  shift, and go to state 218
+
+    $default  reduce using rule 237 (cond_or_expr)
+
+
+State 280
+
+  239 cond_and_expr: cond_and_expr '&' cond_prefix_expr •
+
+    $default  reduce using rule 239 (cond_and_expr)
+
+
+State 281
+
+   63 define_maxusers: MAXUSERS int32 int32 int32 •
+
+    $default  reduce using rule 63 (define_maxusers)
+
+
+State 282
+
+   45 define_object: XOBJECT filename fopts oflags •
+   78 oflags: oflags • oflag
+
+    NEEDS_FLAG  shift, and go to state 338
+
+    $default  reduce using rule 45 (define_object)
+
+    oflag  go to state 339
+
+
+State 283
+
+   59 define_obsolete_param: OBSOLETE DEFPARAM optfile_opt defopts •
+  125 defopts: defopts • defopt
+
+    WORD  shift, and go to state 197
+
+    $default  reduce using rule 59 (define_obsolete_param)
+
+    defopt  go to state 263
+
+
+State 284
+
+   57 define_obsolete_flag: OBSOLETE DEFFLAG optfile_opt defopts •
+  125 defopts: defopts • defopt
+
+    WORD  shift, and go to state 197
+
+    $default  reduce using rule 57 (define_obsolete_flag)
+
+    defopt  go to state 263
+
+
+State 285
+
+  262 on_opt: ON •
+
+    $default  reduce using rule 262 (on_opt)
+
+
+State 286
+
+  210 root_spec: ROOT on_opt • dev_spec
+  211          | ROOT on_opt • dev_spec fs_spec
+
+    MAJOR    shift, and go to state 340
+    QSTRING  shift, and go to state 341
+    WORD     shift, and go to state 342
+    '?'      shift, and go to state 343
+
+    dev_spec     go to state 344
+    major_minor  go to state 345
+
+
+State 287
+
+  180 select_config: CONFIG conf root_spec sysparam_list •
+  220 sysparam_list: sysparam_list • sysparam
+
+    DUMPS  shift, and go to state 346
+
+    $default  reduce using rule 180 (select_config)
+
+    sysparam  go to state 347
+
+
+State 288
+
+  190 fs_list: fs_list ',' fsoption •
+
+    $default  reduce using rule 190 (fs_list)
+
+
+State 289
+
+  196 mkopt_list: mkopt_list ',' mkoption •
+
+    $default  reduce using rule 196 (mkopt_list)
+
+
+State 290
+
+  259 signed_number: NUMBER •
+
+    $default  reduce using rule 259 (signed_number)
+
+
+State 291
+
+  251 value: QSTRING •
+
+    $default  reduce using rule 251 (value)
+
+
+State 292
+
+  252 value: WORD •
+
+    $default  reduce using rule 252 (value)
+
+
+State 293
+
+  253 value: EMPTYSTRING •
+
+    $default  reduce using rule 253 (value)
+
+
+State 294
+
+  260 signed_number: '-' • NUMBER
+
+    NUMBER  shift, and go to state 348
+
+
+State 295
+
+  198 mkoption: mkvarname PLUSEQ value •
+
+    $default  reduce using rule 198 (mkoption)
+
+
+State 296
+
+  254 value: signed_number •
+
+    $default  reduce using rule 254 (value)
+
+
+State 297
+
+  197 mkoption: mkvarname '=' value •
+
+    $default  reduce using rule 197 (mkoption)
+
+
+State 298
+
+  205 option: WORD '=' value •
+
+    $default  reduce using rule 205 (option)
+
+
+State 299
+
+  203 opt_list: opt_list ',' option •
+
+    $default  reduce using rule 203 (opt_list)
+
+
+State 300
+
+  186 select_no_device_attachment: no DEVICE AT attachment •
+
+    $default  reduce using rule 186 (select_no_device_attachment)
+
+
+State 301
+
+  194 no_fsoption: WORD •
+
+    $default  reduce using rule 194 (no_fsoption)
+
+
+State 302
+
+  169 select_no_filesystems: no FILE_SYSTEM $@1 no_fs_list •
+  193 no_fs_list: no_fs_list • ',' no_fsoption
+
+    ','  shift, and go to state 349
+
+    $default  reduce using rule 169 (select_no_filesystems)
+
+
+State 303
+
+  192 no_fs_list: no_fsoption •
+
+    $default  reduce using rule 192 (no_fs_list)
+
+
+State 304
+
+  201 no_mkoption: WORD •
+
+    $default  reduce using rule 201 (no_mkoption)
+
+
+State 305
+
+  172 select_no_makeoptions: no MAKEOPTIONS $@2 no_mkopt_list •
+  200 no_mkopt_list: no_mkopt_list • ',' no_mkoption
+
+    ','  shift, and go to state 350
+
+    $default  reduce using rule 172 (select_no_makeoptions)
+
+
+State 306
+
+  199 no_mkopt_list: no_mkoption •
+
+    $default  reduce using rule 199 (no_mkopt_list)
+
+
+State 307
+
+  208 no_option: WORD •
+
+    $default  reduce using rule 208 (no_option)
+
+
+State 308
+
+  175 select_no_options: no OPTIONS $@3 no_opt_list •
+  207 no_opt_list: no_opt_list • ',' no_option
+
+    ','  shift, and go to state 351
+
+    $default  reduce using rule 175 (select_no_options)
+
+
+State 309
+
+  206 no_opt_list: no_option •
+
+    $default  reduce using rule 206 (no_opt_list)
+
+
+State 310
+
+  185 select_no_device_instance_attachment: no device_instance AT attachment •
+
+    $default  reduce using rule 185 (select_no_device_instance_attachment)
+
+
+State 311
+
+  228 attachment: WORD '?' •
+
+    $default  reduce using rule 228 (attachment)
+
+
+State 312
+
+  188 select_device_instance: device_instance AT attachment locators • device_flags
+  230 locators: locators • locator
+
+    FLAGS  shift, and go to state 352
+    WORD   shift, and go to state 353
+
+    $default  reduce using rule 233 (device_flags)
+
+    locator       go to state 354
+    device_flags  go to state 355
+
+
+State 313
+
+  135 devattach_opt: WITH • WORD
+
+    WORD  shift, and go to state 356
+
+
+State 314
+
+  121 atlist: atlist ',' • atname
+
+    ROOT  shift, and go to state 244
+    WORD  shift, and go to state 245
+
+    atname  go to state 357
+
+
+State 315
+
+   61 define_device_attachment: ATTACH devbase AT atlist devattach_opt • depend_list
+
+    ':'  shift, and go to state 258
+
+    $default  reduce using rule 110 (depend_list)
+
+    depend_list  go to state 358
+
+
+State 316
+
+  118 optdepends: optdepends ',' • optdepend
+
+    WORD  shift, and go to state 248
+
+    optdepend  go to state 359
+
+
+State 317
+
+  102 locdef: '[' locname • locdefault ']'
+  105       | '[' locname • '[' int32 ']' locdefaults ']'
+
+    '='  shift, and go to state 320
+    '['  shift, and go to state 360
+
+    locdefault  go to state 361
+
+
+State 318
+
+   97 interface_opt: '{' loclist '}' •
+
+    $default  reduce using rule 97 (interface_opt)
+
+
+State 319
+
+   99 loclist: locdef ',' • loclist
+
+    QSTRING  shift, and go to state 251
+    WORD     shift, and go to state 252
+    '['      shift, and go to state 254
+
+    loclist  go to state 362
+    locdef   go to state 256
+    locname  go to state 257
+
+
+State 320
+
+  108 locdefault: '=' • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 363
+    signed_number  go to state 296
+
+
+State 321
+
+  103 locdef: locname '[' • int32 ']'
+  104       | locname '[' • int32 ']' locdefaults
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 364
+
+
+State 322
+
+  100 locdef: locname locdefault •
+
+    $default  reduce using rule 100 (locdef)
+
+
+State 323
+
+  114 depend: WORD •
+
+    $default  reduce using rule 114 (depend)
+
+
+State 324
+
+  111 depend_list: ':' depends •
+  113 depends: depends • ',' depend
+
+    ','  shift, and go to state 365
+
+    $default  reduce using rule 111 (depend_list)
+
+
+State 325
+
+  112 depends: depend •
+
+    $default  reduce using rule 112 (depends)
+
+
+State 326
+
+  128 defopt: WORD COLONEQ value •
+
+    $default  reduce using rule 128 (defopt)
+
+
+State 327
+
+  127 defopt: WORD '=' value •
+  129       | WORD '=' value • COLONEQ value
+
+    COLONEQ  shift, and go to state 366
+
+    $default  reduce using rule 127 (defopt)
+
+
+State 328
+
+   83 device_major_block: BLOCK int32 •
+
+    $default  reduce using rule 83 (device_major_block)
+
+
+State 329
+
+   46 define_device_major: DEVICE_MAJOR WORD device_major_char device_major_block fopts • devnodes
+
+    SINGLE  shift, and go to state 367
+    VECTOR  shift, and go to state 368
+
+    $default  reduce using rule 84 (devnodes)
+
+    devnodes     go to state 369
+    devnodetype  go to state 370
+
+
+State 330
+
+   76 rule: COMPILE_WITH • stringvalue
+
+    QSTRING  shift, and go to state 164
+    WORD     shift, and go to state 165
+
+    stringvalue  go to state 371
+
+
+State 331
+
+   73 fflag: NEEDS_COUNT •
+
+    $default  reduce using rule 73 (fflag)
+
+
+State 332
+
+   74 fflag: NEEDS_FLAG •
+
+    $default  reduce using rule 74 (fflag)
+
+
+State 333
+
+   72 fflags: fflags fflag •
+
+    $default  reduce using rule 72 (fflags)
+
+
+State 334
+
+   44 define_file: XFILE filename fopts fflags rule •
+
+    $default  reduce using rule 44 (define_file)
+
+
+State 335
+
+  138 majordef: devbase '=' int32 •
+
+    $default  reduce using rule 138 (majordef)
+
+
+State 336
+
+  137 majorlist: majorlist ',' majordef •
+
+    $default  reduce using rule 137 (majorlist)
+
+
+State 337
+
+  132 condmkoption: condexpr mkvarname PLUSEQ value •
+
+    $default  reduce using rule 132 (condmkoption)
+
+
+State 338
+
+   79 oflag: NEEDS_FLAG •
+
+    $default  reduce using rule 79 (oflag)
+
+
+State 339
+
+   78 oflags: oflags oflag •
+
+    $default  reduce using rule 78 (oflags)
+
+
+State 340
+
+  216 major_minor: MAJOR • NUMBER MINOR NUMBER
+
+    NUMBER  shift, and go to state 372
+
+
+State 341
+
+  213 dev_spec: QSTRING •
+
+    $default  reduce using rule 213 (dev_spec)
+
+
+State 342
+
+  214 dev_spec: WORD •
+
+    $default  reduce using rule 214 (dev_spec)
+
+
+State 343
+
+  212 dev_spec: '?' •
+
+    $default  reduce using rule 212 (dev_spec)
+
+
+State 344
+
+  210 root_spec: ROOT on_opt dev_spec •
+  211          | ROOT on_opt dev_spec • fs_spec
+
+    TYPE  shift, and go to state 373
+
+    $default  reduce using rule 210 (root_spec)
+
+    fs_spec  go to state 374
+
+
+State 345
+
+  215 dev_spec: major_minor •
+
+    $default  reduce using rule 215 (dev_spec)
+
+
+State 346
+
+  221 sysparam: DUMPS • on_opt dev_spec
+
+    ON  shift, and go to state 285
+
+    $default  reduce using rule 261 (on_opt)
+
+    on_opt  go to state 375
+
+
+State 347
+
+  220 sysparam_list: sysparam_list sysparam •
+
+    $default  reduce using rule 220 (sysparam_list)
+
+
+State 348
+
+  260 signed_number: '-' NUMBER •
+
+    $default  reduce using rule 260 (signed_number)
+
+
+State 349
+
+  193 no_fs_list: no_fs_list ',' • no_fsoption
+
+    WORD  shift, and go to state 301
+
+    no_fsoption  go to state 376
+
+
+State 350
+
+  200 no_mkopt_list: no_mkopt_list ',' • no_mkoption
+
+    WORD  shift, and go to state 304
+
+    no_mkoption  go to state 377
+
+
+State 351
+
+  207 no_opt_list: no_opt_list ',' • no_option
+
+    WORD  shift, and go to state 307
+
+    no_option  go to state 378
+
+
+State 352
+
+  234 device_flags: FLAGS • int32
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 379
+
+
+State 353
+
+  231 locator: WORD • '?'
+  232        | WORD • values
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '?'          shift, and go to state 380
+    '-'          shift, and go to state 294
+
+    value          go to state 381
+    values         go to state 382
+    signed_number  go to state 296
+
+
+State 354
+
+  230 locators: locators locator •
+
+    $default  reduce using rule 230 (locators)
+
+
+State 355
+
+  188 select_device_instance: device_instance AT attachment locators device_flags •
+
+    $default  reduce using rule 188 (select_device_instance)
+
+
+State 356
+
+  135 devattach_opt: WITH WORD •
+
+    $default  reduce using rule 135 (devattach_opt)
+
+
+State 357
+
+  121 atlist: atlist ',' atname •
+
+    $default  reduce using rule 121 (atlist)
+
+
+State 358
+
+   61 define_device_attachment: ATTACH devbase AT atlist devattach_opt depend_list •
+
+    $default  reduce using rule 61 (define_device_attachment)
+
+
+State 359
+
+  118 optdepends: optdepends ',' optdepend •
+
+    $default  reduce using rule 118 (optdepends)
+
+
+State 360
+
+  105 locdef: '[' locname '[' • int32 ']' locdefaults ']'
+
+    NUMBER  shift, and go to state 145
+
+    int32  go to state 383
+
+
+State 361
+
+  102 locdef: '[' locname locdefault • ']'
+
+    ']'  shift, and go to state 384
+
+
+State 362
+
+   99 loclist: locdef ',' loclist •
+
+    $default  reduce using rule 99 (loclist)
+
+
+State 363
+
+  108 locdefault: '=' value •
+
+    $default  reduce using rule 108 (locdefault)
+
+
+State 364
+
+  103 locdef: locname '[' int32 • ']'
+  104       | locname '[' int32 • ']' locdefaults
+
+    ']'  shift, and go to state 385
+
+
+State 365
+
+  113 depends: depends ',' • depend
+
+    WORD  shift, and go to state 323
+
+    depend  go to state 386
+
+
+State 366
+
+  129 defopt: WORD '=' value COLONEQ • value
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 387
+    signed_number  go to state 296
+
+
+State 367
+
+   87 devnodetype: SINGLE •
+
+    $default  reduce using rule 87 (devnodetype)
+
+
+State 368
+
+   88 devnodetype: VECTOR • '=' devnode_dims
+
+    '='  shift, and go to state 388
+
+
+State 369
+
+   46 define_device_major: DEVICE_MAJOR WORD device_major_char device_major_block fopts devnodes •
+
+    $default  reduce using rule 46 (define_device_major)
+
+
+State 370
+
+   85 devnodes: devnodetype • ',' devnodeflags
+   86         | devnodetype •
+
+    ','  shift, and go to state 389
+
+    $default  reduce using rule 86 (devnodes)
+
+
+State 371
+
+   76 rule: COMPILE_WITH stringvalue •
+
+    $default  reduce using rule 76 (rule)
+
+
+State 372
+
+  216 major_minor: MAJOR NUMBER • MINOR NUMBER
+
+    MINOR  shift, and go to state 390
+
+
+State 373
+
+  217 fs_spec: TYPE • '?'
+  218        | TYPE • WORD
+
+    WORD  shift, and go to state 391
+    '?'   shift, and go to state 392
+
+
+State 374
+
+  211 root_spec: ROOT on_opt dev_spec fs_spec •
+
+    $default  reduce using rule 211 (root_spec)
+
+
+State 375
+
+  221 sysparam: DUMPS on_opt • dev_spec
+
+    MAJOR    shift, and go to state 340
+    QSTRING  shift, and go to state 341
+    WORD     shift, and go to state 342
+    '?'      shift, and go to state 343
+
+    dev_spec     go to state 393
+    major_minor  go to state 345
+
+
+State 376
+
+  193 no_fs_list: no_fs_list ',' no_fsoption •
+
+    $default  reduce using rule 193 (no_fs_list)
+
+
+State 377
+
+  200 no_mkopt_list: no_mkopt_list ',' no_mkoption •
+
+    $default  reduce using rule 200 (no_mkopt_list)
+
+
+State 378
+
+  207 no_opt_list: no_opt_list ',' no_option •
+
+    $default  reduce using rule 207 (no_opt_list)
+
+
+State 379
+
+  234 device_flags: FLAGS int32 •
+
+    $default  reduce using rule 234 (device_flags)
+
+
+State 380
+
+  231 locator: WORD '?' •
+
+    $default  reduce using rule 231 (locator)
+
+
+State 381
+
+  257 values: value •
+  258       | value • ',' values
+
+    ','  shift, and go to state 394
+
+    $default  reduce using rule 257 (values)
+
+
+State 382
+
+  232 locator: WORD values •
+
+    $default  reduce using rule 232 (locator)
+
+
+State 383
+
+  105 locdef: '[' locname '[' int32 • ']' locdefaults ']'
+
+    ']'  shift, and go to state 395
+
+
+State 384
+
+  102 locdef: '[' locname locdefault ']' •
+
+    $default  reduce using rule 102 (locdef)
+
+
+State 385
+
+  103 locdef: locname '[' int32 ']' •
+  104       | locname '[' int32 ']' • locdefaults
+
+    '='  shift, and go to state 396
+
+    $default  reduce using rule 103 (locdef)
+
+    locdefaults  go to state 397
+
+
+State 386
+
+  113 depends: depends ',' depend •
+
+    $default  reduce using rule 113 (depends)
+
+
+State 387
+
+  129 defopt: WORD '=' value COLONEQ value •
+
+    $default  reduce using rule 129 (defopt)
+
+
+State 388
+
+   88 devnodetype: VECTOR '=' • devnode_dims
+
+    NUMBER  shift, and go to state 398
+
+    devnode_dims  go to state 399
+
+
+State 389
+
+   85 devnodes: devnodetype ',' • devnodeflags
+
+    LINKZERO  shift, and go to state 400
+
+    devnodeflags  go to state 401
+
+
+State 390
+
+  216 major_minor: MAJOR NUMBER MINOR • NUMBER
+
+    NUMBER  shift, and go to state 402
+
+
+State 391
+
+  218 fs_spec: TYPE WORD •
+
+    $default  reduce using rule 218 (fs_spec)
+
+
+State 392
+
+  217 fs_spec: TYPE '?' •
+
+    $default  reduce using rule 217 (fs_spec)
+
+
+State 393
+
+  221 sysparam: DUMPS on_opt dev_spec •
+
+    $default  reduce using rule 221 (sysparam)
+
+
+State 394
+
+  258 values: value ',' • values
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 381
+    values         go to state 403
+    signed_number  go to state 296
+
+
+State 395
+
+  105 locdef: '[' locname '[' int32 ']' • locdefaults ']'
+
+    '='  shift, and go to state 396
+
+    locdefaults  go to state 404
+
+
+State 396
+
+  109 locdefaults: '=' • '{' values '}'
+
+    '{'  shift, and go to state 405
+
+
+State 397
+
+  104 locdef: locname '[' int32 ']' locdefaults •
+
+    $default  reduce using rule 104 (locdef)
+
+
+State 398
+
+   89 devnode_dims: NUMBER •
+   90             | NUMBER • ':' NUMBER
+
+    ':'  shift, and go to state 406
+
+    $default  reduce using rule 89 (devnode_dims)
+
+
+State 399
+
+   88 devnodetype: VECTOR '=' devnode_dims •
+
+    $default  reduce using rule 88 (devnodetype)
+
+
+State 400
+
+   91 devnodeflags: LINKZERO •
+
+    $default  reduce using rule 91 (devnodeflags)
+
+
+State 401
+
+   85 devnodes: devnodetype ',' devnodeflags •
+
+    $default  reduce using rule 85 (devnodes)
+
+
+State 402
+
+  216 major_minor: MAJOR NUMBER MINOR NUMBER •
+
+    $default  reduce using rule 216 (major_minor)
+
+
+State 403
+
+  258 values: value ',' values •
+
+    $default  reduce using rule 258 (values)
+
+
+State 404
+
+  105 locdef: '[' locname '[' int32 ']' locdefaults • ']'
+
+    ']'  shift, and go to state 407
+
+
+State 405
+
+  109 locdefaults: '=' '{' • values '}'
+
+    NUMBER       shift, and go to state 290
+    QSTRING      shift, and go to state 291
+    WORD         shift, and go to state 292
+    EMPTYSTRING  shift, and go to state 293
+    '-'          shift, and go to state 294
+
+    value          go to state 381
+    values         go to state 408
+    signed_number  go to state 296
+
+
+State 406
+
+   90 devnode_dims: NUMBER ':' • NUMBER
+
+    NUMBER  shift, and go to state 409
+
+
+State 407
+
+  105 locdef: '[' locname '[' int32 ']' locdefaults ']' •
+
+    $default  reduce using rule 105 (locdef)
+
+
+State 408
+
+  109 locdefaults: '=' '{' values • '}'
+
+    '}'  shift, and go to state 410
+
+
+State 409
+
+   90 devnode_dims: NUMBER ':' NUMBER •
+
+    $default  reduce using rule 90 (devnode_dims)
+
+
+State 410
+
+  109 locdefaults: '=' '{' values '}' •
+
+    $default  reduce using rule 109 (locdefaults)
