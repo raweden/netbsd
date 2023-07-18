@@ -1,0 +1,147 @@
+#	$NetBSD: files.wasm,v 1.13 2023/06/12 19:04:13 skrll Exp $
+#
+
+maxpartitions	16
+maxusers	8 32 64
+
+# Console options
+defparam opt_console.h		CONSADDR
+
+# WebAssembly specific debug options
+defflag  opt_wasm_debug.h	VERBOSE_INIT_WASM32
+
+defflag	opt_ddb.h		DDB_TRACE
+
+device	mainbus {}: fdt
+attach	mainbus at root
+file	arch/wasm/wasm/mainbus.c		mainbus
+
+device cpu {}: fdt
+
+file	arch/wasm/wasm/autoconf.c
+file	arch/wasm/wasm/bus_dma.c
+file	arch/wasm/wasm/bus_space.c
+file	arch/wasm/wasm/bus_space_generic.c
+#file	arch/wasm/wasm/bus_space_notimpl.S
+file	arch/wasm/wasm/bus_stubs.c
+file	arch/wasm/wasm/clock_machdep.c
+file	arch/wasm/wasm/core_machdep.c		coredump
+file	arch/wasm/wasm/cpu.c			cpu
+file	arch/wasm/wasm/cpu_subr.c
+file	arch/wasm/wasm/cpu_switch.S
+file	arch/wasm/wasm/db_interface.c		ddb
+file	arch/wasm/wasm/db_disasm.c		ddb
+file	arch/wasm/wasm/db_machdep.c		ddb | kgdb
+file	arch/wasm/wasm/db_trace.c		ddb
+file	arch/wasm/wasm/exec_machdep.c
+file	arch/wasm/wasm/fixup.c
+file	arch/wasm/wasm/fpu.c			fpe
+file	arch/wasm/wasm/ipifuncs.c		multiprocessor
+file	arch/wasm/wasm/interrupt.c
+file	arch/wasm/wasm/kgdb_machdep.c		kgdb
+file	arch/wasm/wasm/kobj_machdep.c		modular
+file	arch/wasm/wasm/pmap_machdep.c
+file	arch/wasm/wasm/process_machdep.c
+file	arch/wasm/wasm/procfs_machdep.c	procfs
+file	arch/wasm/wasm/wasm_tlb.c
+file	arch/wasm/wasm/wasm_generic_dma.c
+file	arch/wasm/wasm/wasm_machdep.c
+file	arch/wasm/wasm/sbi.c			    # SBI
+file	arch/wasm/wasm/sig_machdep.c		# signal delivery
+file	arch/wasm/wasm/softint_machdep.c
+file	arch/wasm/wasm/spl.S
+file	arch/wasm/wasm/stubs.c
+file	arch/wasm/wasm/syscall.c		# syscall handler
+file	arch/wasm/wasm/sys_machdep.c
+file	arch/wasm/wasm/trap.c			# trap handlers
+file	arch/wasm/wasm/vm_machdep.c
+
+file	dev/cons.c
+file	dev/md_root.c				memory_disk_hooks
+
+file	kern/subr_disk_mbr.c			disk
+
+
+
+file sys/arch/wasm/wasm/wasm_atomic.c         wasm32
+#sys/arch/wasm/wasm/core_machdep.c
+#sys/arch/wasm/wasm/core32_machdep.c 
+#sys/arch/wasm/wasm/cpu_mainbus.c
+#sys/arch/wasm/wasm/cpu.c
+#sys/arch/wasm/wasm/fpu.c
+#sys/arch/wasm/wasm/kobj_machdep.c
+file    arch/wasm/wasm/lwp_machdep.c              wasm32
+#file    arch/wasm/wasm/mainbus.c                  wasm32
+#sys/arch/wasm/wasm/wasm_generic_dma.c         wasm32
+file    arch/wasm/wasm/wasm_machdep.c          wasm32
+#sys/arch/wasm/wasm/wasm_tlb.c
+#sys/arch/wasm/wasm/sig32_machdep.c
+#sys/arch/wasm/wasm/wasm_locore.c
+#sys/arch/wasm/wasm/devsw_dummy.c
+#sys/arch/wasm/wasm/misc_dummy.c
+#sys/arch/wasm/wasm/pmap_dummy.c
+#sys/arch/wasm/wasm/ioconf_dummy.c
+
+# clang nolibc 
+file    arch/wasm/wasm/libkern/byte_swap.c    wasm32_nolibc
+file	arch/wasm/wasm/libkern/memcmp.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/memcpy.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/memmove.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/memset.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/strcmp.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/strcpy.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/strlcpy.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/strncmp.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/strncpy.c		wasm32_nolibc
+file	arch/wasm/wasm/libkern/strlen.c		wasm32_nolibc
+prefix ../common/lib
+file	libc/string/strrchr.c				wasm32_nolibc
+file	libc/string/strnlen.c				wasm32_nolibc
+file	libc/string/strncasecmp.c			wasm32_nolibc
+file	libc/string/strlcat.c				wasm32_nolibc
+file	libc/string/strcat.c				wasm32_nolibc
+file	libc/string/strchr.c				wasm32_nolibc
+file	libc/string/memchr.c				wasm32_nolibc
+file	libc/string/consttime_memequal.c	wasm32_nolibc
+file	libc/string/strcasecmp.c			wasm32_nolibc
+file	libc/string/popcount32.c			wasm32_nolibc
+file	libc/string/explicit_memset.c		wasm32_nolibc
+file	libc/stdlib/strtoul.c				wasm32_nolibc
+file	libc/stdlib/strtoll.c				wasm32_nolibc
+file	libc/stdlib/strtoull.c				wasm32_nolibc
+file	libc/stdlib/heapsort.c				wasm32_nolibc
+file	libc/gen/radixtree.c				wasm32_nolibc
+file	libc/gen/rb.c						wasm32_nolibc
+file	libutil/getfstypename.c 			wasm32_nolibc
+prefix
+
+
+file	uvm/pmap/pmap.c
+file	uvm/pmap/pmap_devmap.c
+file	uvm/pmap/pmap_segtab.c
+file	uvm/pmap/pmap_synci.c
+file	uvm/pmap/pmap_tlb.c
+
+device  plic
+file	arch/wasm/dev/plic.c			plic
+attach  plic at fdt with plic_fdt
+file	arch/wasm/dev/plic_fdt.c		plic & fdt
+
+# Binary compatibility with 32bit NetBSD (COMPAT_NETBSD32)
+file	arch/wasm/wasm/core32_machdep.c	compat_netbsd32 & coredump
+file	arch/wasm/wasm/netbsd32_machdep.c	compat_netbsd32
+file	arch/wasm/wasm/sig32_machdep.c	compat_netbsd32
+include "compat/netbsd32/files.netbsd32"
+
+include "arch/wasm/fdt/files.fdt"
+
+# Machine-independent drivers
+include "dev/ata/files.ata"			        # ATA drivers
+include "dev/bluetooth/files.bluetooth"		# Bluetooth devices
+include "dev/i2o/files.i2o"			        # I2O drivers.
+include "dev/sdmmc/files.sdmmc"			    # SD/MMC devices
+include "dev/scsipi/files.scsipi"
+include "dev/usb/files.usb"			        # USB device support
+# include "dev/pci/files.pci"			    # PCI device support
+
+include "arch/wasm/conf/majors.wasm"
