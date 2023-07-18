@@ -689,11 +689,11 @@ ucas_64(volatile uint64_t *uaddr, uint64_t old, uint64_t new, uint64_t *ret)
 }
 #endif /* _LP64 */
 
-__strong_alias(ucas_int,ucas_32);
+int	ucas_int(volatile unsigned int *, unsigned int, unsigned int, unsigned int *) __attribute__((alias("ucas_32")));
 #ifdef _LP64
-__strong_alias(ucas_ptr,ucas_64);
+int	ucas_ptr(volatile void *, void *, void *, void *) __attribute__((alias("ucas_64")));
 #else
-__strong_alias(ucas_ptr,ucas_32);
+int	ucas_ptr(volatile void *, void *, void *, void *) __attribute__((alias("ucas_32")));
 #endif /* _LP64 */
 
 int
@@ -734,15 +734,15 @@ ufetch_64(const uint64_t *uaddr, uint64_t *valp)
 }
 #endif /* _LP64 */
 
-__strong_alias(ufetch_char,ufetch_8);
-__strong_alias(ufetch_short,ufetch_16);
-__strong_alias(ufetch_int,ufetch_32);
+int	ufetch_char(const unsigned char *, unsigned char *) __attribute__((alias("ufetch_8")));
+int	ufetch_short(const unsigned short *, unsigned short *) __attribute__((alias("ufetch_16")));
+int	ufetch_int(const unsigned int *, unsigned int *) __attribute__((alias("ufetch_32")));
 #ifdef _LP64
-__strong_alias(ufetch_long,ufetch_64);
-__strong_alias(ufetch_ptr,ufetch_64);
+int	ufetch_long(const unsigned long *, unsigned long *) __attribute__((alias("ufetch_64")));
+int	ufetch_ptr(const void **, void **) __attribute__((alias("ufetch_64")));
 #else
-__strong_alias(ufetch_long,ufetch_32);
-__strong_alias(ufetch_ptr,ufetch_32);
+int	ufetch_long(const unsigned long *, unsigned long *) __attribute__((alias("ufetch_32")));
+int	ufetch_ptr(const void **, void **) __attribute__((alias("ufetch_32")));
 #endif /* _LP64 */
 
 int
@@ -783,13 +783,13 @@ ustore_64(uint64_t *uaddr, uint64_t val)
 }
 #endif /* _LP64 */
 
-__strong_alias(ustore_char,ustore_8);
-__strong_alias(ustore_short,ustore_16);
-__strong_alias(ustore_int,ustore_32);
+int	ustore_char(unsigned char *, unsigned char) __attribute__((alias("ustore_8")));
+int	ustore_short(unsigned short *, unsigned short) __attribute__((alias("ustore_16")));
+int	ustore_int(unsigned int *, unsigned int) __attribute__((alias("ustore_32")));
 #ifdef _LP64
-__strong_alias(ustore_long,ustore_64);
-__strong_alias(ustore_ptr,ustore_64);
+int	ustore_long(unsigned long *, unsigned long) __attribute__((alias("ustore_64")));
+int	ustore_ptr(void **, void *) __attribute__((alias("ustore_64")));
 #else
-__strong_alias(ustore_long,ustore_32);
-__strong_alias(ustore_ptr,ustore_32);
+int	ustore_long(unsigned long *, unsigned long) __attribute__((alias("ustore_32")));
+int	ustore_ptr(void **, void *) __attribute__((alias("ustore_32")));
 #endif /* _LP64 */

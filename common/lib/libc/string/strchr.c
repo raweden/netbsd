@@ -50,7 +50,8 @@ __RCSID("$NetBSD: strchr.c,v 1.7 2020/04/07 08:07:58 skrll Exp $");
 #undef strchr
 #endif
 
-__strong_alias(index, strchr)
+char *index(const char *p, int ch) __attribute__((alias("strchr")));
+
 char *
 strchr(const char *p, int ch)
 {

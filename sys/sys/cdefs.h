@@ -756,4 +756,9 @@ static __inline unsigned long long __zeroull(void) { return 0; }
 #define __type_fit(t, a) (__type_is_signed(t) ? \
     __type_fit_s(t, a) : __type_fit_u(t, a))
 
+#ifdef __WASM
+#undef __insn_barrier
+#define __insn_barrier()
+#endif
+
 #endif /* !_SYS_CDEFS_H_ */

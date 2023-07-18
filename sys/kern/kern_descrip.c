@@ -138,8 +138,13 @@ const struct cdevsw filedesc_cdevsw = {
 };
 
 /* For ease of reading. */
+#ifndef __WASM
 __strong_alias(fd_putvnode,fd_putfile)
 __strong_alias(fd_putsock,fd_putfile)
+#else
+void fd_putvnode(unsigned) __attribute__((alias("fd_putfile")));
+void fd_putsock(unsigned) __attribute__((alias("fd_putfile")));
+#endif
 
 /*
  * Initialize the descriptor system.

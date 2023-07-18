@@ -110,7 +110,7 @@ void (*db_trap_callback)(int);
 
 void kgdb_voidop(void);
 
-__weak_alias(kgdb_entry_notice, kgdb_voidop);
+void kgdb_entry_notice(int, db_regs_t *) __attribute__((weak, alias("kgdb_voidop")));
 
 void
 kgdb_voidop(void)

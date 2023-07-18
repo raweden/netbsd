@@ -72,11 +72,11 @@ popcount32(uint32_t v)
 }
 
 #if UINT_MAX == 0xffffffffU
-__strong_alias(popcount, popcount32)
+unsigned int popcount(uint32_t) __attribute__((alias("popcount32")));
 #endif
 
 #if ULONG_MAX == 0xffffffffU
-__strong_alias(popcountl, popcount32)
+unsigned int popcountl(unsigned long) __attribute__((alias("popcount32")));
 #endif
 
 #endif	/* !popcount32 */

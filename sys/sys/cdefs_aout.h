@@ -96,10 +96,16 @@
 #define	__KERNEL_COPYRIGHT(_n, _s) __IDSTRING(__CONCAT(copyright,_n),_s)
 
 #ifndef __lint__
+#ifndef __WASM
 #define	__link_set_make_entry(set, sym, type)				\
 	static void const * const					\
 	    __link_set_##set##_sym_##sym __used = &sym;		\
 	__asm(".stabs \"___link_set_" #set "\", " #type ", 0, 0, _" #sym)
+#else
+#define	__link_set_make_entry(set, sym, type)				\
+	static void const * const					\
+	    __link_set_##set##_sym_##sym __used = &sym;
+#endif
 #else
 #define	__link_set_make_entry(set, sym, type)				\
 	extern void const * const __link_set_##set##_sym_##sym
@@ -121,5 +127,109 @@ extern struct {								\
 	(&(__link_set_##set).__ls_items[(__link_set_##set).__ls_length])
 
 #define	__link_set_count(set)	((__link_set_##set).__ls_length)
+
+#ifdef __WASM
+#undef __warn_references
+#undef __read_mostly
+#undef __read_frequently
+#undef __exclusive_cache_line
+#undef __builtin_return_address
+#undef __IDSTRING
+#undef	___RENAME
+#undef __weak_alias
+#undef __strong_alias
+#undef __weak_extern
+#undef __KERNEL_RCSID
+#undef	__RCSID
+
+#undef	__link_set_start
+#undef	__link_set_end
+#undef	__link_set_count
+#undef __link_set_decl
+#undef	__link_set_make_entry
+#undef	__link_set_add_text
+#undef	__link_set_add_rodata
+#undef	__link_set_add_data
+#undef	__link_set_add_bss
+
+#define __read_mostly
+#define __read_frequently
+#define __exclusive_cache_line
+#define __builtin_return_address(x) (0)
+#define __warn_references(x)
+#define	__IDSTRING(x,y) \
+"used __IDSTRING"
+#define	___RENAME(x)	 			,"no use of ___RENAME() in WASM"
+#define	__strong_alias(alias,sym)	,"no use of __strong_alias(x,y) in WASM"
+#define	__weak_alias(alias,sym)		,"no use of __weak_alias(x,y) in WASM"
+#define	__weak_extern(sym)			,"no use of __weak_extern(x,y) in WASM"
+#define __KERNEL_RCSID(x, y)
+#define	__RCSID(x)
+
+#ifndef __CONCAT1
+#define	__CONCAT1(x,y)	x ## y
+#endif
+#ifndef __CONCAT
+#define	__CONCAT(x,y)	__CONCAT1(x,y)
+#endif
+
+#ifndef __weak_symbol
+#define	__weak_symbol	__attribute__((__weak__))
+#endif
+
+#define	__link_set_decl(set, ptype)			\
+	extern ptype __weak_symbol *__CONCAT(__start_set_,set);	\
+	extern ptype __weak_symbol *__CONCAT(__stop_set_,set)
+
+#define	__link_set_start(set)	(&(__start_set_##set))
+#define	__link_set_end(set)		(&(__stop_set_##set))
+
+#define	__link_set_count(set)	((__link_set_##set).__ls_length)
+
+// __link_set_make_entry
+
+#define	__LLVM_STRING(x)	#x					/* stringify without expanding x */
+#define	__LLVM_XSTRING(x)	__LLVM_STRING(x)	/* expand x, then stringify */
+#define	__LLVM_WEAK(sym)	__asm__(".weak " __LLVM_XSTRING(sym))
+
+#define ___PASTE(a,b) a##b
+#define __PASTE(a,b) ___PASTE(a,b)
+
+#define	__link_set_make_entry(set, sym, type)			\
+	__LLVM_WEAK(__CONCAT(__start_set_,set));			\
+	__LLVM_WEAK(__CONCAT(__stop_set_,set));			    \
+	void const * const									\
+		__PASTE(__set_,                                 \
+    	__PASTE(set,                                    \
+    	__PASTE(_sym_,                                  \
+   	 	__PASTE(sym,                                    \
+    	__PASTE(_,                                      \
+    	__PASTE(__COUNTER__,                            \
+    	__PASTE(_, __LINE__)))))))                      \
+    	__section("set_" #set)			                \
+		__used = &sym;
+
+#if 0
+#define	__link_set_make_entry_at(set, sym, suffix)				\
+	__LLVM_WEAK(__CONCAT(__start_set_,set ## suffix));	\
+	__LLVM_WEAK(__CONCAT(__start_set_,set ## suffix));	\
+	void const * const									\
+		__PASTE(__set_,                                 \
+    	__PASTE(set,                                    \
+    	__PASTE(_sym_,                                  \
+   	 	__PASTE(sym,                                    \
+    	__PASTE(_,                                      \
+    	__PASTE(__COUNTER__,                            \
+    	__PASTE(_, __LINE__)))))))                      \
+    	__section("set_" #set #suffix)			       	\
+		__used = &sym;
+#endif
+
+#define	__link_set_add_text(set, sym)	__link_set_make_entry(set, sym, )
+#define	__link_set_add_rodata(set, sym)	__link_set_make_entry(set, sym, )
+#define	__link_set_add_data(set, sym)	__link_set_make_entry(set, sym, )
+#define	__link_set_add_bss(set, sym)	__link_set_make_entry(set, sym, )
+
+#endif
 
 #endif /* !_SYS_CDEFS_AOUT_H_ */

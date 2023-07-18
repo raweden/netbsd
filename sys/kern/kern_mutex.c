@@ -269,13 +269,23 @@ MUTEX_RELEASE(kmutex_t *mtx)
 #endif
 
 #ifndef __HAVE_MUTEX_STUBS
+#ifndef __WASM
 __strong_alias(mutex_enter,mutex_vector_enter);
 __strong_alias(mutex_exit,mutex_vector_exit);
+#else
+void mutex_enter(kmutex_t *) __attribute__((alias("mutex_vector_enter")));
+void mutex_exit(kmutex_t *) __attribute__((alias("mutex_vector_exit")));
+#endif
 #endif
 
 #ifndef __HAVE_SPIN_MUTEX_STUBS
+#ifndef __WASM
 __strong_alias(mutex_spin_enter,mutex_vector_enter);
 __strong_alias(mutex_spin_exit,mutex_vector_exit);
+#else
+void mutex_spin_enter(kmutex_t *) __attribute__((alias("mutex_vector_enter")));
+void mutex_spin_exit(kmutex_t *) __attribute__((alias("mutex_vector_exit")));
+#endif
 #endif
 
 static void	mutex_abort(const char *, size_t, volatile const kmutex_t *,
