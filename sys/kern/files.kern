@@ -26,6 +26,7 @@ file	kern/exec_aout.c		exec_aout
 file	kern/exec_ecoff.c		exec_ecoff
 file	kern/exec_elf32.c		exec_elf32
 file	kern/exec_elf64.c		exec_elf64
+file	kern/exec_wasm32.c		exec_wasm32
 file	kern/exec_script.c		exec_script
 file	kern/exec_subr.c		kern
 file	kern/init_main.c		kern
