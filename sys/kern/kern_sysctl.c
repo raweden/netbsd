@@ -824,6 +824,8 @@ sysctl_create(SYSCTLFN_ARGS)
 	if (nsz == 0 || nsz == SYSCTL_NAMELEN)
 		return (EINVAL);
 
+	printf("%s create name: %s\n", __func__, nnode.sysctl_name);
+
 	/*
 	 * various checks revolve around size vs type, etc
 	 */

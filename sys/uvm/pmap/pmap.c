@@ -594,6 +594,9 @@ pmap_steal_memory(vsize_t size, vaddr_t *vstartp, vaddr_t *vendp)
 			continue;
 		}
 
+		printf("uvm_physseg_get_avail of 'bank' end: %d start %d", uvm_physseg_get_avail_end(bank), uvm_physseg_get_avail_start(bank));
+		printf("uvm_physseg_get_avail of 'maybe_bank' end: %d start %d", uvm_physseg_get_avail_end(maybe_bank), uvm_physseg_get_avail_start(maybe_bank));
+
 		/*
 		 * Always try to allocate from the segment with the least
 		 * amount of space left.
@@ -613,6 +616,8 @@ pmap_steal_memory(vsize_t size, vaddr_t *vstartp, vaddr_t *vendp)
 		 */
 		pa = ptoa(uvm_physseg_get_start(bank));
 		uvm_physseg_unplug(atop(pa), npgs);
+
+		printf("stolen addr %d size %lu", pa, size);
 
 		aprint_debug("%s: seg %"PRIxPHYSSEG": %zu pages stolen (%#"PRIxPADDR" left)\n",
 		    __func__, bank, npgs, VM_PHYSMEM_SPACE(bank));
