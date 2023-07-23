@@ -142,6 +142,22 @@ static bool pool_cache_put_nocache(pool_cache_t, void *);
 #define NO_CTOR	__FPTRCAST(int (*)(void *, void *, int), nullop)
 #define NO_DTOR	__FPTRCAST(void (*)(void *, void *), nullop)
 
+#ifdef __WASM
+#undef NO_CTOR
+#undef NO_DTOR
+static int pool_cache_ctor_nullop(void *arg, void *v, int flags)
+{
+	return 0;
+}
+
+static void pool_cache_dtor_nullop(void *arg, void *obj)
+{
+	
+}
+#define NO_CTOR pool_cache_ctor_nullop
+#define NO_DTOR pool_cache_dtor_nullop
+#endif
+
 #define pc_has_pser(pc) (((pc)->pc_roflags & PR_PSERIALIZE) != 0)
 #define pc_has_ctor(pc) ((pc)->pc_ctor != NO_CTOR)
 #define pc_has_dtor(pc) ((pc)->pc_dtor != NO_DTOR)
