@@ -241,7 +241,7 @@ buildinfo_source="$(printf "%b" "${BUILDINFO}" | source_lines)"
 # work around escaping issues with different shells
 emptyq='""'
 
-cat << _EOF > vers.c
+cat << _EOF
 /*
  * Automatically generated file from $0
  * Do not edit.
@@ -263,7 +263,7 @@ _EOF
 
 ${nflag} && exit 0
 
-cat << _EOF >> vers.c
+cat << _EOF
 
 /*
  * NetBSD identity note.

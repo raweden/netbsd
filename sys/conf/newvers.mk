@@ -17,7 +17,7 @@ newvers: vers.o
 vers.o: ${SYSTEM_OBJ:O} Makefile $S/conf/newvers.sh \
 		$S/conf/osrelease.sh ${_NETBSD_VERSION_DEPENDS}
 	${_MKMSG_CREATE} vers.c
-	${HOST_SH} $S/conf/newvers.sh ${_NVFLAGS}
+	${HOST_SH} $S/conf/newvers.sh ${_NVFLAGS} > vers.c
 	${_MKTARGET_COMPILE}
 	${CC} ${CFLAGS} ${CPPFLAGS} ${PROF} -c vers.c
 	${COMPILE_CTFCONVERT}
