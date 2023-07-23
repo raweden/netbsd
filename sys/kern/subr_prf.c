@@ -999,6 +999,13 @@ aprint_verbose_ifnet(struct ifnet *ifp, const char *fmt, ...)
 static void
 aprint_debug_internal(const char *prefix, const char *fmt, va_list ap)
 {
+#ifdef __WASM
+	static char tmpbuf[1024];
+	int ret = kprintf(fmt, TOBUFONLY, NULL, tmpbuf, ap);
+	kern_console_log(tmpbuf, ret, 0, 0);
+
+#endif
+
 	if ((boothowto & AB_DEBUG) == 0)
 		return;
 
@@ -1050,6 +1057,14 @@ vprintf_flags(int flags, const char *fmt, va_list ap)
 {
 	kprintf_lock();
 	kprintf(fmt, flags, NULL, NULL, ap);
+#ifdef __WASM
+	static char tmpbuf[1024];
+	if ((flags & TOCONS) != 0 || (flags & TOLOG) != 0) {
+		int ret = kprintf(fmt, TOBUFONLY, NULL, tmpbuf, ap);
+		kern_console_log(tmpbuf, ret, flags, 0);
+	}
+
+#endif
 	kprintf_unlock();
 }
 
