@@ -73,7 +73,7 @@ file sys/arch/wasm/wasm/wasm_atomic.c         wasm32
 file    arch/wasm/wasm/lwp_machdep.c              wasm32
 #file    arch/wasm/wasm/mainbus.c                  wasm32
 #sys/arch/wasm/wasm/wasm_generic_dma.c         wasm32
-file    arch/wasm/wasm/wasm_machdep.c          wasm32
+#file    arch/wasm/wasm/wasm_machdep.c          wasm32
 #sys/arch/wasm/wasm/wasm_tlb.c
 #sys/arch/wasm/wasm/sig32_machdep.c
 #sys/arch/wasm/wasm/wasm_locore.c

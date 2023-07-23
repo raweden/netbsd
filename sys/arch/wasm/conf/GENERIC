@@ -87,6 +87,7 @@ file-system PROCFS
 file-system PTYFS
 file-system TMPFS
 file-system FDESC
+file-system EXT2FS
 
 # File system options
 #options 	FFS_EI		# FFS Endian Independent support
