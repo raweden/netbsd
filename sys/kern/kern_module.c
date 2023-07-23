@@ -1556,6 +1556,8 @@ module_do_unload(const char *name, bool load_requires_force)
 int
 module_prime(const char *name, void *base, size_t size)
 {
+	// TODO: wasm32 fixme!
+	#ifndef __WASM
 	__link_set_decl(modules, modinfo_t);
 	modinfo_t *const *mip;
 	module_t *mod;
@@ -1605,7 +1607,7 @@ module_prime(const char *name, void *base, size_t size)
 	}
 
 	TAILQ_INSERT_TAIL(&module_bootlist, mod, mod_chain);
-
+#endif
 	return 0;
 }
 
