@@ -263,22 +263,26 @@ vunmapbuf(struct buf *bp, vsize_t len)
 }
 #endif
 
+// from sys/rump/librump/rumpkern/arch/generic/rump_generic_directmap.c
+
 int
 mm_md_physacc(paddr_t pa, vm_prot_t prot)
 {
         return (atop(pa) < physmem) ? 0 : EFAULT;
 }
 
+#ifdef __HAVE_MM_MD_DIRECT_MAPPED_IO
+bool
+mm_md_direct_mapped_io(void *ptr, paddr_t *pap)
+{
+	return false;
+}
+#endif
+
 #ifdef __HAVE_MM_MD_DIRECT_MAPPED_PHYS
 bool
 mm_md_direct_mapped_phys(paddr_t pa, vaddr_t *vap)
 {
-	if (pa >= physical_start && pa <= physical_end) {
-		if (*vap)
-			*vap = pmap_md_direct_map_paddr(pa);
-		return true;
-	}
-
 	return false;
 }
 #endif

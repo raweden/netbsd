@@ -32,11 +32,12 @@
 //#include <sys/stdint.h>
 //#include <uvm/pmap/pmap.h>
 
-#include <sys/null.h>
 
 #include <sys/types.h>
 #include <wasm/machdep.h>
 #include <wasm/sbi.h>
+#include <sys/null.h>
+#include <sys/errno.h>
 
 #include <wasm/wasm_module.h>
 
@@ -69,8 +70,9 @@ paddr_t physical_end = WASM_UNINIT_ADDR;
 paddr_t bootstrap_pde = WASM_UNINIT_ADDR;
 paddr_t l1_pte = WASM_UNINIT_ADDR;
 paddr_t __fdt_base = WASM_UNINIT_ADDR;
+unsigned long curphysmem = WASM_UNINIT_ADDR;
 
-
+char **__wasmkern_envp;
 char *lwp0uspace;
 
 void main(void);
@@ -102,6 +104,41 @@ void global_start(void)
 
     init_wasm32(hartid, dtb);
     main();
+}
+
+int wasmkern_getparam(const char *name, void *bufp, size_t *bufsz)
+{
+    if (bufp == NULL || bufsz == NULL) {
+        return (EINVAL);
+    }
+
+    if (__wasmkern_envp == NULL) {
+        return (ENOENT);
+    }
+
+    int nlen = strlen(name);
+    
+    for (int i=0; __wasmkern_envp[i]!=NULL; i++) {
+        const char *entp = __wasmkern_envp[i];
+        const char *eqp = strchr(entp, '=');
+        int entnlen = eqp != NULL ? eqp - entp : -1;
+
+        if (nlen != entnlen) {
+            continue;
+        }
+
+        if (strncmp(entp, entp, nlen) == 0) {
+            size_t strsz = strlen(eqp);
+            size_t cpysz = MIN(strsz, *bufsz);
+            printf("env: %s val: %s", name, eqp);
+            memcpy(bufp, eqp, cpysz);
+            *bufsz = strsz;
+
+            return (0);
+        }
+    }
+
+    return (ENOENT);
 }
 
 #undef WASM_UNINIT_ADDR

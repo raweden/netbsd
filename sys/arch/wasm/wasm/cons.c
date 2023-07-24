@@ -49,15 +49,14 @@ __KERNEL_RCSID(0, "$NetBSD: cons.c,v 1.9 2020/01/02 15:42:27 thorpej Exp $");
 #include <sys/stat.h>
 #include <sys/termios.h>
 
-#include <rump-sys/kern.h>
+#include <wasm/wasm_module.h>
 
-#include <rump/rumpuser.h>
-
-static int rumpcons_write(struct file *, off_t *, struct uio *,
-			  kauth_cred_t, int);
+static int rumpcons_write(struct file *, off_t *, struct uio *, kauth_cred_t, int);
 static int rumpcons_ioctl(struct file *, u_long, void *);
 static int rumpcons_stat(struct file *, struct stat *);
 static int rumpcons_poll(struct file *, int events);
+
+int __kcons_write(const char *buf, unsigned int bufsz, unsigned int flags, unsigned int level) __WASM_IMPORT(kern, cons_write);
 
 static const struct fileops rumpcons_fileops = {
 	.fo_name = "rumpcons",
@@ -104,22 +103,21 @@ static int
 rumpcons_write(struct file *fp, off_t *off, struct uio *uio,
 	kauth_cred_t cred, int flags)
 {
-	char *buf;
+#define __TMPBUFSZ 512
 	size_t len, n;
 	int error = 0;
+	char buf[__TMPBUFSZ];
 
-	buf = kmem_alloc(PAGE_SIZE, KM_SLEEP);
+	//buf = kmem_alloc(PAGE_SIZE, KM_SLEEP);
 	while (uio->uio_resid > 0) {
-		len = uimin(PAGE_SIZE, uio->uio_resid);
+		len = uimin(__TMPBUFSZ, uio->uio_resid);
 		error = uiomove(buf, len, uio);
 		if (error)
 			break;
 
-		for (n = 0; n < len; n++) {
-			rumpuser_putchar(*(buf+n));
-		}
+		__kcons_write(buf, len, 0, 0);
 	}
-	kmem_free(buf, PAGE_SIZE);
+	//kmem_free(buf, PAGE_SIZE);
 
 	return error;
 }

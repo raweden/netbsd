@@ -629,6 +629,7 @@ cpu_kernel_vm_init(paddr_t memory_start, paddr_t memory_end)
 static void
 riscv_init_lwp0_uarea(void)
 {
+#if 0
 	extern char lwp0uspace[];
 
 	uvm_lwp_setuarea(&lwp0, (vaddr_t)lwp0uspace);
@@ -639,6 +640,7 @@ riscv_init_lwp0_uarea(void)
 	memset(tf, 0, sizeof(*tf));
 
 	lwp0.l_md.md_utf = lwp0.l_md.md_ktf = tf;
+#endif
 }
 
 
@@ -896,9 +898,9 @@ init_wasm32(register_t hartid, paddr_t dtb)
 	 * pass memory pages to uvm
 	 */
 	physmem = 0;
-	fdt_memory_foreach(wasm_add_memory, NULL);
+	//fdt_memory_foreach(wasm_add_memory, NULL);
 
-	pmap_bootstrap(kernelvmstart, VM_MAX_KERNEL_ADDRESS);
+	//pmap_bootstrap(kernelvmstart, VM_MAX_KERNEL_ADDRESS);
 
 	kasan_init();
 

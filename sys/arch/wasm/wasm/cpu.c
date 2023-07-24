@@ -103,7 +103,7 @@ struct cpu_info cpu_info_store[NCPUINFO] = {
 		.ci_cpl = IPL_HIGH,
 		.ci_curlwp = &lwp0,
 		.ci_cpl = IPL_HIGH,
-		.ci_tlb_info = &pmap_tlb0_info,
+		.ci_tlb_info = NULL,
 #ifdef MULTIPROCESSOR
 		.ci_flags = CPUF_PRIMARY | CPUF_PRESENT | CPUF_RUNNING,
 #endif
