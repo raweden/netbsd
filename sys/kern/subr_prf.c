@@ -72,10 +72,6 @@ __KERNEL_RCSID(0, "$NetBSD: subr_prf.c,v 1.201 2023/07/17 22:57:35 riastradh Exp
 
 #include <net/if.h>
 
-#ifdef __WASM
-#include <wasm/wasm_module.h>
-void kern_console_log(char *, unsigned int bufsz, int flags, int level) __WASM_IMPORT(kern, console_log);
-#endif
 
 static kmutex_t kprintf_mtx;
 static bool kprintf_inited = false;
@@ -274,9 +270,6 @@ vpanic(const char *fmt, va_list ap)
 
 		vsnprintf(scratchstr, sizeof(scratchstr), fmt, ap);
 		kprintf_internal("%s", TOLOG|TOCONS, NULL, NULL, scratchstr);
-#ifdef __WASM
-		kern_console_log(scratchstr, sizeof(scratchstr), 0, 0);
-#endif
 		panicstr = scratchstr;
 	} else {
 		kprintf(fmt, TOLOG|TOCONS, NULL, NULL, ap);
@@ -999,12 +992,6 @@ aprint_verbose_ifnet(struct ifnet *ifp, const char *fmt, ...)
 static void
 aprint_debug_internal(const char *prefix, const char *fmt, va_list ap)
 {
-#ifdef __WASM
-	static char tmpbuf[1024];
-	int ret = kprintf(fmt, TOBUFONLY, NULL, tmpbuf, ap);
-	kern_console_log(tmpbuf, ret, 0, 0);
-
-#endif
 
 	if ((boothowto & AB_DEBUG) == 0)
 		return;
@@ -1057,14 +1044,6 @@ vprintf_flags(int flags, const char *fmt, va_list ap)
 {
 	kprintf_lock();
 	kprintf(fmt, flags, NULL, NULL, ap);
-#ifdef __WASM
-	static char tmpbuf[1024];
-	if ((flags & TOCONS) != 0 || (flags & TOLOG) != 0) {
-		int ret = kprintf(fmt, TOBUFONLY, NULL, tmpbuf, ap);
-		kern_console_log(tmpbuf, ret, flags, 0);
-	}
-
-#endif
 	kprintf_unlock();
 }
 

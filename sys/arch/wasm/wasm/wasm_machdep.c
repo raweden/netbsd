@@ -699,6 +699,37 @@ parse_mi_bootargs(char *args)
 	}
 }
 
+int __kcons_write(const char *buf, unsigned int bufsz, unsigned int flags, unsigned int level) __WASM_IMPORT(kern, cons_write);
+
+extern void (*v_putc)(int);		/* start with cnputc (normal cons) */
+extern void (*v_flush)(void);	/* start with cnflush (normal cons) */
+
+#define __CNBUFSZ 512
+static char cnbuf[__CNBUFSZ];
+static short cnlen = 0;
+
+static void
+wasm_cnflush(void)
+{
+	if (cnlen == 0)
+		return;
+	
+	__kcons_write(cnbuf, cnlen, 0, 0);
+	cnlen = 0;
+}
+
+static void
+wasm_cnputc(int c)
+{
+	cnbuf[cnlen++] = c;
+	if (c == '\n' || cnlen == (__CNBUFSZ - 1)) {
+		wasm_cnflush();
+	}
+}
+
+
+
+#undef __CNBUFSZ
 
 void
 init_wasm32(register_t hartid, paddr_t dtb)
@@ -706,6 +737,11 @@ init_wasm32(register_t hartid, paddr_t dtb)
 
 	/* set temporally to work printf()/panic() even before consinit() */
 	cn_tab = &earlycons;
+
+	// TODO: wasm, this will only work as long as we only got one thread in kernel space..
+	// low level hack.
+	v_putc = wasm_cnputc;
+	v_flush = wasm_cnflush;
 
 	/* Load FDT */
 	//const vaddr_t dtbva = VM_KERNEL_DTB_BASE + (dtb & (NBSEG - 1));
