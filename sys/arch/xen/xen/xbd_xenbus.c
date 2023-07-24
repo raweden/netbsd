@@ -1,4 +1,4 @@
-/*      $NetBSD: xbd_xenbus.c,v 1.131 2023/02/25 00:35:15 riastradh Exp $      */
+/*      $NetBSD: xbd_xenbus.c,v 1.133 2023/07/21 11:28:50 bouyer Exp $      */
 
 /*
  * Copyright (c) 2006 Manuel Bouyer.
@@ -50,7 +50,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: xbd_xenbus.c,v 1.131 2023/02/25 00:35:15 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: xbd_xenbus.c,v 1.133 2023/07/21 11:28:50 bouyer Exp $");
 
 #include "opt_xen.h"
 
@@ -169,7 +169,7 @@ struct xbd_xenbus_softc {
 #define BLKIF_SHUTDOWN_REMOTE 1 /* backend-initiated shutdown in progress */
 #define BLKIF_SHUTDOWN_LOCAL  2 /* locally-initiated shutdown in progress */
 
-	uint64_t sc_sectors; /* number of sectors for this device */
+	uint64_t sc_sectors; /* number of XEN_BSIZE sectors for this device */
 	u_long sc_secsize; /* sector size */
 	uint64_t sc_xbdsize; /* size of disk in DEV_BSIZE */
 	u_long sc_info; /* VDISK_* */
@@ -674,7 +674,7 @@ xbd_backend_changed(void *arg, XenbusState new_state)
 		xbd_connect(sc);
 		sc->sc_shutdown = BLKIF_SHUTDOWN_RUN;
 		sc->sc_xbdsize =
-		    sc->sc_sectors * (uint64_t)sc->sc_secsize / DEV_BSIZE;
+		    sc->sc_sectors * (uint64_t)XEN_BSIZE / DEV_BSIZE;
 		dg = &sc->sc_dksc.sc_dkdev.dk_geom;
 		memset(dg, 0, sizeof(*dg));
 
@@ -693,7 +693,7 @@ xbd_backend_changed(void *arg, XenbusState new_state)
 		hypervisor_unmask_event(sc->sc_evtchn);
 
 		format_bytes(buf, uimin(9, sizeof(buf)),
-		    sc->sc_sectors * sc->sc_secsize);
+		    sc->sc_sectors * XEN_BSIZE);
 		aprint_normal_dev(sc->sc_dksc.sc_dev,
 				"%s, %d bytes/sect x %" PRIu64 " sectors\n",
 				buf, (int)dg->dg_secsize, sc->sc_xbdsize);

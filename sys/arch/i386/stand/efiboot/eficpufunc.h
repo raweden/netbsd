@@ -1,11 +1,11 @@
-/* $NetBSD: SYS.h,v 1.4 2023/07/23 07:25:04 skrll Exp $ */
+/*	$NetBSD: eficpufunc.h,v 1.1 2023/07/24 01:56:59 rin Exp $	*/
 
 /*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+ * Copyright (c) 2007 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * by Andrew Doran.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,53 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <machine/asm.h>
-#include <sys/syscall.h>
+/*
+ * Functions compatible to i386/stand/lib/cpufunc.h with UEFI ABI.
+ * Currently, only used for raw console I/O by eficons.c.
+ */
 
-#ifndef __STDC__
-#error __STDC__ not defined
-#endif
-
-#define SYSTRAP(x)	svc #(SYS_ ## x)
-
-#define _SYSCALL_NOERROR(x,y)						\
-ENTRY(x);								\
-	SYSTRAP(y)
-
-#define _INVOKE_CERROR()						\
-	b.cc	1f;							\
-	b	_C_LABEL(__cerror);					\
-1:
-
-#define _SYSCALL(x, y)							\
-	_SYSCALL_NOERROR(x,y);						\
-	_INVOKE_CERROR()
-
-#define SYSCALL_NOERROR(x)						\
-	_SYSCALL_NOERROR(x,x)
-
-#define SYSCALL(x)							\
-	_SYSCALL(x,x)
-
-#define PSEUDO_NOERROR(x,y)						\
-	_SYSCALL_NOERROR(x,y);						\
-	ret;								\
-END(x)
-
-#define PSEUDO(x,y)							\
-	_SYSCALL(x,y);							\
-	ret;								\
-END(x)
-
-#define RSYSCALL_NOERROR(x)						\
-	PSEUDO_NOERROR(x,x)
-
-#define RSYSCALL(x)							\
-	PSEUDO(x,x)
-
-#define	WSYSCALL(weak,strong)						\
-	WEAK_ALIAS(weak,strong);					\
-	PSEUDO(strong,weak)
-
-	.hidden	__cerror
-	.globl	__cerror
+uint8_t	inb(uint32_t);
+void	outb(uint32_t, uint8_t);
