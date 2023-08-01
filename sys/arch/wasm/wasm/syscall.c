@@ -1,11 +1,11 @@
-/*	$NetBSD: syscall.c,v 1.4 2023/05/07 12:41:49 skrll Exp $	*/
+/*	$NetBSD: syscall.c,v 1.21 2022/03/17 22:22:49 riastradh Exp $	*/
 
 /*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+ * Copyright (c) 1998, 2000, 2009 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * by Charles M. Hannum.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,243 +28,159 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: syscall.c,v 1.4 2023/05/07 12:41:49 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: syscall.c,v 1.21 2022/03/17 22:22:49 riastradh Exp $");
 
 #include <sys/param.h>
-#include <sys/cpu.h>
-#include <sys/endian.h>
+#include <sys/systm.h>
 #include <sys/proc.h>
 #include <sys/signal.h>
-#include <sys/systm.h>
-
-#include <wasm/frame.h>
-#include <wasm/locore.h>
-
-#ifndef EMULNAME
-#define EMULNAME(x)	(x)
+#include <sys/ktrace.h>
 #include <sys/syscall.h>
 #include <sys/syscallvar.h>
+#include <sys/syscall_stats.h>
+
+#include <uvm/uvm_extern.h>
+
+#include <machine/cpu.h>
+#include <machine/psl.h>
+#include <machine/userret.h>
+
+#include "opt_dtrace.h"
+
+#ifdef __WASM
+#include <wasm/wasm_module.h>
 #endif
 
-#ifndef SYSCALL_SHIFT
-#define SYSCALL_SHIFT 0
+#ifdef __WASM
+void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 #endif
 
-void	EMULNAME(syscall_intern)(struct proc *);
-static void EMULNAME(syscall)(struct trapframe *);
+#ifndef __x86_64__
+int		x86_copyargs(void *, void *, size_t);
+#endif
 
-__CTASSERT(EMULNAME(SYS_MAXSYSARGS) <= 8);
+void		syscall_intern(struct proc *);
+static void	syscall(struct trapframe *);
 
 void
-EMULNAME(syscall_intern)(struct proc *p)
+md_child_return(struct lwp *l)
 {
-	p->p_md.md_syscall = EMULNAME(syscall);
-}
+	struct trapframe *tf = l->l_md.md_regs;
 
-#define INSN_SIZE 4
-/*
- * Process a system call.
- *
- * System calls are strange beasts.  They are passed the syscall number
- * in t6, and the arguments in the registers (as normal).
- * The return value (if any) in a0 and possibly a1.  The instruction
- * directly after the syscall is excepted to contain a jump instruction
- * for an error handler.  If the syscall completes with no error, the PC
- * will be advanced past that instruction.
- */
-
-void
-EMULNAME(syscall)(struct trapframe *tf)
-{
-	struct lwp * const l = curlwp;
-	struct proc * const p = l->l_proc;
-	register_t *args = &tf->tf_a0;
-	register_t retval[2];
-	const struct sysent *callp;
-	int code, error;
-#ifdef _LP64
-	const bool pk32_p = (p->p_flag & PK_32) != 0;
-	register_t copyargs[EMULNAME(SYS_MAXSYSARGS)];
-#endif
-
-	LWP_CACHE_CREDS(l, p);
-
-	curcpu()->ci_data.cpu_nsyscall++;
-
-	callp = p->p_emul->e_sysent;
-	code = tf->tf_t6 - SYSCALL_SHIFT;
-
-	/*
-	 * Userland should have taken care of moving everything to their
-	 * usual place so these code's should never get to the kernel.
-	 */
-	if (code == SYS_syscall || code == SYS___syscall) {
-#ifdef RISCV_SYSCALL_DEBUG
-		printf("syscall: _syscall code %#"PRIxREGISTER"\n", tf->tf_a0);
-#endif
-		/* XXX 32-bit vs 64-bit handling?? */
-		code = *args;	/* syscall num is first arg */
-		args++;		/* shuffle args */
-	}
-
-	if (code >= p->p_emul->e_nsysent)
-		callp += p->p_emul->e_nosys;
-	else
-		callp += code;
-
-#ifdef _LP64
-	const size_t nargs = callp->sy_narg;
-	/*
-	 * If there are no 64bit arguments, we still need "sanitize" the
-	 * 32-bit arguments in case they try to slip through a 64-bit pointer.
-	 *  and all arguments were in
-	 * registers, just use the trapframe for the source of arguments
-	 */
-	if (pk32_p) {
-		size_t narg64 = SYCALL_NARGS64(callp);
-		unsigned int arg64mask = SYCALL_ARG_64_MASK(callp);
-		bool doing_arg64 = false;
-		register_t *args32 = args;
-
-		/*
-		 * All arguments are 32bits wide and if we have 64bit arguments
-		 * then use two 32bit registers to construct a 64bit argument.
-		 * We remarshall them into 64bit slots but we don't want to
-		 * disturb the original arguments in case we get restarted.
-		 */
-		if (SYCALL_NARGS64(callp) > 0) {
-			args = copyargs;
-		}
-
-		/*
-		 * Copy all the arguments to copyargs, starting with the ones
-		 * in registers.  Using the hints in the 64bit argmask,
-		 * we marshall the passed 32bit values into 64bit slots.  If we
-		 * encounter a 64 bit argument, we grab two adjacent 32bit
-		 * values and synthesize the 64bit argument.
-		 */
-		for (size_t i = 0; i < nargs + narg64; ) {
-			register_t arg = *args32++;
-			if (__predict_true((arg64mask & 1) == 0)) {
-				/*
-				 * Just copy it with sign extension on
-				 */
-				args[i++] = (int32_t) arg;
-				arg64mask >>= 1;
-				continue;
-			}
-			/*
-			 * 64bit arg.  grab the low 32 bits, discard the high.
-			 */
-			arg = (uint32_t)arg;
-			if (!doing_arg64) {
-				/*
-				 * Pick up the 1st word of a 64bit arg.
-				 * If lowword == 1 then highword == 0,
-				 * so this is the highword and thus
-				 * shifted left by 32, otherwise
-				 * lowword == 0 and highword == 1 so
-				 * it isn't shifted at all.  Remember
-				 * we still need another word.
-				 */
-				doing_arg64 = true;
-				args[i] = arg << (_QUAD_LOWWORD*32);
-				narg64--;	/* one less 64bit arg */
-			} else {
-				/*
-				 * Pick up the 2nd word of a 64bit arg.
-				 * if highword == 1, it's shifted left
-				 * by 32, otherwise lowword == 1 and
-				 * highword == 0 so it isn't shifted at
-				 * all.  And now head to the next argument.
-				 */
-				doing_arg64 = false;
-				args[i++] |= arg << (_QUAD_HIGHWORD*32);
-				arg64mask >>= 1;
-			}
-		}
-	}
-#endif
-
-#ifdef RISCV_SYSCALL_DEBUG
-	if (p->p_emul->e_syscallnames)
-		printf("syscall %s:", p->p_emul->e_syscallnames[code]);
-	else
-		printf("syscall %u:", code);
-	if (nargs == 0)
-		printf(" <no args>");
-	else for (size_t j = 0; j < nargs; j++) {
-		printf(" [%s%zu]=%#"PRIxREGISTER,
-		    SYCALL_ARG_64_P(callp, j) ? "+" : "",
-		    j, args[j]);
-	}
-	printf("\n");
-#endif
-	/*
-	 * Assume success and fixup pc to point after the ecall and jump
-	 * to cerror.  fork, and friends, expect this.
-	 */
-	tf->tf_pc +=
-	    INSN_SIZE + 	// ecall
-	    INSN_SIZE * 2;	// jump to cerror (or nops)
-
-	error = sy_invoke(callp, l, args, retval, code);
-
-	switch (error) {
-	case 0:
-#ifdef _LP64
-#if 0
-		if (pk32_p && SYCALL_RET_64_P(callp)) {
-
-			/*
-			 * If this is from O32 and it's a 64bit quantity,
-			 * split it into 2 32bit values in adjacent registers.
-			 */
-			register_t tmp = retval[0];
-			tf->tf_reg[_X_A0 + _QUAD_LOWWORD] = (int32_t) tmp;
-			tf->tf_reg[_X_A0 + _QUAD_HIGHWORD] = tmp >> 32;
-		}
-#endif
-#endif
-
-		tf->tf_a0 = retval[0];
-		tf->tf_a1 = retval[1];
-
-#ifdef RISCV_SYSCALL_DEBUG
-		if (p->p_emul->e_syscallnames)
-			printf("syscall %s:", p->p_emul->e_syscallnames[code]);
-		else
-			printf("syscall %u:", code);
-		printf(" return a0=%#"PRIxREGISTER" a1=%#"PRIxREGISTER" to"
-		    " %#"PRIxREGISTER "\n",
-		    tf->tf_a0, tf->tf_a1, tf->tf_pc);
-#endif
-		break;
-	case ERESTART:
-		tf->tf_pc -=
-		    INSN_SIZE + 	// ecall
-		    INSN_SIZE * 2;	// jump to cerror (or nops)
-		break;
-	case EJUSTRETURN:
-		break;
-	default:
-		if (p->p_emul->e_errno)
-			error = p->p_emul->e_errno[error];
-		tf->tf_a0 = error;
-		tf->tf_pc -= INSN_SIZE * 2;	// jump to cerror.
-#ifdef RISCV_SYSCALL_DEBUG
-		if (p->p_emul->e_syscallnames)
-			printf("syscall %s:", p->p_emul->e_syscallnames[code]);
-		else
-			printf("syscall %u:", code);
-		printf(" return error=%d to %#" PRIxREGISTER "\n", error, tf->tf_pc);
-#endif
-		break;
-	}
-
-	KASSERT(l->l_blcnt == 0);
-	KASSERT(curcpu()->ci_biglock_count == 0);
+	X86_TF_RAX(tf) = 0;
+	X86_TF_RFLAGS(tf) &= ~PSL_C;
 
 	userret(l);
+}
+
+/*
+ * Process the tail end of a posix_spawn() for the child.
+ */
+void
+cpu_spawn_return(struct lwp *l)
+{
+
+	userret(l);
+}
+
+/*
+ * syscall(frame):
+ *	System call request from POSIX system call gate interface to kernel.
+ *	Like trap(), argument is call by reference.
+ */
+#ifdef KDTRACE_HOOKS
+void syscall(struct trapframe *);
+#else
+static
+#endif
+void
+syscall(struct trapframe *frame)
+{
+	const struct sysent *callp;
+	struct proc *p;
+	struct lwp *l;
+	int error;
+	register_t code, rval[2];
+#ifdef __x86_64__
+	/* Verify that the syscall args will fit in the trapframe space */
+	CTASSERT(offsetof(struct trapframe, tf_arg9) >=
+	    sizeof(register_t) * (2 + SYS_MAXSYSARGS - 1));
+#define args (&frame->tf_rdi)
+#else
+	register_t args[2 + SYS_MAXSYSARGS];
+#endif
+
+	l = curlwp;
+	p = l->l_proc;
+	LWP_CACHE_CREDS(l, p);
+
+	code = X86_TF_RAX(frame) & (SYS_NSYSENT - 1);
+	callp = p->p_emul->e_sysent + code;
+
+	SYSCALL_COUNT(syscall_counts, code);
+	SYSCALL_TIME_SYS_ENTRY(l, syscall_times, code);
+
+#ifdef __x86_64__
+	/*
+	 * The first 6 syscall args are passed in rdi, rsi, rdx, r10, r8 and r9
+	 * (rcx gets copied to r10 in the libc stub because the syscall
+	 * instruction overwrites %cx) and are together in the trap frame
+	 * with space following for 4 more entries.
+	 */
+	if (__predict_false(callp->sy_argsize > 6 * 8)) {
+		error = copyin((register_t *)frame->tf_rsp + 1,
+		    &frame->tf_arg6, callp->sy_argsize - 6 * 8);
+		if (error != 0)
+			goto bad;
+	}
+#else
+	if (callp->sy_argsize) {
+#ifndef __WASM
+		error = x86_copyargs((char *)frame->tf_esp + sizeof(int), args,
+			    callp->sy_argsize);
+		if (__predict_false(error != 0))
+			goto bad;
+#else
+		__panic_abort();	// TODO: wasm, for now we simply panic once we get here, we need to check this impl once we get this far into the project.
+#endif
+	}
+#endif
+	error = sy_invoke(callp, l, args, rval, code);
+
+	if (__predict_true(error == 0)) {
+		X86_TF_RAX(frame) = rval[0];
+		X86_TF_RDX(frame) = rval[1];
+		X86_TF_RFLAGS(frame) &= ~PSL_C;	/* carry bit */
+	} else {
+		switch (error) {
+		case ERESTART:
+			/*
+			 * The offset to adjust the PC by depends on whether we
+			 * entered the kernel through the trap or call gate.
+			 * We saved the instruction size in tf_err on entry.
+			 */
+			X86_TF_RIP(frame) -= frame->tf_err;
+			break;
+		case EJUSTRETURN:
+			/* nothing to do */
+			break;
+		default:
+		bad:
+			X86_TF_RAX(frame) = error;
+			X86_TF_RFLAGS(frame) |= PSL_C;	/* carry bit */
+			break;
+		}
+	}
+
+	SYSCALL_TIME_SYS_EXIT(l);
+	userret(l);
+}
+
+void
+syscall_intern(struct proc *p)
+{
+
+	p->p_md.md_syscall = syscall;
 }

@@ -1,11 +1,11 @@
-/* $NetBSD: mcontext.h,v 1.7 2023/05/07 12:41:48 skrll Exp $ */
+/*	$NetBSD: mcontext.h,v 1.15 2019/12/27 00:32:17 kamil Exp $	*/
 
 /*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+ * Copyright (c) 1999 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * by Klaus Klein.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,160 +28,107 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef _WASM_MCONTEXT_H_
-#define _WASM_MCONTEXT_H_
+
+#ifndef _I386_MCONTEXT_H_
+#define _I386_MCONTEXT_H_
+
 
 /*
+ * mcontext extensions to handle signal delivery.
  */
-
-#define	_NGREG	32		/* GR1-31 */
-#define	_NFREG	33		/* F0-31, FCSR */
+#define _UC_SETSTACK	0x00010000
+#define _UC_CLRSTACK	0x00020000
+#define _UC_VM		0x00040000
+#define	_UC_TLSBASE	0x00080000
 
 /*
- * This fragment is common to <riscv/mcontext.h> and <riscv/reg.h>
- */
-#ifndef _BSD_FPREG_T_
-union __fpreg {
-		__uint64_t u_u64;
-		double u_d;
-};
-#define _BSD_FPREG_T_	union __fpreg
-#endif
+ * Layout of mcontext_t according to the System V Application Binary Interface,
+ * Intel386(tm) Architecture Processor Supplement, Fourth Edition.
+ */  
 
-typedef	__uint64_t	__greg_t;
+/*
+ * General register state
+ */
+#define _NGREG		19
+typedef	int		__greg_t;
 typedef	__greg_t	__gregset_t[_NGREG];
-typedef	__uint32_t	__greg32_t;
-typedef	__greg32_t	__gregset32_t[_NGREG];
-typedef _BSD_FPREG_T_	__fregset_t[_NFREG];
 
-#define	_REG_X1		0
-#define	_REG_X2		1
-#define	_REG_X3		2
-#define	_REG_X4		3
-#define	_REG_X5		4
-#define	_REG_X6		5
-#define	_REG_X7		6
-#define	_REG_X8		7
-#define	_REG_X9		8
-#define	_REG_X10	9
-#define	_REG_X11	10
-#define	_REG_X12	11
-#define	_REG_X13	12
-#define	_REG_X14	13
-#define	_REG_X15	14
-#define	_REG_X16	15
-#define	_REG_X17	16
-#define	_REG_X18	17
-#define	_REG_X19	18
-#define	_REG_X20	19
-#define	_REG_X21	20
-#define	_REG_X22	21
-#define	_REG_X23	22
-#define	_REG_X24	23
-#define	_REG_X25	24
-#define	_REG_X26	25
-#define	_REG_X27	26
-#define	_REG_X28	27
-#define	_REG_X29	28
-#define	_REG_X30	29
-#define	_REG_X31	30
-#define	_REG_PC		31
+#define _REG_GS		0
+#define _REG_FS		1
+#define _REG_ES		2
+#define _REG_DS		3
+#define _REG_EDI	4
+#define _REG_ESI	5
+#define _REG_EBP	6
+#define _REG_ESP	7
+#define _REG_EBX	8
+#define _REG_EDX	9
+#define _REG_ECX	10
+#define _REG_EAX	11
+#define _REG_TRAPNO	12
+#define _REG_ERR	13
+#define _REG_EIP	14
+#define _REG_CS		15
+#define _REG_EFL	16
+#define _REG_UESP	17
+#define _REG_SS		18
 
-#define	_REG_RA		_REG_X1
-#define	_REG_SP		_REG_X2
-#define	_REG_GP		_REG_X3
-#define	_REG_TP		_REG_X4
-#define	_REG_S0		_REG_X8
-#define	_REG_RV		_REG_X10
-#define	_REG_A0		_REG_X10
-
-#define	_REG_F0		0
-#define	_REG_FPCSR	32
+/*
+ * Floating point register state
+ */
+typedef struct {
+	union {
+		struct {
+			int	__fp_state[27];	/* Environment and registers */
+		} __fpchip_state;	/* x87 regs in fsave format */
+		struct {
+			char	__fp_xmm[512];
+		} __fp_xmm_state;	/* x87 and xmm regs in fxsave format */
+		int	__fp_fpregs[128];
+	} __fp_reg_set;
+	int 	__fp_pad[33];			/* Historic padding */
+} __fpregset_t;
+__CTASSERT(sizeof (__fpregset_t) == 512 + 33 * 4);
 
 typedef struct {
-	__gregset_t	__gregs;	/* General Purpose Register set */
-	__fregset_t	__fregs;	/* Floating Point Register set */
-	__greg_t	__spare[7];	/* future proof */
+	__gregset_t	__gregs;
+	__fpregset_t	__fpregs;
+	__greg_t	_mc_tlsbase;
 } mcontext_t;
 
-typedef struct {
-	__gregset32_t	__gregs;	/* General Purpose Register set */
-	__fregset_t	__fregs;	/* Floating Point Register set */
-	__greg32_t	__spare[7];	/* future proof */
-} mcontext32_t;
+#define _UC_FXSAVE	0x20	/* FP state is in FXSAVE format in XMM space */
 
-/* Machine-dependent uc_flags */
-#define	_UC_SETSTACK	0x00010000	/* see <sys/ucontext.h> */
-#define	_UC_CLRSTACK	0x00020000	/* see <sys/ucontext.h> */
-#define	_UC_TLSBASE	0x00080000	/* see <sys/ucontext.h> */
+#define _UC_MACHINE_PAD	4	/* Padding appended to ucontext_t */
 
-#define _UC_MACHINE_SP(uc)		((uc)->uc_mcontext.__gregs[_REG_SP])
-#define _UC_MACHINE_FP(uc)		((uc)->uc_mcontext.__gregs[_REG_S0])
-#define _UC_MACHINE_PC(uc)		((uc)->uc_mcontext.__gregs[_REG_PC])
-#define _UC_MACHINE_INTRV(uc)		((uc)->uc_mcontext.__gregs[_REG_RV])
+#define _UC_UCONTEXT_ALIGN	(~0xf)
+
+#ifndef _UC_MACHINE_SP
+#define _UC_MACHINE_SP(uc)	((uc)->uc_mcontext.__gregs[_REG_UESP])
+#endif
+#define _UC_MACHINE_FP(uc)	((uc)->uc_mcontext.__gregs[_REG_EBP])
+#define _UC_MACHINE_PC(uc)	((uc)->uc_mcontext.__gregs[_REG_EIP])
+#define _UC_MACHINE_INTRV(uc)	((uc)->uc_mcontext.__gregs[_REG_EAX])
 
 #define	_UC_MACHINE_SET_PC(uc, pc)	_UC_MACHINE_PC(uc) = (pc)
 
-#if defined(_RTLD_SOURCE) || defined(_LIBC_SOURCE) || defined(__LIBPTHREAD_SOURCE__)
+#define	__UCONTEXT_SIZE	776
+
+#if defined(_RTLD_SOURCE) || defined(_LIBC_SOURCE) || \
+    defined(__LIBPTHREAD_SOURCE__)
 #include <sys/tls.h>
 
+__BEGIN_DECLS
 static __inline void *
 __lwp_getprivate_fast(void)
 {
-#if 0
-	void *__tp;
-	__asm("mv %0, tp" : "=r"(__tp));
-	return __tp;
-#else
-#error used un-implemented __lwp_settcb()
-	return NULL;
-#endif
+	void *__tmp;
+
+	__asm volatile("movl %%gs:0, %0" : "=r" (__tmp));
+
+	return __tmp;
 }
+__END_DECLS
 
-/*
- * On RISCV, since displacements are signed 12-bit values, the TCB Pointer
- * is biased by sizeof(tcb) so that first thread datum can be addressed by
- * -sizeof(tcb).
- */
-
-#define	TLS_TP_OFFSET	0x0
-#define	TLS_TCB_ALIGN	16
-#define	TLS_DTV_OFFSET	0x800
-__CTASSERT(TLS_TP_OFFSET + sizeof(struct tls_tcb) < 0x800);
-
-static __inline void *
-__lwp_gettcb_fast(void)
-{
-#if 0
-	void *__tcb;
-
-	__asm __volatile(
-		"addi %[__tcb], tp, %[__offset]"
-	    :	[__tcb] "=r" (__tcb)
-	    :	[__offset] "n" (-(TLS_TP_OFFSET + sizeof(struct tls_tcb))));
-
-	return __tcb;
-#else
-#error used un-implemented __lwp_settcb()
-	return NULL;
 #endif
-}
 
-static __inline void
-__lwp_settcb(void *__tcb)
-{
-#if 0
-	__asm __volatile(
-		"addi tp, %[__tcb], %[__offset]"
-	    :
-	    :	[__tcb] "r" (__tcb),
-		[__offset] "n" (TLS_TP_OFFSET + sizeof(struct tls_tcb)));
-#else
-#error used un-implemented __lwp_settcb()
-	return NULL;
-#endif
-}
-
-#endif /* _RTLD_SOURCE || _LIBC_SOURCE || __LIBPTHREAD_SOURCE__ */
-
-#endif /* !_WASM_MCONTEXT_H_ */
+#endif	/* !_I386_MCONTEXT_H_ */

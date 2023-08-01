@@ -314,6 +314,8 @@ uvm_km_bootstrap(vaddr_t start, vaddr_t end)
 		kmembase = base;
 	}
 
+	printf("%s kmembase: %lu kmemsize: %lu\n", __func__, kmembase, kmemsize);
+
 	error = uvm_map_prepare(&kernel_map_store,
 	    kmembase, kmemsize,
 	    NULL, UVM_UNKNOWN_OFFSET, 0,

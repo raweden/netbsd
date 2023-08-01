@@ -251,6 +251,8 @@ static inline uint64_t wasm_atomic_inc_64_nv(volatile uint64_t *p)
     return ret;
 }
 
+// all atomic handlers are prefixed with 'wasm_' in sys/sys/atomic.h
+
 #define wasm_atomic_add_int         wasm_atomic_add_32
 #define wasm_atomic_add_long        wasm_atomic_add_32
 #define wasm_atomic_add_ptr         wasm_atomic_add_32

@@ -1,11 +1,8 @@
-/*	$NetBSD: proc.h,v 1.5 2023/05/08 20:51:53 skrll Exp $	*/
+/*	$NetBSD: proc.h,v 1.48 2020/06/13 23:58:52 ad Exp $	*/
 
-/*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+/*
+ * Copyright (c) 1991 Regents of the University of California.
  * All rights reserved.
- *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,62 +12,56 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)proc.h	7.1 (Berkeley) 5/15/91
  */
 
-#ifndef _WASM_PROC_H_
-#define _WASM_PROC_H_
+#ifndef _I386_PROC_H_
+#define _I386_PROC_H_
 
-#include <sys/param.h>
-#include <machine/vmparam.h>
-
-struct lwp;
+#include <machine/frame.h>
+#include <machine/pcb.h>
 
 /*
- * Machine-dependent part of the lwp structure for RISCV
+ * Machine-dependent part of the lwp structure for i386.
  */
-struct trapframe;
+struct pmap;
+struct vm_page;
+
+#define	MDL_FPU_IN_CPU		0x0020	/* the FPU state is in the CPU */
 
 struct mdlwp {
-	struct trapframe *md_utf;	/* trapframe from userspace */
-	struct trapframe *md_ktf;	/* trapframe from userspace */
-	struct faultbuf *md_onfault;	/* registers to store on fault */
-	unsigned long md_usp;		/* for locore.S */
-	unsigned long md_ss_addr;	/* single step address for ptrace */
-	int	md_ss_instr;		/* single step instruction for ptrace */
-	volatile int md_astpending;	/* AST pending on return to userland */
-#if 0
-#if USPACE > PAGE_SIZE
-	int	md_upte[USPACE/4096];	/* ptes for mapping u page */
-#else
-	int	md_dpte[USPACE/4096];	/* dummy ptes to keep the same */
-#endif
-#endif
+	volatile uint64_t md_tsc;	/* last TSC reading */
+	struct	trapframe *md_regs;	/* registers on current frame */
+	int	md_flags;		/* machine-dependent flags */
+	volatile int md_astpending;	/* AST pending for this process */
 };
+
+/* md_flags */
+#define	MDL_IOPL		0x0002	/* XEN: i/o privilege */
 
 struct mdproc {
-					/* syscall entry for this process */
+	int	md_flags;
 	void	(*md_syscall)(struct trapframe *);
+					/* Syscall handling function */
 };
 
-#ifdef _KERNEL
-#define	LWP0_CPU_INFO	&cpu_info_store[0]	/* staticly set in lwp0 */
-#if 0
-#define LWP0_MD_INITIALIZER {   \
-                .md_utf = (void *)0xdeadbeef, \
-        }
-#endif
-#endif /* _KERNEL */
+/* md_flags */
+#define MDP_USEDMTRR	0x0002	/* has set volatile MTRRs */
 
-#endif /* _WASM_ROC_H_ */
+#endif /* _I386_PROC_H_ */

@@ -1,11 +1,12 @@
-/*	$NetBSD: core_machdep.c,v 1.6 2023/05/07 12:41:48 skrll Exp $	*/
+/*	$NetBSD: core_machdep.c,v 1.6 2019/11/20 19:37:53 pgoyette Exp $	*/
 
 /*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+ * Copyright (c) 1982, 1986 The Regents of the University of California.
  * All rights reserved.
  *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * This code is derived from software contributed to Berkeley by
+ * the Systems Programming Group of the University of Utah Computer
+ * Science Department, and William Jolitz.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,85 +16,129 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)vm_machdep.c	7.3 (Berkeley) 5/13/91
+ */
+
+/*-
+ * Copyright (c) 1995 Charles M. Hannum.  All rights reserved.
+ * Copyright (c) 1989, 1990 William Jolitz
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * the Systems Programming Group of the University of Utah Computer
+ * Science Department, and William Jolitz.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *	This product includes software developed by the University of
+ *	California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)vm_machdep.c	7.3 (Berkeley) 5/13/91
+ */
+
+/*
+ *	Utah $Hdr: vm_machdep.c 1.16.1.1 89/06/23$
  */
 
 #include <sys/cdefs.h>
-
-#ifndef CORENAME
-__RCSID("$NetBSD: core_machdep.c,v 1.6 2023/05/07 12:41:48 skrll Exp $");
-#endif
+__KERNEL_RCSID(0, "$NetBSD: core_machdep.c,v 1.6 2019/11/20 19:37:53 pgoyette Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/proc.h>
+#include <sys/vnode.h>
+#include <sys/buf.h>
 #include <sys/core.h>
 #include <sys/exec.h>
-#include <sys/cpu.h>
+#include <sys/ptrace.h>
 #include <sys/compat_stub.h>
 
-#include <wasm/frame.h>
-#include <wasm/locore.h>
+#include <sys/exec_aout.h>
 
-#ifndef CORENAME
-#define	CORENAME(n)	n
-#endif
-#ifdef COREINC
-#include COREINC
-#endif
+#include <uvm/uvm_extern.h>
+
+#include <machine/cpu.h>
+#include <machine/gdt.h>
+#include <machine/reg.h>
+#include <machine/specialreg.h>
 
 /*
  * Dump the machine specific segment at the start of a core dump.
  */
+
+struct md_core {
+	struct reg intreg;
+	struct fpreg freg;
+};
+
 int
-CORENAME(cpu_coredump)(struct lwp *l, struct coredump_iostate *iocookie,
-    struct CORENAME(core) *chdr)
+cpu_coredump(struct lwp *l, struct coredump_iostate *iocookie,
+    struct core *chdr)
 {
-	// TODO: FIXME!
-#if 0
+	struct md_core md_core;
+	struct coreseg cseg;
+	size_t fp_size;
 	int error;
-	struct CORENAME(coreseg) cseg;
-	struct cpustate {
-		struct CORENAME(trapframe) tf;
-		struct fpreg fpregs;
-	} cpustate;
 
 	if (iocookie == NULL) {
 		CORE_SETMAGIC(*chdr, COREMAGIC, MID_MACHINE, 0);
 		chdr->c_hdrsize = ALIGN(sizeof(*chdr));
 		chdr->c_seghdrsize = ALIGN(sizeof(cseg));
-		chdr->c_cpusize = sizeof(struct cpustate);
+		chdr->c_cpusize = sizeof(md_core);
 		chdr->c_nseg++;
 		return 0;
 	}
 
-	pcu_save_all(l);
+	/* Save integer registers. */
+	error = process_read_regs(l, &md_core.intreg);
+	if (error)
+		return error;
 
-	// Can't use structure assignment if this is doing COMPAT_NETBSD32
-	const struct trapframe * const tf = l->l_md.md_utf;
-	for (size_t i = _X_RA; i <= _X_GP; i++) {
-		cpustate.tf.tf_reg[i] = tf->tf_reg[i];
-	}
-	cpustate.tf.tf_pc = tf->tf_pc;
-	cpustate.tf.tf_tval = tf->tf_tval;
-	cpustate.tf.tf_cause = tf->tf_cause;
-	cpustate.tf.tf_sr = tf->tf_sr;
-	if (fpu_valid_p(l)) {
-		cpustate.fpregs = ((struct pcb *)lwp_getpcb(l))->pcb_fpregs;
-	} else {
-		memset(&cpustate.fpregs, 0, sizeof(cpustate.fpregs));
-	}
+	/* Save floating point registers. */
+	fp_size = sizeof md_core.freg;
+	error = process_read_fpregs(l, &md_core.freg, &fp_size);
+	if (error)
+		return error;
+
 	CORE_SETMAGIC(cseg, CORESEGMAGIC, MID_MACHINE, CORE_CPU);
 	cseg.c_addr = 0;
 	cseg.c_size = chdr->c_cpusize;
@@ -104,9 +149,7 @@ CORENAME(cpu_coredump)(struct lwp *l, struct coredump_iostate *iocookie,
 		return error;
 
 	MODULE_HOOK_CALL(coredump_write_hook, (iocookie, UIO_SYSSPACE,
-	    &cpustate, chdr->c_cpusize), ENOSYS, error);
+	    &md_core, sizeof(md_core)), ENOSYS, error);
 
 	return error;
-#endif
-	return (0);
 }

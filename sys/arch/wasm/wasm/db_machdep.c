@@ -1,275 +1,330 @@
-/*	$NetBSD: db_machdep.c,v 1.11 2023/06/12 19:04:14 skrll Exp $	*/
+/*	$NetBSD: db_machdep.c,v 1.10 2022/12/24 14:47:47 uwe Exp $	*/
 
-/*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
- * All rights reserved.
+/*
+ * Mach Operating System
+ * Copyright (c) 1991,1990 Carnegie Mellon University
+ * All Rights Reserved.
  *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * Permission to use, copy, modify and distribute this software and its
+ * documentation is hereby granted, provided that both the copyright
+ * notice and this permission notice appear in all copies of the
+ * software, derivative works or modified versions, and any portions
+ * thereof, and that both notices appear in supporting documentation.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * CARNEGIE MELLON ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+ * CONDITION.  CARNEGIE MELLON DISCLAIMS ANY LIABILITY OF ANY KIND FOR
+ * ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Carnegie Mellon requests users of this software to return to
+ *
+ *  Software Distribution Coordinator  or  Software.Distribution@CS.CMU.EDU
+ *  School of Computer Science
+ *  Carnegie Mellon University
+ *  Pittsburgh PA 15213-3890
+ *
+ * any improvements or extensions that they make and grant Carnegie the
+ * rights to redistribute these changes.
  */
 
 #include <sys/cdefs.h>
-
-__RCSID("$NetBSD: db_machdep.c,v 1.11 2023/06/12 19:04:14 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: db_machdep.c,v 1.10 2022/12/24 14:47:47 uwe Exp $");
 
 #include <sys/param.h>
+#include <sys/systm.h>
+#include <sys/proc.h>
 
-#include <wasm/insn.h>
-#include <wasm/db_machdep.h>
+#ifndef _KERNEL
+#include <stdbool.h>
+#endif
 
+#include <machine/frame.h>
+#include <machine/trap.h>
+#include <machine/intrdefs.h>
+#include <machine/cpu.h>
+
+#include <uvm/uvm_prot.h>
+/* We need to include both for ddb and crash(8).  */
+#include <uvm/uvm_pmap.h>
+#include <machine/pmap.h>
+
+#include <machine/db_machdep.h>
+#include <ddb/db_sym.h>
 #include <ddb/db_access.h>
-#include <ddb/db_interface.h>
-#include <ddb/db_extern.h>
 #include <ddb/db_variables.h>
 #include <ddb/db_output.h>
+#include <ddb/db_interface.h>
+#include <ddb/db_user.h>
+#include <ddb/db_proc.h>
+#include <ddb/db_command.h>
+#include <ddb/db_cpu.h>
+#include <x86/db_machdep.h>
 
-static int db_rw_ddbreg(const struct db_variable *, db_expr_t *, int);
+#define dbreg(xx) (long *)offsetof(db_regs_t, tf_ ## xx)
 
+/*
+ * Machine register set.
+ */
 const struct db_variable db_regs[] = {
-	{ "ra", (void *)offsetof(struct trapframe, tf_ra), db_rw_ddbreg, NULL },
-	{ "sp", (void *)offsetof(struct trapframe, tf_sp), db_rw_ddbreg, NULL },
-	{ "gp", (void *)offsetof(struct trapframe, tf_gp), db_rw_ddbreg, NULL },
-	{ "tp", (void *)offsetof(struct trapframe, tf_tp), db_rw_ddbreg, NULL },
-	{ "s0", (void *)offsetof(struct trapframe, tf_s0), db_rw_ddbreg, NULL },
-	{ "s1", (void *)offsetof(struct trapframe, tf_s1), db_rw_ddbreg, NULL },
-	{ "s2", (void *)offsetof(struct trapframe, tf_s2), db_rw_ddbreg, NULL },
-	{ "s3", (void *)offsetof(struct trapframe, tf_s3), db_rw_ddbreg, NULL },
-	{ "s4", (void *)offsetof(struct trapframe, tf_s4), db_rw_ddbreg, NULL },
-	{ "s5", (void *)offsetof(struct trapframe, tf_s5), db_rw_ddbreg, NULL },
-	{ "s6", (void *)offsetof(struct trapframe, tf_s6), db_rw_ddbreg, NULL },
-	{ "s7", (void *)offsetof(struct trapframe, tf_s7), db_rw_ddbreg, NULL },
-	{ "s8", (void *)offsetof(struct trapframe, tf_s8), db_rw_ddbreg, NULL },
-	{ "s9", (void *)offsetof(struct trapframe, tf_s9), db_rw_ddbreg, NULL },
-	{ "s10", (void *)offsetof(struct trapframe, tf_s10), db_rw_ddbreg, NULL },
-	{ "s11", (void *)offsetof(struct trapframe, tf_s11), db_rw_ddbreg, NULL },
-	{ "a0", (void *)offsetof(struct trapframe, tf_a0), db_rw_ddbreg, NULL },
-	{ "a1", (void *)offsetof(struct trapframe, tf_a1), db_rw_ddbreg, NULL },
-	{ "a2", (void *)offsetof(struct trapframe, tf_a2), db_rw_ddbreg, NULL },
-	{ "a3", (void *)offsetof(struct trapframe, tf_a3), db_rw_ddbreg, NULL },
-	{ "a4", (void *)offsetof(struct trapframe, tf_a4), db_rw_ddbreg, NULL },
-	{ "a5", (void *)offsetof(struct trapframe, tf_a5), db_rw_ddbreg, NULL },
-	{ "a6", (void *)offsetof(struct trapframe, tf_a6), db_rw_ddbreg, NULL },
-	{ "a7", (void *)offsetof(struct trapframe, tf_a7), db_rw_ddbreg, NULL },
-	{ "t0", (void *)offsetof(struct trapframe, tf_t0), db_rw_ddbreg, NULL },
-	{ "t1", (void *)offsetof(struct trapframe, tf_t1), db_rw_ddbreg, NULL },
-	{ "t2", (void *)offsetof(struct trapframe, tf_t2), db_rw_ddbreg, NULL },
-	{ "t3", (void *)offsetof(struct trapframe, tf_t3), db_rw_ddbreg, NULL },
-	{ "t4", (void *)offsetof(struct trapframe, tf_t4), db_rw_ddbreg, NULL },
-	{ "t5", (void *)offsetof(struct trapframe, tf_t5), db_rw_ddbreg, NULL },
-	{ "t6", (void *)offsetof(struct trapframe, tf_t6), db_rw_ddbreg, NULL },
-	{ "pc", (void *)offsetof(struct trapframe, tf_pc), db_rw_ddbreg, NULL },
-	{ "status", (void *)offsetof(struct trapframe, tf_sr), db_rw_ddbreg, "i" },
-	{ "cause", (void *)offsetof(struct trapframe, tf_cause), db_rw_ddbreg, "i" },
-	{ "tval", (void *)offsetof(struct trapframe, tf_tval), db_rw_ddbreg, NULL },
+	{ "ds",		dbreg(ds),     db_x86_regop, NULL },
+	{ "es",		dbreg(es),     db_x86_regop, NULL },
+	{ "fs",		dbreg(fs),     db_x86_regop, NULL },
+	{ "gs",		dbreg(gs),     db_x86_regop, NULL },
+	{ "edi",	dbreg(edi),    db_x86_regop, NULL },
+	{ "esi",	dbreg(esi),    db_x86_regop, NULL },
+	{ "ebp",	dbreg(ebp),    db_x86_regop, NULL },
+	{ "ebx",	dbreg(ebx),    db_x86_regop, NULL },
+	{ "edx",	dbreg(edx),    db_x86_regop, NULL },
+	{ "ecx",	dbreg(ecx),    db_x86_regop, NULL },
+	{ "eax",	dbreg(eax),    db_x86_regop, NULL },
+	{ "eip",	dbreg(eip),    db_x86_regop, NULL },
+	{ "cs",		dbreg(cs),     db_x86_regop, NULL },
+	{ "eflags",	dbreg(eflags), db_x86_regop, NULL },
+	{ "esp",	dbreg(esp),    db_x86_regop, NULL },
+	{ "ss",		dbreg(ss),     db_x86_regop, NULL },
 };
-const struct db_variable * const db_eregs = db_regs + __arraycount(db_regs);
+const struct db_variable * const db_eregs =
+    db_regs + sizeof(db_regs)/sizeof(db_regs[0]);
 
+/*
+ * Figure out how many arguments were passed into the frame at "fp".
+ */
 int
-db_rw_ddbreg(const struct db_variable *vp, db_expr_t *valp, int rw)
+db_numargs(long *retaddrp)
 {
-	struct trapframe * const tf = curcpu()->ci_ddb_regs;
-	const uintptr_t addr = (uintptr_t)tf + (uintptr_t)vp->valuep;
-	if (vp->modif != NULL && vp->modif[0] == 'i') {
-		if (rw == DB_VAR_GET) {
-			*valp = *(const uint32_t *)addr;
-		} else {
-			*(uint32_t *)addr = *valp;
-		}
+	int	*argp;
+	int	inst;
+	int	args;
+	extern char	etext[];
+
+	argp = (int *)db_get_value((int)retaddrp, 4, false);
+	if (argp < (int *)VM_MIN_KERNEL_ADDRESS || argp > (int *)etext) {
+		args = 10;
 	} else {
-		if (rw == DB_VAR_GET) {
-			*valp = *(const register_t *)addr;
-		} else {
-			*(register_t *)addr = *valp;
-		}
+		inst = db_get_value((int)argp, 4, false);
+		if ((inst & 0xff) == 0x59)	/* popl %ecx */
+			args = 1;
+		else if ((inst & 0xffff) == 0xc483)	/* addl %n, %esp */
+			args = ((inst >> 16) & 0xff) / 4;
+		else
+			args = 10;
 	}
-	return 0;
-}
-
-// These are for the software implementation of single-stepping.
-//
-// XXX none of this checks for 16-bit instructions; it should all be
-// converted to the newer decoding macros. Also, XXX it does not look
-// like the MI parts in ddb is going to work in the presence of 16-bit
-// instructions anyway.
-//
-// returns true is the instruction might branch
-bool
-inst_branch(uint32_t insn)
-{
-	return OPCODE_P(insn, BRANCH);
-}
-
-// returns true is the instruction might branch
-bool
-inst_call(uint32_t insn)
-{
-	const union riscv_insn ri = { .val = insn };
-	return (OPCODE_P(insn, JAL) && ri.type_u.u_rd == 1)
-	    || (OPCODE_P(insn, JALR) && ri.type_i.i_rd == 1);
-}
-
-// return true if the instructon is an uncondition branch/jump.
-bool
-inst_unconditional_flow_transfer(uint32_t insn)
-{
-	// we should check for beq xN,xN but why use that instead of jal x0,...
-	return OPCODE_P(insn, JAL) || OPCODE_P(insn, JALR);
-}
-
-bool
-inst_return(uint32_t insn)
-{
-	const union riscv_insn ri = { .val = insn };
-	return OPCODE_P(insn, JALR) && ri.type_i.i_rs1 == 1;
-}
-
-bool
-inst_load(uint32_t insn)
-{
-	return OPCODE_P(insn, LOAD) || OPCODE_P(insn, LOADFP);
-}
-
-bool
-inst_store(uint32_t insn)
-{
-	return OPCODE_P(insn, STORE) || OPCODE_P(insn, STOREFP);
-}
-
-static inline register_t
-get_reg_value(const db_regs_t *tf, u_int regno)
-{
-	return (regno == 0 ? 0 : tf->tf_reg[regno - 1]);
-}
-
-db_addr_t
-branch_taken(uint32_t insn, db_addr_t pc, db_regs_t *tf)
-{
-	const union riscv_insn i = { .val = insn };
-	intptr_t displacement;
-
-	if (OPCODE_P(insn, JALR)) {
-		return i.type_i.i_imm11to0 + get_reg_value(tf, i.type_i.i_rs1);
-	}
-	if (OPCODE_P(insn, JAL)) {
-		displacement = i.type_j.j_imm20 << 20;
-		displacement |= i.type_j.j_imm19to12 << 12;
-		displacement |= i.type_j.j_imm11 << 11;
-		displacement |= i.type_j.j_imm10to1 << 1;
-	} else {
-		KASSERT(OPCODE_P(insn, BRANCH));
-		register_t rs1 = get_reg_value(tf, i.type_b.b_rs1);
-		register_t rs2 = get_reg_value(tf, i.type_b.b_rs2);
-		bool branch_p; // = false;
-		switch (i.type_b.b_funct3 & 0b110U) {
-		case 0b000U:
-			branch_p = (rs1 == rs2);
-			break;
-		case 0b010U:
-			branch_p = ((rs1 & (1 << (i.type_b.b_rs2))) != 0);
-			break;
-		case 0b100U:
-			branch_p = (rs1 < rs2);
-			break;
-		default: // stupid gcc
-		case 0b110U:
-			branch_p = ((uregister_t)rs1 < (uregister_t)rs2);
-			break;
-		}
-
-		if (i.type_b.b_funct3 & 1)
-			branch_p = !branch_p;
-
-		if (!branch_p) {
-			displacement = 4;
-		} else {
-			displacement = i.type_b.b_imm12 << 12;
-			displacement |= i.type_b.b_imm11 << 11;
-			displacement |= i.type_b.b_imm10to5 << 5;
-			displacement |= i.type_b.b_imm4to1 << 1;
-		}
-	}
-
-	return pc + displacement;
-}
-
-db_addr_t
-next_instr_address(db_addr_t pc, bool bdslot_p)
-{
-	return pc + (bdslot_p ? 0 : 4);
-}
-
-void
-db_read_bytes(db_addr_t addr, size_t len, char *data)
-{
-	const char *src = (char *)addr;
-	int err;
-
-	/* If asked to fetch from userspace, do it safely */
-	if ((intptr_t)addr >= 0) {
-		err = copyin(src, data, len);
-		if (err) {
-#ifdef DDB
-			db_printf("address %p is invalid\n", src);
-#endif
-			memset(data, 0, len);
-		}
-		return;
-	}
-
-	while (len--) {
-		*data++ = *src++;
-	}
+	return (args);
 }
 
 /*
- * Write bytes to kernel address space for debugger.
+ * Figure out the next frame up in the call stack.
+ * For trap(), we print the address of the faulting instruction and
+ *   proceed with the calling frame.  We return the ip that faulted.
+ *   If the trap was caused by jumping through a bogus pointer, then
+ *   the next line in the backtrace will list some random function as
+ *   being called.  It should get the argument list correct, though.
+ *   It might be possible to dig out from the next frame up the name
+ *   of the function that faulted, but that could get hairy.
  */
-void
-db_write_bytes(vaddr_t addr, size_t len, const char *data)
+int
+db_nextframe(long **nextframe, long **retaddr, long **arg0, db_addr_t *ip,
+    long *argp, int is_trap, void (*pr)(const char *, ...))
 {
-	int err;
+	static struct trapframe tf;
+	static struct i386tss tss;
+	struct i386_frame *fp;
+	uintptr_t ptr;
 
-	/* If asked to fetch from userspace, do it safely */
-	if ((intptr_t)addr >= 0) {
-		err = copyout(data, (char *)addr, len);
-		if (err) {
-#ifdef DDB
-			db_printf("address %p is invalid\n", (char *)addr);
-#endif
+	switch (is_trap) {
+	    case NONE:
+		*ip = (db_addr_t)
+			db_get_value((int)*retaddr, 4, false);
+		fp = (struct i386_frame *)
+			db_get_value((int)*nextframe, 4, false);
+		if (fp == NULL)
+			return 0;
+		*nextframe = (long *)&fp->f_frame;
+		*retaddr = (long *)&fp->f_retaddr;
+		*arg0 = (long *)&fp->f_arg0;
+		break;
+
+	    case TRAP_TSS:
+	    case INTERRUPT_TSS:
+		ptr = db_get_value((int)argp, 4, false);
+		db_read_bytes((db_addr_t)ptr, sizeof(tss), (char *)&tss);
+		*ip = tss.__tss_eip;
+		fp = (struct i386_frame *)tss.tss_ebp;
+		if (fp == NULL)
+			return 0;
+		*nextframe = (long *)&fp->f_frame;
+		*retaddr = (long *)&fp->f_retaddr;
+		*arg0 = (long *)&fp->f_arg0;
+		if (is_trap == INTERRUPT_TSS)
+			(*pr)("--- interrupt via task gate ---\n");
+		else
+			(*pr)("--- trap via task gate ---\n");
+		break;
+
+	    case TRAP:
+	    case SYSCALL:
+	    case INTERRUPT:
+	    case SOFTINTR:
+	    default:
+		/* The only argument to trap() or syscall() is the trapframe. */
+		switch (is_trap) {
+		case TRAP:
+			ptr = db_get_value((int)argp, 4, false);
+			db_read_bytes((db_addr_t)ptr, sizeof(tf), (char *)&tf);
+			(*pr)("--- trap (number %d) ---\n", tf.tf_trapno);
+			break;
+		case SYSCALL:
+			ptr = db_get_value((int)argp, 4, false);
+			db_read_bytes((db_addr_t)ptr, sizeof(tf), (char *)&tf);
+			(*pr)("--- syscall (number %d) ---\n", tf.tf_eax);
+			break;
+		case INTERRUPT:
+			(*pr)("--- interrupt ---\n");
+			/*
+			 * see the "XXX -1 here is a hack" comment below.
+			 */
+			db_read_bytes((db_addr_t)argp, sizeof(tf), (char *)&tf);
+			break;
+		case SOFTINTR:
+			(*pr)("--- softint ---\n");
+			tf.tf_eip = 0;
+			tf.tf_ebp = 0;
+			break;
 		}
-		return;
+		*ip = (db_addr_t)tf.tf_eip;
+		fp = (struct i386_frame *)tf.tf_ebp;
+		if (fp == NULL)
+			return 0;
+		*nextframe = (long *)&fp->f_frame;
+		*retaddr = (long *)&fp->f_retaddr;
+		*arg0 = (long *)&fp->f_arg0;
+		break;
 	}
 
-	if (len == 8) {
-		*(uint64_t *)addr = *(const uint64_t *) data;
-	} else if (len == 4) {
-		*(uint32_t *)addr = *(const uint32_t *) data;
-	} else if (len == 2) {
-		*(uint16_t *)addr = *(const uint16_t *) data;
-	} else {
-		KASSERT(len == 1);
-		*(uint8_t *)addr = *(const uint8_t *) data;
+	/*
+	 * A bit of a hack. Since %ebp may be used in the stub code,
+	 * walk the stack looking for a valid interrupt frame. Such
+	 * a frame can be recognized by always having
+	 * err 0 or IREENT_MAGIC and trapno T_ASTFLT.
+	 */
+	int traptype = NONE;
+	db_sym_t sym = db_frame_info(*nextframe, (db_addr_t)*ip,
+				     NULL, NULL, &traptype, NULL);
+	if (sym != DB_SYM_NULL && traptype == INTERRUPT) {
+		struct intrframe *ifp;
+		int trapno;
+		int err;
+
+		/*
+		 * 2nd argument of interrupt handlers is a pointer to intrframe.
+		 */
+		ifp = (struct intrframe *)
+		    db_get_value((db_addr_t)(argp + 1), sizeof(ifp), false);
+		/*
+		 * check if it's a valid intrframe.
+		 */
+		err = db_get_value((db_addr_t)&ifp->__if_err,
+		    sizeof(ifp->__if_err), false);
+		trapno = db_get_value((db_addr_t)&ifp->__if_trapno,
+		    sizeof(ifp->__if_trapno), false);
+		if ((err == 0 || err == IREENT_MAGIC) && trapno == T_ASTFLT) {
+			/*
+			 * found seemingly valid intrframe.
+			 *
+			 * XXX -1 here is a hack.
+			 * for the next frame, we will be called with
+			 * argp = *nextframe + 2.  (long *)if - 1 + 2 = &tf.
+			 */
+			*nextframe = (long *)ifp - 1;
+		} else {
+			(*pr)("DDB lost frame for ");
+			db_printsym(*ip, DB_STGY_ANY, pr);
+			(*pr)(", trying %p\n",argp);
+			*nextframe = argp;
+		}
 	}
-	__asm("fence rw,rw; fence.i");
+	return 1;
+}
+
+db_sym_t
+db_frame_info(long *frame, db_addr_t callpc, const char **namep,
+    db_expr_t *offp, int *is_trap, int *nargp)
+{
+	db_expr_t offset;
+	db_sym_t sym;
+	int narg;
+	const char *name;
+
+	sym = db_search_symbol(callpc, DB_STGY_ANY, &offset);
+	if (sym != DB_SYM_NULL && offset == 0) {
+		sym = db_search_symbol(callpc - 1, DB_STGY_ANY, &offset);
+		offset++;
+	}
+	db_symbol_values(sym, &name, NULL);
+	if (sym == DB_SYM_NULL)
+		return DB_SYM_NULL;
+
+	*is_trap = NONE;
+	narg = MAXNARG;
+
+	if (INKERNEL((int)frame) && name) {
+		/*
+		 * XXX traps should be based off of the Xtrap*
+		 * locations rather than on trap, since some traps
+		 * (e.g., npxdna) don't go through trap()
+		 */
+		if (!strcmp(name, "trap_tss")) {
+			*is_trap = TRAP_TSS;
+			narg = 0;
+		} else if (!strcmp(name, "trap")) {
+			*is_trap = TRAP;
+			narg = 0;
+		} else if (!strcmp(name, "syscall")) {
+			*is_trap = SYSCALL;
+			narg = 0;
+		} else if (name[0] == 'X') {
+			if (!strncmp(name, "Xintr", 5) ||
+			    !strncmp(name, "Xresume", 7) ||
+			    !strncmp(name, "Xstray", 6) ||
+			    !strncmp(name, "Xhold", 5) ||
+			    !strncmp(name, "Xrecurse", 8) ||
+			    !strcmp(name, "Xdoreti")) {
+				*is_trap = INTERRUPT;
+				narg = 0;
+			} else if (!strcmp(name, "Xsoftintr")) {
+				*is_trap = SOFTINTR;
+				narg = 0;
+			} else if (!strncmp(name, "Xtss_", 5)) {
+				*is_trap = INTERRUPT_TSS;
+				narg = 0;
+			}
+		}
+	}
+
+	if (offp != NULL)
+		*offp = offset;
+	if (nargp != NULL)
+		*nargp = narg;
+	if (namep != NULL)
+		*namep = name;
+	return sym;
+}
+
+bool
+db_intrstack_p(const void *vp)
+{
+	struct cpu_info *ci;
+	const char *cp;
+
+	for (ci = db_cpu_first(); ci != NULL; ci = db_cpu_next(ci)) {
+		db_read_bytes((db_addr_t)&ci->ci_intrstack, sizeof(cp),
+		    (char *)&cp);
+		if (cp == NULL) {
+			continue;
+		}
+		if ((cp - INTRSTACKSIZE + 4) <= (const char *)vp &&
+		    (const char *)vp <= cp) {
+			return true;
+		}
+	}
+	return false;
 }

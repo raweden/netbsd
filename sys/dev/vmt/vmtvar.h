@@ -90,6 +90,9 @@ bool vmt_probe(void);
 void vmt_common_attach(struct vmt_softc *);
 int vmt_common_detach(struct vmt_softc *);
 
+#define BACKDOOR_OP_WASM(op, frame)	 \
+	panic("what is the usage of BACKDOOR_OP ")
+
 #define BACKDOOR_OP_I386(op, frame)		\
 	__asm__ __volatile__ (			\
 		"pushal;"			\
@@ -177,6 +180,8 @@ int vmt_common_detach(struct vmt_softc *);
 #define BACKDOOR_OP(op, frame) BACKDOOR_OP_AMD64(op, frame)
 #elif defined(__aarch64__)
 #define BACKDOOR_OP(op, frame) BACKDOOR_OP_AARCH64(op, frame)
+#elif defined(__WASM)
+#define BACKDOOR_OP(op, frame) BACKDOOR_OP_WASM(op, frame)
 #endif
 
 #if defined(__i386__) || defined(__amd64__)
@@ -184,6 +189,10 @@ int vmt_common_detach(struct vmt_softc *);
 #define BACKDOOR_OP_IN	"cld;\n\trep insb;"
 #define BACKDOOR_OP_OUT	"cld;\n\trep outsb;"
 #elif defined(__aarch64__)
+#define BACKDOOR_OP_CMD	(X86_IO_W7_WITH | X86_IO_W7_DIR | X86_IO_W7_SIZE(2))
+#define BACKDOOR_OP_IN	(X86_IO_W7_WITH | X86_IO_W7_STR | X86_IO_W7_DIR)
+#define BACKDOOR_OP_OUT	(X86_IO_W7_WITH | X86_IO_W7_STR)
+#elif defined(__WASM)
 #define BACKDOOR_OP_CMD	(X86_IO_W7_WITH | X86_IO_W7_DIR | X86_IO_W7_SIZE(2))
 #define BACKDOOR_OP_IN	(X86_IO_W7_WITH | X86_IO_W7_STR | X86_IO_W7_DIR)
 #define BACKDOOR_OP_OUT	(X86_IO_W7_WITH | X86_IO_W7_STR)

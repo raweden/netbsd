@@ -92,7 +92,7 @@ __KERNEL_RCSID(0, "$NetBSD: fd.c,v 1.117 2022/09/25 17:11:48 thorpej Exp $");
 #if !defined(alpha) && !defined(algor) && !defined(atari) && \
     !defined(bebox) && !defined(evbmips) && !defined(i386) && \
     !defined(prep) && !defined(sandpoint) && !defined(x86_64) && \
-    !defined(mvmeppc) && !defined(ofppc)
+    !defined(mvmeppc) && !defined(ofppc) && !defined (__WASM)
 #error platform not supported by this driver, yet
 #endif
 

@@ -32,23 +32,20 @@
 //#include <sys/stdint.h>
 //#include <uvm/pmap/pmap.h>
 
+#include "arch/wasm/include/bootspace.h"
+#include "arch/wasm/include/types.h"
 #include <sys/null.h>
 
 #include <sys/types.h>
+#include <machine/bootspace.h>
 #include <wasm/machdep.h>
-#include <wasm/sbi.h>
 
 #include <wasm/wasm_module.h>
 
+// this file is more or less a port of sys/arch/i386/i386/locore.S
+
 void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 
-#ifndef SBI_LEGACY_CONSOLE_PUTCHAR
-#define	SBI_LEGACY_CONSOLE_PUTCHAR	1
-#endif
-
-#ifndef SBI_LEGACY_CONSOLE_GETCHAR
-#define	SBI_LEGACY_CONSOLE_GETCHAR	2
-#endif
 
 // for two reasons these are set to another value than NULL.
 // 1. to prevent the compiler to place them in .bss section which does 
@@ -62,6 +59,7 @@ paddr_t __stop__init_memory = WASM_UNINIT_ADDR;  // end of the initial memory, i
 paddr_t __bss_start = WASM_UNINIT_ADDR;          // start of the ".bss" section
 paddr_t __kernel_text = WASM_UNINIT_ADDR;
 paddr_t _end = WASM_UNINIT_ADDR;
+
 paddr_t __data_start = WASM_UNINIT_ADDR;
 paddr_t __rodata_start = WASM_UNINIT_ADDR;
 paddr_t physical_start = WASM_UNINIT_ADDR;        // set at locore initialization at JavaScript side.
@@ -69,10 +67,24 @@ paddr_t physical_end = WASM_UNINIT_ADDR;
 paddr_t bootstrap_pde = WASM_UNINIT_ADDR;
 paddr_t l1_pte = WASM_UNINIT_ADDR;
 paddr_t __fdt_base = WASM_UNINIT_ADDR;
-
+paddr_t atdevbase = WASM_UNINIT_ADDR;
+paddr_t __KERNBASE = WASM_UNINIT_ADDR;
+paddr_t __IOM_SIZE = WASM_UNINIT_ADDR;
+paddr_t __PDP_pa = WASM_UNINIT_ADDR;
+vaddr_t lwp0uarea = WASM_UNINIT_ADDR;
+paddr_t PDPpaddr = WASM_UNINIT_ADDR;
+paddr_t __kernel_end = WASM_UNINIT_ADDR;
 
 char *lwp0uspace;
+extern struct bootspace bootspace;
 
+
+static uint8_t gdt[16] = {
+	0xff, 0xff, 0x00, 0x00, 0x00, 0x9f, 0xcf, 0x00,
+	0xff, 0xff, 0x00, 0x00, 0x00, 0x93, 0xcf, 0x00
+};
+
+static void init_bootspace(void);
 void main(void);
 
 
@@ -100,19 +112,49 @@ void global_start(void)
     register_t hartid = 0;
     paddr_t dtb = __fdt_base;
 
-    init_wasm32(hartid, dtb);
+    init_bootspace();
+    init_wasm32(0);
     main();
 }
 
 #undef WASM_UNINIT_ADDR
 
-void uartputc(int chr)
+void
+init_bootspace(void)
 {
-    SBI_CALL1(SBI_LEGACY_CONSOLE_PUTCHAR, 0, chr);
-}
+	extern paddr_t __rodata_start;
+	extern paddr_t __data_start;
+	extern paddr_t __kernel_end;
+	size_t i = 0;
 
-int uartgetc(void)
-{
-    struct sbiret ret = SBI_CALL0(SBI_LEGACY_CONSOLE_PUTCHAR, 0);
-    return ret.value;
+	memset(&bootspace, 0, sizeof(bootspace));
+
+	bootspace.head.va = 0;
+	bootspace.head.pa = 0 - __KERNBASE;
+	bootspace.head.sz = 0;
+
+	bootspace.segs[i].type = BTSEG_TEXT;
+	bootspace.segs[i].va = 0;
+	bootspace.segs[i].pa = 0;
+	bootspace.segs[i].sz = 0;
+	i++;
+
+	bootspace.segs[i].type = BTSEG_RODATA;
+	bootspace.segs[i].va = (vaddr_t)&__rodata_start;
+	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__rodata_start - __KERNBASE;
+	bootspace.segs[i].sz = (size_t)&__data_start - (size_t)&__rodata_start;
+	i++;
+
+	bootspace.segs[i].type = BTSEG_DATA;
+	bootspace.segs[i].va = (vaddr_t)&__data_start;
+	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__data_start - __KERNBASE;
+	bootspace.segs[i].sz = (size_t)&__kernel_end - (size_t)&__data_start;
+	i++;
+
+	bootspace.boot.va = (vaddr_t)&__kernel_end;
+	bootspace.boot.pa = (paddr_t)(vaddr_t)&__kernel_end - __KERNBASE;
+	bootspace.boot.sz = (size_t)(atdevbase + __IOM_SIZE) - (size_t)&__kernel_end;
+
+	/* Virtual address of the top level page */
+	bootspace.pdir = (vaddr_t)(__PDP_pa + __KERNBASE);
 }

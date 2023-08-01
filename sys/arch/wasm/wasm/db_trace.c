@@ -1,290 +1,313 @@
-/*	$NetBSD: db_trace.c,v 1.4 2023/05/07 12:41:48 skrll Exp $	*/
+/*	$NetBSD: db_trace.c,v 1.6 2022/12/24 14:14:52 uwe Exp $	*/
 
-/*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
- * All rights reserved.
+/*
+ * Mach Operating System
+ * Copyright (c) 1991,1990 Carnegie Mellon University
+ * All Rights Reserved.
  *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * Permission to use, copy, modify and distribute this software and its
+ * documentation is hereby granted, provided that both the copyright
+ * notice and this permission notice appear in all copies of the
+ * software, derivative works or modified versions, and any portions
+ * thereof, and that both notices appear in supporting documentation.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * CARNEGIE MELLON ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+ * CONDITION.  CARNEGIE MELLON DISCLAIMS ANY LIABILITY OF ANY KIND FOR
+ * ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Carnegie Mellon requests users of this software to return to
+ *
+ *  Software Distribution Coordinator  or  Software.Distribution@CS.CMU.EDU
+ *  School of Computer Science
+ *  Carnegie Mellon University
+ *  Pittsburgh PA 15213-3890
+ *
+ * any improvements or extensions that they make and grant Carnegie the
+ * rights to redistribute these changes.
  */
 
 #include <sys/cdefs.h>
-
-__RCSID("$NetBSD: db_trace.c,v 1.4 2023/05/07 12:41:48 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: db_trace.c,v 1.6 2022/12/24 14:14:52 uwe Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <sys/proc.h>
 
-#include <wasm/db_machdep.h>
+#include <uvm/uvm_prot.h>
+#include <uvm/uvm_pmap.h>
 
-#include <uvm/uvm_extern.h>
+#include <machine/frame.h>
+#include <machine/trap.h>
+#include <machine/intrdefs.h>
+#include <machine/pmap.h>
 
-#include <ddb/db_access.h>
-#include <ddb/db_command.h>
-#include <ddb/db_output.h>
-#include <ddb/db_variables.h>
+#include <machine/db_machdep.h>
 #include <ddb/db_sym.h>
-#include <ddb/db_proc.h>
-#include <ddb/db_lwp.h>
-#include <ddb/db_extern.h>
+#include <ddb/db_access.h>
+#include <ddb/db_variables.h>
+#include <ddb/db_output.h>
 #include <ddb/db_interface.h>
+#include <ddb/db_user.h>
+#include <ddb/db_proc.h>
+#include <ddb/db_command.h>
+#include <x86/db_machdep.h>
 
-#define MAXBACKTRACE	128	/* against infinite loop */
-#define TRACEFLAG_LOOKUPLWP	0x00000001
-
-#define IN_USER_VM_ADDRESS(addr)	\
-	(VM_MIN_ADDRESS <= (addr) && (addr) < VM_MAX_ADDRESS)
-#define IN_KERNEL_VM_ADDRESS(addr)	\
-	(VM_MIN_KERNEL_ADDRESS <= (addr) && (addr) < VM_MAX_KERNEL_ADDRESS)
-
-static bool __unused
-is_lwp(void *p)
+int
+db_x86_regop(const struct db_variable *vp, db_expr_t *val, int opcode)
 {
-	lwp_t *lwp;
+	db_expr_t *regaddr =
+	    (db_expr_t *)(((uint8_t *)DDB_REGS) + ((size_t)vp->valuep));
 
-	for (lwp = db_lwp_first(); lwp != NULL; lwp = db_lwp_next(lwp)) {
-		if (lwp == p)
-			return true;
+	switch (opcode) {
+	case DB_VAR_GET:
+		*val = *regaddr;
+		break;
+	case DB_VAR_SET:
+		*regaddr = *val;
+		break;
+	default:
+		db_printf("db_x86_regop: unknown op %d", opcode);
+		db_error(NULL);
 	}
-	return false;
+	return 0;
 }
 
-static const char *
-getlwpnamebysp(uint64_t sp)
-{
-#if defined(_KERNEL)
-	lwp_t *lwp;
+/*
+ * Stack trace.
+ */
 
-	for (lwp = db_lwp_first(); lwp != NULL; lwp = db_lwp_next(lwp)) {
-		uint64_t uarea = uvm_lwp_getuarea(lwp);
-		if ((uarea <= sp) && (sp < (uarea + USPACE))) {
-			return lwp->l_name;
-		}
-	}
+#if 0
+db_addr_t db_trap_symbol_value = 0;
+db_addr_t db_syscall_symbol_value = 0;
+db_addr_t db_kdintr_symbol_value = 0;
+bool db_trace_symbols_found = false;
+
+void db_find_trace_symbols(void);
+
+void
+db_find_trace_symbols(void)
+{
+	db_expr_t value;
+
+	if (db_value_of_name("_trap", &value))
+		db_trap_symbol_value = (db_addr_t) value;
+	if (db_value_of_name("_kdintr", &value))
+		db_kdintr_symbol_value = (db_addr_t) value;
+	if (db_value_of_name("_syscall", &value))
+		db_syscall_symbol_value = (db_addr_t) value;
+	db_trace_symbols_found = true;
+}
 #endif
-	return "unknown";
-}
 
-static void
-pr_traceaddr(const char *prefix, uint64_t frame, uint64_t pc, int flags,
-    void (*pr)(const char *, ...) __printflike(1, 2))
-{
-	db_expr_t offset;
-	db_sym_t sym;
-	const char *name;
-
-	sym = db_search_symbol(pc, DB_STGY_ANY, &offset);
-	if (sym != DB_SYM_NULL) {
-		db_symbol_values(sym, &name, NULL);
-
-		if (flags & TRACEFLAG_LOOKUPLWP) {
-			(*pr)("%s %016" PRIx64 " %s %s() at %016" PRIx64,
-			    prefix, frame, getlwpnamebysp(frame), name, pc);
-		} else {
-			(*pr)("%s %016" PRIx64 " %s() at %016" PRIx64 " ",
-			    prefix, frame, name, pc);
-		}
-		db_printsym(pc, DB_STGY_PROC, pr);
-		(*pr)("\n");
-	} else {
-		if (flags & TRACEFLAG_LOOKUPLWP) {
-			(*pr)("%s %016" PRIx64 " %s ?() at %016" PRIx64 "\n",
-			    prefix, frame, getlwpnamebysp(frame), pc);
-		} else {
-			(*pr)("%s %016" PRIx64 " ?() at %016" PRIx64 "\n", prefix, frame, pc);
-		}
-	}
-}
+#define set_frame_callpc() do {				\
+		frame = (long *)ddb_regs.tf_bp;		\
+		callpc = (db_addr_t)ddb_regs.tf_ip;	\
+	} while (/*CONSTCCOND*/0)
 
 void
 db_stack_trace_print(db_expr_t addr, bool have_addr, db_expr_t count,
-    const char *modif, void (*pr)(const char *, ...) __printflike(1, 2))
+    const char *modif, void (*pr)(const char *, ...))
 {
-	register_t ra, fp, lastra, lastfp;
-	struct trapframe *tf = NULL;
-	int flags = 0;
-	bool trace_user = false;
+	long *frame, *lastframe;
+	long *retaddr, *arg0;
+	long *argp;
+	db_addr_t callpc;
+	int is_trap;
+	bool kernel_only = true;
 	bool trace_thread = false;
-	bool trace_lwp = false;
-
-	printf("have_addr: %s\n", have_addr ? "true" : "false");
-	if (have_addr)
-		printf("addr: %lx\n", addr);
-	printf("count: %ld\n", count);
-	printf("modif: %s\n", modif);
-
-	for (; *modif != '\0'; modif++) {
-		switch (*modif) {
-		case 'a':
-			trace_lwp = true;
-			trace_thread = false;
-			break;
-		case 'l':
-			break;
-		case 't':
-			trace_thread = true;
-			trace_lwp = false;
-			break;
-		case 'u':
-			trace_user = true;
-			break;
-		case 'x':
-			flags |= TRACEFLAG_LOOKUPLWP;
-			break;
-		default:
-			pr("usage: bt[/ulx] [frame-address][,count]\n");
-			pr("       bt/t[ulx] [pid][,count]\n");
-			pr("       bt/a[ulx] [lwpaddr][,count]\n");
-			pr("\n");
-			pr("       /x      reverse lookup lwp name from sp\n");
-			return;
-		}
-	}
-
-#if defined(_KERNEL)
-	if (!have_addr) {
-		if (trace_lwp) {
-			addr = (db_expr_t)curlwp;
-		} else if (trace_thread) {
-			addr = curlwp->l_proc->p_pid;
-		} else {
-			tf = DDB_REGS;
-		}
-	}
-#endif
-
-	if (trace_thread) {
-		proc_t *pp, p;
-
-		if ((pp = db_proc_find((pid_t)addr)) == 0) {
-			(*pr)("trace: pid %d: not found\n", (int)addr);
-			return;
-		}
-		db_read_bytes((db_addr_t)pp, sizeof(p), (char *)&p);
-		addr = (db_addr_t)p.p_lwps.lh_first;
-		trace_thread = false;
-		trace_lwp = true;
-	}
+	bool lwpaddr = false;
 
 #if 0
-	/* "/a" is abbreviated? */
-	if (!trace_lwp && is_lwp(addr))
-		trace_lwp = true;
+	if (!db_trace_symbols_found)
+		db_find_trace_symbols();
 #endif
 
-	if (trace_lwp) {
+	{
+		const char *cp = modif;
+		char c;
+
+		while ((c = *cp++) != 0) {
+			if (c == 'a') {
+				lwpaddr = true;
+				trace_thread = true;
+			}
+			if (c == 't')
+				trace_thread = true;
+			if (c == 'u')
+				kernel_only = false;
+		}
+	}
+
+	if (have_addr && trace_thread) {
+		struct pcb *pcb;
 		proc_t p;
-		struct lwp l;
+		lwp_t l;
 
-		db_read_bytes(addr, sizeof(l), (char *)&l);
-		db_read_bytes((db_addr_t)l.l_proc, sizeof(p), (char *)&p);
+		if (lwpaddr) {
+			db_read_bytes(addr, sizeof(l),
+			    (char *)&l);
+			db_read_bytes((db_addr_t)l.l_proc,
+			    sizeof(p), (char *)&p);
+			(*pr)("trace: pid %d ", p.p_pid);
+		} else {
+			proc_t	*pp;
 
-#if defined(_KERNEL)
-		if (addr == (db_expr_t)curlwp) {
-			fp = (register_t)&DDB_REGS->tf_s0; /* s0 = fp */
-			tf = DDB_REGS;
-			(*pr)("trace: pid %d lid %d (curlwp) at tf %p\n",
-			    p.p_pid, l.l_lid, tf);
-		} else
+			(*pr)("trace: pid %d ", (int)addr);
+			if ((pp = db_proc_find((pid_t)addr)) == 0) {
+				(*pr)("not found\n");
+				return;
+			}
+			db_read_bytes((db_addr_t)pp, sizeof(p), (char *)&p);
+			addr = (db_addr_t)p.p_lwps.lh_first;
+			db_read_bytes(addr, sizeof(l), (char *)&l);
+		}
+		(*pr)("lid %d ", l.l_lid);
+		pcb = lwp_getpcb(&l);
+#ifdef _KERNEL
+		if (l.l_proc == curproc && (lwp_t *)addr == curlwp)
+			set_frame_callpc();
+		else
 #endif
 		{
-			tf = l.l_md.md_ktf;
-			db_read_bytes((db_addr_t)&tf->tf_s0, sizeof(fp), (char *)&fp);
-			(*pr)("trace: pid %d lid %d at tf %p\n",
-			    p.p_pid, l.l_lid, tf);
+			db_read_bytes((db_addr_t)&pcb->pcb_bp,
+			    sizeof(frame), (char *)&frame);
+			db_read_bytes((db_addr_t)(frame + 1),
+			    sizeof(callpc), (char *)&callpc);
+			db_read_bytes((db_addr_t)frame,
+			    sizeof(frame), (char *)&frame);
 		}
-	} else if (tf == NULL) {
-		fp = addr;
-		pr("trace fp %016" PRIxREGISTER "\n", fp);
+		(*pr)("at %p\n", frame);
+	} else if (have_addr) {
+		frame = (long *)addr;
+		db_read_bytes((db_addr_t)(frame + 1),
+		    sizeof(callpc), (char *)&callpc);
+		db_read_bytes((db_addr_t)frame,
+		    sizeof(frame), (char *)&frame);
 	} else {
-		pr("trace tf %p\n", tf);
+		set_frame_callpc();
 	}
 
-	if (count > MAXBACKTRACE)
-		count = MAXBACKTRACE;
+	retaddr = frame + 1;
+	arg0 = frame + 2;
 
-	if (tf != NULL) {
-#if defined(_KERNEL)
-		(*pr)("---- trapframe %p (%zu bytes) ----\n",
-		    tf, sizeof(*tf));
-		dump_trapframe(tf, pr);
-		(*pr)("------------------------"
-		      "------------------------\n");
+	lastframe = NULL;
+	while (count && frame != 0) {
+		int narg;
+		const char *name;
+		db_expr_t offset;
+		db_sym_t sym;
+		char *argnames[MAXNARG], **argnp = NULL;
+		db_addr_t lastcallpc;
 
+		name = "?";
+		is_trap = NONE;
+		offset = 0;
+		sym = db_frame_info(frame, callpc, &name, &offset, &is_trap,
+		    &narg);
+
+		if (lastframe == NULL && sym == DB_SYM_NULL && callpc != 0) {
+			/* Symbol not found, peek at code */
+			u_long instr = db_get_value(callpc, 4, false);
+
+			offset = 1;
+			if (
+#ifdef __x86_64__
+			   (instr == 0xe5894855 ||
+					/* enter: pushq %rbp, movq %rsp, %rbp */
+			    (instr & 0x00ffffff) == 0x0048e589
+					/* enter+1: movq %rsp, %rbp */)
+#else
+			   ((instr & 0x00ffffff) == 0x00e58955 ||
+					/* enter: pushl %ebp, movl %esp, %ebp */
+			    (instr & 0x0000ffff) == 0x0000e589
+					/* enter+1: movl %esp, %ebp */)
 #endif
-		lastfp = lastra = ra = fp = 0;
-		db_read_bytes((db_addr_t)&tf->tf_ra, sizeof(ra), (char *)&ra);
-		db_read_bytes((db_addr_t)&tf->tf_s0, sizeof(fp), (char *)&fp);
-
-		pr_traceaddr("fp", fp, ra - 4, flags, pr);
-	}
-	for (; (count > 0) && (fp != 0); count--) {
-
-		lastfp = fp;
-		fp = ra = 0;
-		/*
-		 * normal stack frame
-		 *  fp[-1]  saved fp(s0) value
-		 *  fp[-2]  saved ra value
-		 */
-		db_read_bytes(lastfp - 1 * sizeof(register_t), sizeof(ra), (char *)&ra);
-		db_read_bytes(lastfp - 2 * sizeof(register_t), sizeof(fp), (char *)&fp);
-
-		if (!trace_user && (IN_USER_VM_ADDRESS(ra) || IN_USER_VM_ADDRESS(fp)))
-			break;
-#if defined(_KERNEL)
-		extern char exception_kernexit[];
-
-		if (((char *)ra == (char *)exception_kernexit)) {
-
-			tf = (struct trapframe *)lastfp;
-
-			lastra = ra;
-			ra = fp = 0;
-			db_read_bytes((db_addr_t)&tf->tf_pc, sizeof(ra), (char *)&ra);
-			db_read_bytes((db_addr_t)&tf->tf_s0, sizeof(fp), (char *)&fp);
-
-			pr_traceaddr("tf", (db_addr_t)tf, lastra, flags, pr);
-
-			(*pr)("---- trapframe %p (%zu bytes) ----\n",
-			    tf, sizeof(*tf));
-			dump_trapframe(tf, pr);
-			(*pr)("------------------------"
-			      "------------------------\n");
-			if (ra == 0)
-				break;
-			tf = NULL;
-
-			if (!trace_user && IN_USER_VM_ADDRESS(ra))
-				break;
-
-			pr_traceaddr("fp", fp, ra, flags, pr);
-
-		} else
-#endif
-		{
-			pr_traceaddr("fp", fp, ra - 4, flags, pr);
+			    )
+			{
+				offset = 0;
+			}
 		}
+
+		if (is_trap == NONE) {
+			if (db_sym_numargs(sym, &narg, argnames))
+				argnp = argnames;
+			else
+				narg = db_numargs(frame);
+		}
+
+		(*pr)("%s(", name);
+
+		if (lastframe == NULL && offset == 0 && !have_addr) {
+			/*
+			 * We have a breakpoint before the frame is set up
+			 * Use %[er]sp instead
+			 */
+			argp = (long *)&((struct x86_frame *)
+			    (ddb_regs.tf_sp-sizeof(long)))->f_arg0;
+		} else {
+			argp = frame + 2;
+		}
+
+		while (narg) {
+			if (argnp)
+				(*pr)("%s=", *argnp++);
+			(*pr)("%lx", db_get_value((long)argp, sizeof(long),
+			    false));
+			argp++;
+			if (--narg != 0)
+				(*pr)(",");
+		}
+		(*pr)(") at ");
+		db_printsym(callpc, DB_STGY_PROC, pr);
+		(*pr)("\n");
+
+		if (lastframe == NULL && offset == 0 && !have_addr) {
+			/* Frame really belongs to next callpc */
+			struct x86_frame *fp = (void *)
+			    (ddb_regs.tf_sp-sizeof(long));
+			lastframe = (long *)fp;
+			callpc = (db_addr_t)
+			    db_get_value((db_addr_t)&fp->f_retaddr,
+				sizeof(long), false);
+
+			continue;
+		}
+
+		lastframe = frame;
+		lastcallpc = callpc;
+		if (!db_nextframe(&frame, &retaddr, &arg0, &callpc,
+		    frame + 2, is_trap, pr))
+			break;
+
+		if (INKERNEL((long)frame)) {
+			/* staying in kernel */
+#ifdef __i386__
+			if (!db_intrstack_p(frame) &&
+			    db_intrstack_p(lastframe)) {
+				(*pr)("--- switch to interrupt stack ---\n");
+			} else
+#endif
+			if (frame < lastframe ||
+			    (frame == lastframe && callpc == lastcallpc)) {
+				(*pr)("Bad frame pointer: %p\n", frame);
+				break;
+			}
+		} else if (INKERNEL((long)lastframe)) {
+			/* switch from user to kernel */
+			if (kernel_only)
+				break;	/* kernel stack only */
+		} else {
+			/* in user */
+			if (frame <= lastframe) {
+				(*pr)("Bad user frame pointer: %p\n", frame);
+				break;
+			}
+		}
+		--count;
+	}
+
+	if (count && is_trap != NONE) {
+		db_printsym(callpc, DB_STGY_XTRN, pr);
+		(*pr)(":\n");
 	}
 }

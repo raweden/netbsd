@@ -1,7 +1,7 @@
-/*	$NetBSD: mutex.h,v 1.4 2021/08/25 04:13:41 thorpej Exp $	*/
+/*	$NetBSD: mutex.h,v 1.10 2023/07/12 12:50:13 riastradh Exp $	*/
 
 /*-
- * Copyright (c) 2002, 2007 The NetBSD Foundation, Inc.
+ * Copyright (c) 2002, 2006, 2009 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This code is derived from software contributed to The NetBSD Foundation
@@ -29,96 +29,48 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _WASM_MUTEX_H_
-#define	_WASM_MUTEX_H_
+#ifndef _X86_MUTEX_H_
+#define	_X86_MUTEX_H_
 
-#ifndef __MUTEX_PRIVATE
+#include <sys/types.h>
+#include <sys/atomic.h>
+
+#ifdef _KERNEL
+#include <machine/intr.h>
+#endif
 
 struct kmutex {
-	uintptr_t	mtx_pad1;
+	union {
+		volatile uintptr_t	mtxa_owner;
+#ifdef _KERNEL
+		struct {
+			volatile uint8_t	mtxs_dummy;
+			ipl_cookie_t		mtxs_ipl;
+            __cpu_simple_lock_t	mtxs_lock;
+			volatile uint8_t	mtxs_unused;
+		} s;
+#endif
+	} u;
 };
 
-#else	/* __MUTEX_PRIVATE */
+#ifdef __MUTEX_PRIVATE
 
-#include <sys/param.h>
+#define	mtx_owner 			u.mtxa_owner
+#define	mtx_ipl 			u.s.mtxs_ipl
+#define	mtx_lock			u.s.mtxs_lock
 
-struct kmutex {
-	volatile uintptr_t	mtx_owner;
-};
-
-#ifdef _LP64
-#define MTX_ASMOP_SFX ".d"		// doubleword atomic op
-#else
-#define MTX_ASMOP_SFX ".w"		// word atomic op
-#endif
-
-#define	MTX_LOCK			__BIT(8)	// just one bit
-#define	MTX_IPL				__BITS(7,4)	// only need 4 bits
-
-#undef MUTEX_SPIN_IPL			// override <sys/mutex.h>
-#define	MUTEX_SPIN_IPL(a)		riscv_mutex_spin_ipl(a)
-#define	MUTEX_INITIALIZE_SPIN_IPL(a,b)	riscv_mutex_initialize_spin_ipl(a,b)
-#define MUTEX_SPINBIT_LOCK_INIT(a)	riscv_mutex_spinbit_lock_init(a)
-#define MUTEX_SPINBIT_LOCK_TRY(a)	riscv_mutex_spinbit_lock_try(a)
-#define MUTEX_SPINBIT_LOCKED_P(a)	riscv_mutex_spinbit_locked_p(a)
-#define MUTEX_SPINBIT_LOCK_UNLOCK(a)	riscv_mutex_spinbit_lock_unlock(a)
-
-static inline ipl_cookie_t
-riscv_mutex_spin_ipl(kmutex_t *__mtx)
-{
-	return (ipl_cookie_t){._spl = __SHIFTOUT(__mtx->mtx_owner, MTX_IPL)};
-}
-
-static inline void
-riscv_mutex_initialize_spin_ipl(kmutex_t *__mtx, int ipl)
-{
-	__mtx->mtx_owner = (__mtx->mtx_owner & ~MTX_IPL)
-	    | __SHIFTIN(ipl, MTX_IPL);
-}
-
-static inline void
-riscv_mutex_spinbit_lock_init(kmutex_t *__mtx)
-{
-	__mtx->mtx_owner &= ~MTX_LOCK;
-}
-
-static inline bool
-riscv_mutex_spinbit_locked_p(const kmutex_t *__mtx)
-{
-	return (__mtx->mtx_owner & MTX_LOCK) != 0;
-}
-
-static inline bool
-riscv_mutex_spinbit_lock_try(kmutex_t *__mtx)
-{
-#ifndef __WASM
-	uintptr_t __old;
-	__asm __volatile(
-		"amoor" MTX_ASMOP_SFX ".aq\t%0, %1, (%2)"
-	   :	"=r"(__old)
-	   :	"r"(MTX_LOCK), "r"(__mtx));
-	return (__old & MTX_LOCK) == 0;
-#else
-	return 0;
-#endif
-}
-
-static inline void
-riscv_mutex_spinbit_lock_unlock(kmutex_t *__mtx)
-{
-#ifndef __WASM
-	__asm __volatile(
-		"amoand" MTX_ASMOP_SFX ".rl\tx0, %0, (%1)"
-	   ::	"r"(~MTX_LOCK), "r"(__mtx));
-#endif
-}
-
-#if 0
-#define	__HAVE_MUTEX_STUBS		1
-#define	__HAVE_SPIN_MUTEX_STUBS		1
-#endif
+#define __HAVE_MUTEX_STUBS		1
+#define __HAVE_SPIN_MUTEX_STUBS		1
 #define	__HAVE_SIMPLE_MUTEXES		1
+
+#define	MUTEX_CAS(p, o, n)		\
+    (_atomic_cas_ulong((volatile unsigned long *)(p), (o), (n)) == (o))
+
+#if 0 // TODO: wasm remove me, use atomic.h
+unsigned long	_atomic_cas_ulong(volatile unsigned long *,
+    unsigned long, unsigned long);
+#endif
 
 #endif	/* __MUTEX_PRIVATE */
 
-#endif /* _WASM_MUTEX_H_ */
+#endif /* _X86_MUTEX_H_ */

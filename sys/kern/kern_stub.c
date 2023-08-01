@@ -87,6 +87,10 @@ bool default_bus_space_is_equal(bus_space_tag_t, bus_space_tag_t);
 bool default_bus_space_handle_is_equal(bus_space_tag_t, bus_space_handle_t,
     bus_space_handle_t);
 
+#ifdef __WASM
+#define MULTIPROCESSOR
+#endif
+
 /*
  * SYSV Semaphores, Shared Memory, Message Queues
  */
@@ -228,114 +232,176 @@ __strong_alias(ttyvenodev,voidop);
 __strong_alias(ttyvnullop,nullop);
 #else
 
-void device_register_noop(device_t dev, void *aux)
+void noop_device_register(device_t dev, void *aux)
 {
-
+	// nothing
 }
 
-void device_register_post_config_noop(device_t dev, void *aux)
+void noop_device_register_post_config(device_t dev, void *aux)
 {
-
+	// nothing
 }
 
 struct intrids_handler *
-interrupt_construct_intrids_noop(const kcpuset_t *cpuset)
+noop_interrupt_construct_intrids(const kcpuset_t *cpuset)
 {
 	return NULL;
 }
 
 void
-interrupt_destruct_intrids_noop(struct intrids_handler *iih)
+noop_interrupt_destruct_intrids(struct intrids_handler *iih)
 {
-
+	// nothing
 }
 
 uint64_t
-interrupt_get_count_noop(const char *intrid, u_int cpu_idx)
+noop_interrupt_get_count(const char *intrid, u_int cpu_idx)
 {
 	return 0;
 }
 
 void
-interrupt_get_devname_noop(const char *intrid, char *buf, size_t len)
+noop_interrupt_get_devname(const char *intrid, char *buf, size_t len)
 {
-
+	// nothing
 }
 
 void
-interrupt_get_assigned_noop(const char *intrid, kcpuset_t *cpuset)
+noop_interrupt_get_assigned(const char *intrid, kcpuset_t *cpuset)
 {
-
+	// nothing
 }
 
 int
-interrupt_distribute_handler_noop(const char *intrid, const kcpuset_t *newset, kcpuset_t *oldset)
+noop_interrupt_distribute_handler(const char *intrid, const kcpuset_t *newset, kcpuset_t *oldset)
 {
 	return (EOPNOTSUPP);
 }
 
 void
-machdep_init_noop(void)
+noop_machdep_init(void)
 {
-
+	// nothing
 }
 
 void
-interrupt_get_available_noop(kcpuset_t *cpuset)
+noop_interrupt_get_available(kcpuset_t *cpuset)
 {
+	// nothing
+}
 
+// bus operatiorns noop
+
+int
+noop_bus_space_reserve(bus_space_tag_t t, bus_addr_t bpa, bus_size_t size, int flags, bus_space_reservation_t *bsrp)
+{
+	return (EOPNOTSUPP);
+}
+
+int
+noop_bus_space_reserve_subregion(bus_space_tag_t t, bus_addr_t reg_start, bus_addr_t reg_end, bus_size_t size, bus_size_t alignment, bus_size_t boundary, int flags, bus_space_reservation_t *bsrp)
+{
+	return (EOPNOTSUPP);
+}
+
+void
+noop_bus_space_release(bus_space_tag_t t, bus_space_reservation_t *bsrp)
+{
+	// nothing
+}
+
+int
+noop_bus_space_reservation_map(bus_space_tag_t space, bus_space_reservation_t *bsrp, int flags, bus_space_handle_t *handlep)
+{
+	return (EOPNOTSUPP);
+}
+
+
+void
+noop_bus_space_reservation_unmap(bus_space_tag_t space, bus_space_handle_t handle, bus_size_t size)
+{
+	// nothing
+}
+
+int
+noop_bus_dma_tag_create(bus_dma_tag_t obdt, uint64_t present, const struct bus_dma_overrides *ov, void *ctx, bus_dma_tag_t *bdtp)
+{
+	return (EOPNOTSUPP);
+}
+
+void
+noop_bus_dma_tag_destroy(bus_dma_tag_t bdt)
+{
+	// nothing
+}
+
+int
+noop_bus_space_tag_create(bus_space_tag_t obst, uint64_t present, uint64_t extpresent, const struct bus_space_overrides *ov, void *ctx, bus_space_tag_t *bstp)
+{
+	return (EOPNOTSUPP);
+}
+
+void
+noop_bus_space_tag_destroy(bus_space_tag_t bst)
+{
+	// nothing
+}
+
+
+
+int
+noop_interrupt_distribute(void *ih, const kcpuset_t *newset, kcpuset_t *oldset)
+{
+	return (EOPNOTSUPP);
 }
 
 // TODO: wasm32 Might need dedicated null-ops for these.
-void device_register(device_t, void *) __attribute__((weak, alias("device_register_noop")));
-void device_register_post_config(device_t, void *) __attribute__((weak, alias("device_register_post_config_noop")));
+void device_register(device_t, void *) __attribute__((weak, alias("noop_device_register")));
+void device_register_post_config(device_t, void *) __attribute__((weak, alias("noop_device_register_post_config")));
 void spldebug_start(void) __attribute__((weak, alias("voidop")));
 void spldebug_stop(void) __attribute__((weak, alias("voidop")));
-void machdep_init(void) __attribute__((weak, alias("machdep_init_noop")));
-void pci_chipset_tag_create(void) __attribute__((weak, alias("eopnotsupp")));
-void pci_chipset_tag_destroy(void) __attribute__((weak, alias("voidop")));
-int	bus_space_reserve(bus_space_tag_t, bus_addr_t, bus_size_t, int, bus_space_reservation_t *) __attribute__((weak, alias("eopnotsupp")));
-int bus_space_reserve_subregion(bus_space_tag_t,
-    bus_addr_t, bus_addr_t, bus_size_t, bus_size_t, bus_size_t,
-    int, bus_space_reservation_t *) __attribute__((weak, alias("eopnotsupp")));
-void bus_space_release(bus_space_tag_t, bus_space_reservation_t *) __attribute__((weak, alias("voidop")));
-int bus_space_reservation_map(bus_space_tag_t, bus_space_reservation_t *,
-    int, bus_space_handle_t *) __attribute__((weak, alias("eopnotsupp")));
-void bus_space_reservation_unmap(bus_space_tag_t, bus_space_handle_t,
-    bus_size_t) __attribute__((weak, alias("voidop")));
+void machdep_init(void) __attribute__((weak, alias("noop_machdep_init")));
+int pci_chipset_tag_create(struct pci_chipset_tag *, uint64_t, const struct pci_overrides *, void *, struct pci_chipset_tag **) __attribute__((weak, alias("eopnotsupp"))); // need
+void pci_chipset_tag_destroy(struct pci_chipset_tag *) __attribute__((weak, alias("voidop"))); // need
+
+int	bus_space_reserve(bus_space_tag_t, bus_addr_t, bus_size_t, int, bus_space_reservation_t *) __attribute__((weak, alias("noop_bus_space_reserve")));
+int bus_space_reserve_subregion(bus_space_tag_t, bus_addr_t, bus_addr_t, bus_size_t, bus_size_t, bus_size_t, int, bus_space_reservation_t *) __attribute__((weak, alias("noop_bus_space_reserve_subregion")));
+void bus_space_release(bus_space_tag_t, bus_space_reservation_t *) __attribute__((weak, alias("noop_bus_space_release")));
+int bus_space_reservation_map(bus_space_tag_t, bus_space_reservation_t *, int, bus_space_handle_t *) __attribute__((weak, alias("noop_bus_space_reservation_map")));
+void bus_space_reservation_unmap(bus_space_tag_t, bus_space_handle_t, bus_size_t) __attribute__((weak, alias("noop_bus_space_reservation_unmap")));
 int bus_dma_tag_create(bus_dma_tag_t, uint64_t,
-    const struct bus_dma_overrides *, void *, bus_dma_tag_t *) __attribute__((weak, alias("eopnotsupp")));
-void bus_dma_tag_destroy(bus_dma_tag_t) __attribute__((weak, alias("voidop")));
+    const struct bus_dma_overrides *, void *, bus_dma_tag_t *) __attribute__((weak, alias("noop_bus_dma_tag_create")));
+void bus_dma_tag_destroy(bus_dma_tag_t) __attribute__((weak, alias("noop_bus_dma_tag_destroy")));
 int	bus_space_tag_create(bus_space_tag_t, uint64_t, uint64_t,
 	                     const struct bus_space_overrides *, void *,
-	                     bus_space_tag_t *) __attribute__((weak, alias("eopnotsupp")));
-void bus_space_tag_destroy(bus_space_tag_t) __attribute__((weak, alias("voidop")));
+	                     bus_space_tag_t *) __attribute__((weak, alias("noop_bus_space_tag_create")));
+void bus_space_tag_destroy(bus_space_tag_t) __attribute__((weak, alias("noop_bus_space_tag_destroy")));
 bool bus_space_is_equal(bus_space_tag_t, bus_space_tag_t) __attribute__((weak, alias("default_bus_space_is_equal")));
-bool bus_space_handle_is_equal(bus_space_tag_t, bus_space_handle_t,
-    bus_space_handle_t) __attribute__((weak, alias("default_bus_space_handle_is_equal")));
+bool bus_space_handle_is_equal(bus_space_tag_t, bus_space_handle_t, bus_space_handle_t) __attribute__((weak, alias("default_bus_space_handle_is_equal")));
+
 void userconf_bootinfo(void) __attribute__((weak, alias("voidop")));
 void userconf_init(void) __attribute__((weak, alias("voidop")));
 void userconf_prompt(void) __attribute__((weak, alias("voidop")));
 
-void kobj_renamespace(void) __attribute__((weak, alias("nullop")));
+int kobj_renamespace(struct Elf32_Sym *, size_t, char **, size_t *) __attribute__((weak, alias("nullop")));
 
-uint64_t interrupt_get_count(const char *, u_int) __attribute__((weak, alias("interrupt_get_count_noop")));
-void interrupt_get_assigned(const char *, kcpuset_t *) __attribute__((weak, alias("interrupt_get_assigned_noop")));
-void interrupt_get_available(kcpuset_t *) __attribute__((weak, alias("interrupt_get_available_noop")));
-void interrupt_get_devname(const char *, char *, size_t) __attribute__((weak, alias("interrupt_get_devname_noop")));
-void interrupt_construct_intrids(void) __attribute__((weak, alias("interrupt_construct_intrids_noop")));
-void interrupt_destruct_intrids(struct intrids_handler *) __attribute__((weak, alias("interrupt_destruct_intrids_noop")));
-void interrupt_distribute(void) __attribute__((weak, alias("eopnotsupp")));
-int interrupt_distribute_handler(const char *, const kcpuset_t *, kcpuset_t *) __attribute__((weak, alias("interrupt_distribute_handler_noop")));
+uint64_t interrupt_get_count(const char *, u_int) __attribute__((weak, alias("noop_interrupt_get_count")));
+void interrupt_get_assigned(const char *, kcpuset_t *) __attribute__((weak, alias("noop_interrupt_get_assigned")));
+void interrupt_get_available(kcpuset_t *) __attribute__((weak, alias("noop_interrupt_get_available")));
+void interrupt_get_devname(const char *, char *, size_t) __attribute__((weak, alias("noop_interrupt_get_devname")));
+void interrupt_construct_intrids(void) __attribute__((weak, alias("noop_interrupt_construct_intrids")));
+void interrupt_destruct_intrids(struct intrids_handler *) __attribute__((weak, alias("noop_interrupt_destruct_intrids")));
+int interrupt_distribute(void *, const kcpuset_t *, kcpuset_t *) __attribute__((weak, alias("noop_interrupt_distribute")));
+int interrupt_distribute_handler(const char *, const kcpuset_t *, kcpuset_t *) __attribute__((weak, alias("noop_interrupt_distribute_handler")));
 
 // Scheduler activations system calls.  These need to remain until libc's major version is bumped.
-void sys_sa_register(void) __attribute__((alias("sys_nosys")));
-void sys_sa_stacks(void) __attribute__((alias("sys_nosys")));
-void sys_sa_enable(void) __attribute__((alias("sys_nosys")));
-void sys_sa_setconcurrency(void) __attribute__((alias("sys_nosys")));
-void sys_sa_yield(void) __attribute__((alias("sys_nosys")));
-void sys_sa_preempt(void) __attribute__((alias("sys_nosys")));
-void sys_sa_unblockyield(void) __attribute__((alias("sys_nosys")));
+int sys_sa_register(lwp_t *l, const struct compat_60_sys_sa_register_args *uap, register_t *retval) __attribute__((alias("sys_nosys")));
+int sys_sa_stacks(lwp_t *l, const struct compat_60_sys_sa_stacks_args *uap, register_t *retval) __attribute__((alias("sys_nosys")));
+int sys_sa_enable(lwp_t *l, const void *uap, register_t *retval) __attribute__((alias("sys_nosys")));
+int sys_sa_setconcurrency(lwp_t *l, const struct compat_60_sys_sa_setconcurrency_args *uap, register_t *retval) __attribute__((alias("sys_nosys")));
+int sys_sa_yield(lwp_t *l, const void *uap, register_t *retval) __attribute__((alias("sys_nosys")));
+int sys_sa_preempt(lwp_t *l, const struct compat_60_sys_sa_preempt_args *uap, register_t *retval) __attribute__((alias("sys_nosys")));
+int sys_sa_unblockyield(lwp_t *l, const void *uap, register_t *retval) __attribute__((alias("sys_nosys")));
 
 // Stubs for compat_netbsd32.
 void dosa_register(void) __attribute__((alias("sys_nosys")));

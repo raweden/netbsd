@@ -3,7 +3,7 @@
 #ifndef _WASM_CDEFS_H_
 #define _WASM_CDEFS_H_
 
-#define	__ALIGNBYTES	((size_t)(__BIGGEST_ALIGNMENT__ - 1U))
+#define __ALIGNBYTES	(sizeof(int) - 1)
 
 
 #ifdef _KERNEL

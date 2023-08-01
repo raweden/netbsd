@@ -1,144 +1,72 @@
-/* $NetBSD: elf_machdep.h,v 1.9 2022/12/03 08:54:38 skrll Exp $ */
+/*	$NetBSD: elf_machdep.h,v 1.13 2017/11/06 03:47:46 christos Exp $	*/
 
-/*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
- * All rights reserved.
- *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
-
-#ifndef _RISCV_ELF_MACHDEP_H_
-#define _RISCV_ELF_MACHDEP_H_
-
-#define	ELF32_MACHDEP_ID		EM_RISCV
-#define	ELF64_MACHDEP_ID		EM_RISCV
-
-#define ELF32_MACHDEP_ENDIANNESS	ELFDATA2LSB
-#define ELF64_MACHDEP_ENDIANNESS	ELFDATA2LSB
-
-#define ELF32_MACHDEP_ID_CASES		\
-		case EM_RISCV:		\
+#define	ELF32_MACHDEP_ENDIANNESS	ELFDATA2LSB
+#define	ELF32_MACHDEP_ID_CASES						\
+		case EM_386:						\
+		case EM_486:						\
 			break;
 
-#define	ELF64_MACHDEP_ID_CASES		\
-		case EM_RISCV:		\
-			break;
+#define	ELF64_MACHDEP_ENDIANNESS	XXX	/* break compilation */
+#define	ELF64_MACHDEP_ID_CASES						\
+		/* no 64-bit ELF machine types supported */
 
-#ifdef _LP64
-#define	KERN_ELFSIZE		64
-#define ARCH_ELFSIZE		64	/* MD native binary size */
-#else
+#define	ELF32_MACHDEP_ID		EM_386
+
 #define	KERN_ELFSIZE		32
 #define ARCH_ELFSIZE		32	/* MD native binary size */
-#endif
 
-/* Processor specific flags for the ELF header e_flags field.  */
+/* i386 relocations */
+#define	R_386_NONE	0
+#define	R_386_32	1
+#define	R_386_PC32	2
+#define	R_386_GOT32	3
+#define	R_386_PLT32	4
+#define	R_386_COPY	5
+#define	R_386_GLOB_DAT	6
+#define	R_386_JMP_SLOT	7
+#define	R_386_RELATIVE	8
+#define	R_386_GOTOFF	9
+#define	R_386_GOTPC	10
+#define	R_386_32PLT	11
 
-/* Processor specific relocation types */
+/* TLS relocations */
+#define	R_386_TLS_TPOFF	14
+#define	R_386_TLS_IE	15
+#define	R_386_TLS_GOTIE	16
+#define	R_386_TLS_LE	17
+#define	R_386_TLS_GD	18
+#define	R_386_TLS_LDM	19
 
-#define R_RISCV_NONE		0
-#define R_RISCV_32		1	// A
-#define R_RISCV_64		2
-#define R_RISCV_RELATIVE	3
-#define R_RISCV_COPY		4
-#define R_RISCV_JMP_SLOT	5
-#define R_RISCV_TLS_DTPMOD32	6
-#define R_RISCV_TLS_DTPMOD64	7
-#define R_RISCV_TLS_DTPREL32	8
-#define R_RISCV_TLS_DTPREL64	9
-#define R_RISCV_TLS_TPREL32	10
-#define R_RISCV_TLS_TPREL64	11
+/* The following relocations are GNU extensions. */
+#define	R_386_16	20
+#define	R_386_PC16	21
+#define	R_386_8		22
+#define	R_386_PC8	23
 
-/* The rest are not used by the dynamic linker */
-#define R_RISCV_BRANCH		16	// (A - P) & 0xffff
-#define R_RISCV_JAL		17	// A & 0xff
-#define R_RISCV_CALL		18	// (A - P) & 0xff
-#define R_RISCV_CALL_PLT	19
-#define R_RISCV_GOT_HI20	20
-#define R_RISCV_TLS_GOT_HI20	21
-#define R_RISCV_TLS_GD_HI20	22
-#define R_RISCV_PCREL_HI20	23
-#define R_RISCV_PCREL_LO12_I	24
-#define R_RISCV_PCREL_LO12_S	25
-#define R_RISCV_HI20		26	// A & 0xffff
-#define R_RISCV_LO12_I		27	// (A >> 16) & 0xffff
-#define R_RISCV_LO12_S		28	// (S + A - P) >> 2
-#define R_RISCV_TPREL_HI20	29
-#define R_RISCV_TPREL_LO12_I	30
-#define R_RISCV_TPREL_LO12_S	31
-#define R_RISCV_TPREL_ADD	32
-#define R_RISCV_ADD8		33
-#define R_RISCV_ADD16		34
-#define R_RISCV_ADD32		35
-#define R_RISCV_ADD64		36
-#define R_RISCV_SUB8		37
-#define R_RISCV_SUB16		38
-#define R_RISCV_SUB32		39
-#define R_RISCV_SUB64		40
-#define R_RISCV_GNU_VTINHERIT	41	// A & 0xffff
-#define R_RISCV_GNU_VTENTRY	42
-#define R_RISCV_ALIGN		43
-#define R_RISCV_RVC_BRANCH	44
-#define R_RISCV_RVC_JUMP	45
-#define R_RISCV_RVC_LUI		46
-#define R_RISCV_GPREL_I		47
-#define R_RISCV_GPREL_S		48
-#define R_RISCV_TPREL_I		49
-#define R_RISCV_TPREL_S		50
-#define R_RISCV_RELAX		51
-#define R_RISCV_SUB6		52
-#define R_RISCV_SET6		53
-#define R_RISCV_SET8		54
-#define R_RISCV_SET16		55
-#define R_RISCV_SET32		56
-#define R_RISCV_32_PCREL	57
+/* More TLS relocations */
+#define	R_386_TLS_GD_32		24
+#define	R_386_TLS_GD_PUSH	25
+#define	R_386_TLS_GD_CALL	26
+#define	R_386_TLS_GD_POP	27
+#define	R_386_TLS_LDM_32	28
+#define	R_386_TLS_LDM_PUSH	29
+#define	R_386_TLS_LDM_CALL	30
+#define	R_386_TLS_LDM_POP	31
+#define	R_386_TLS_LDO_32	32
+#define	R_386_TLS_IE_32		33
+#define	R_386_TLS_LE_32		34
+#define	R_386_TLS_DTPMOD32	35
+#define	R_386_TLS_DTPOFF32	36
+#define	R_386_TLS_TPOFF32	37
 
-/* These are aliases we can use R_TYPESZ */
-#define R_RISCV_ADDR32		R_RISCV_32
-#define R_RISCV_ADDR64		R_RISCV_64
+#define R_386_SIZE32		38
 
-#define R_TYPE(name)		R_RISCV_ ## name
-#if ELFSIZE == 32
-#define R_TYPESZ(name)		R_RISCV_ ## name ## 32
-#else
-#define R_TYPESZ(name)		R_RISCV_ ## name ## 64
-#endif
+/* More TLS relocations */
+#define	R_386_TLS_GOTDESC	39
+#define	R_386_TLS_DESC_CALL	40
+#define	R_386_TLS_DESC		41
 
-#ifdef _KERNEL
-#ifdef ELFSIZE
-#define ELF_MD_PROBE_FUNC       ELFNAME2(cpu_netbsd,probe)
-#endif
+#define R_386_IRELATIVE		42
+#define R_386_GOT32X		43
 
-struct exec_package;
-
-int cpu_netbsd_elf32_probe(struct lwp *, struct exec_package *, void *, char *,
-        vaddr_t *);
-
-int cpu_netbsd_elf64_probe(struct lwp *, struct exec_package *, void *, char *,
-        vaddr_t *);
-
-#endif /* _KERNEL */
-
-#endif /* _RISCV_ELF_MACHDEP_H_ */
+#define	R_TYPE(name)	__CONCAT(R_386_,name)

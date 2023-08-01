@@ -1,11 +1,11 @@
-/* $NetBSD: intr.h,v 1.4 2023/06/12 19:04:14 skrll Exp $ */
+/*	$NetBSD: intr.h,v 1.66 2022/09/07 00:40:18 knakahara Exp $	*/
 
 /*-
- * Copyright (c) 2009, 2010 The NetBSD Foundation, Inc.
+ * Copyright (c) 1998, 2001, 2006, 2007, 2008, 2019 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas <matt@3am-software.com>.
+ * by Charles M. Hannum, and by Jason R. Thorpe.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,152 +29,224 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _WASM_INTR_H_
-#define	_WASM_INTR_H_
+#ifndef _X86_INTR_H_
+#define _X86_INTR_H_
 
-#ifdef _KERNEL_OPT
-#include "opt_multiprocessor.h"
+#define	__HAVE_FAST_SOFTINTS
+#if !defined(NO_PREEMPTION)
+#define	__HAVE_PREEMPTION
+#endif /* !defined(NO_PREEMPTION) */
+
+#ifdef _KERNEL
+#include <sys/types.h>
+#include <sys/kcpuset.h>
+#else
+#include <stdbool.h>
 #endif
 
-#include <wasm/wasm_module.h>
+#include <sys/evcnt.h>
+#include <sys/queue.h>
+#include <machine/intrdefs.h>
 
-void csr_sstatus_set(unsigned int) __WASM_IMPORT(kern, csr_sstatus_set);
-unsigned int csr_sstatus_read(void) __WASM_IMPORT(kern, csr_sstatus_read);
-void csr_sstatus_clear(unsigned int) __WASM_IMPORT(kern, csr_sstatus_clear);
+#ifdef XEN
+#include <xen/include/public/xen.h>
+#include <xen/include/public/event_channel.h>
+#endif /* XEN */
+
+#ifndef _LOCORE
+#include <machine/pic.h>
 
 /*
- * This is a common <machine/intr.h> for all RISCV platforms.
+ * Struct describing an interrupt source for a CPU. struct cpu_info
+ * has an array of MAX_INTR_SOURCES of these. The index in the array
+ * is equal to the stub number of the stubcode as present in vector.s
+ *
+ * The primary CPU's array of interrupt sources has its first 16
+ * entries reserved for legacy ISA irq handlers. This means that
+ * they have a 1:1 mapping for arrayindex:irq_num. This is not
+ * true for interrupts that come in through IO APICs, to find
+ * their source, go through ci->ci_isources[index].is_pic
+ *
+ * It's possible to always maintain a 1:1 mapping, but that means
+ * limiting the total number of interrupt sources to MAX_INTR_SOURCES
+ * (32), instead of 32 per CPU. It also would mean that having multiple
+ * IO APICs which deliver interrupts from an equal pin number would
+ * overlap if they were to be sent to the same CPU.
  */
 
-#define	IPL_NONE	0
-#define	IPL_SOFTCLOCK	(IPL_NONE + 1)
-#define	IPL_SOFTBIO	(IPL_SOFTCLOCK + 1)
-#define	IPL_SOFTNET	(IPL_SOFTBIO + 1)
-#define	IPL_SOFTSERIAL	(IPL_SOFTNET + 1)
-#define	IPL_VM		(IPL_SOFTSERIAL + 1)
-#define	IPL_SCHED	(IPL_VM + 1)
-//#define	IPL_DDB		(IPL_SCHED + 1)
-#define	IPL_HIGH	(IPL_SCHED + 1)
-
-#define	IPL_SAFEPRI	IPL_SOFTSERIAL
-
-#define	_IPL_N		(IPL_HIGH + 1)
-
-#if 0
-#define	_IPL_NAMES(pfx)	{ pfx"none", pfx"softclock/bio", pfx"softnet/serial", \
-			  pfx"vm", pfx"sched", pfx"ddb", pfx"high" }
-#endif
-
-#define	IST_UNUSABLE	-1		/* interrupt cannot be used */
-#define	IST_NONE	0		/* none (dummy) */
-#define	IST_PULSE	1		/* pulsed */
-#define	IST_EDGE	2		/* edge-triggered */
-#define	IST_LEVEL	3		/* level-triggered */
-#define	IST_LEVEL_HIGH	4		/* level triggered, active high */
-#define	IST_LEVEL_LOW	5		/* level triggered, active low */
-#define	IST_MPSAFE	0x100
-
-#define	IPI_NOP		0		/* do nothing, interrupt only */
-#define	IPI_AST		1		/* force ast */
-#define	IPI_SHOOTDOWN	2		/* do a tlb shootdown */
-#define	IPI_SYNCICACHE	3		/* sync icache for pages */
-#define	IPI_KPREEMPT	4		/* schedule a kernel preemption */
-#define	IPI_SUSPEND	5		/* DDB suspend signaling */
-#define	IPI_HALT	6		/* halt cpu */
-#define	IPI_XCALL	7		/* xcall */
-#define	IPI_GENERIC	8		/* generic IPI */
-#define	NIPIS		9
-
-#ifdef __INTR_PRIVATE
-#if 0
-struct splsw {
-	int	(*splsw_splhigh)(void);
-	int	(*splsw_splsched)(void);
-	int	(*splsw_splvm)(void);
-	int	(*splsw_splsoftserial)(void);
-	int	(*splsw_splsoftnet)(void);
-	int	(*splsw_splsoftbio)(void);
-	int	(*splsw_splsoftclock)(void);
-	int	(*splsw_splraise)(int);
-	void	(*splsw_spl0)(void);
-	void	(*splsw_splx)(int);
-	int	(*splsw_splhigh_noprof)(void);
-	void	(*splsw_splx_noprof)(int);
-	int	(*splsw_splintr)(uint32_t *);
-	void	(*splsw_splcheck)(void);
+struct intrstub {
+	void *ist_entry;
+	void *ist_recurse;
+	void *ist_resume;
 };
 
-struct ipl_sr_map {
-	uint32_t sr_bits[_IPL_N];
+struct percpu_evcnt {
+	cpuid_t cpuid;
+	uint64_t count;
 };
-#endif
-#else
-struct splsw;
-#endif /* __INTR_PRIVATE */
 
-typedef int ipl_t;
-typedef struct {
-        ipl_t _spl;
-} ipl_cookie_t;
+struct intrsource {
+	int is_maxlevel;		/* max. IPL for this source */
+	int is_pin;			/* IRQ for legacy; pin for IO APIC,
+					   -1 for MSI */
+	struct intrhand *is_handlers;	/* handler chain */
+	struct pic *is_pic;		/* originating PIC */
+	void *is_recurse;		/* entry for spllower */
+	void *is_resume;		/* entry for doreti */
+	lwp_t *is_lwp;			/* for soft interrupts */
+#if defined(XEN)
+	u_long ipl_evt_mask1;	/* pending events for this IPL */
+	u_long ipl_evt_mask2[NR_EVENT_CHANNELS];
+#endif
+	struct evcnt is_evcnt;		/* interrupt counter per cpu */
+	/*
+	 * is_mask_count requires special handling; it can only be modified
+	 * or examined on the CPU that owns the interrupt source, and such
+	 * references need to be protected by disabling interrupts.  This
+	 * is because intr_mask() can be called from an interrupt handler.
+	 * is_distribute_pending does not require such special handling
+	 * because intr_unmask() cannot be called from an interrupt handler.
+	 */
+	u_int is_mask_count;		/* masked? (nested) [see above] */
+	int is_distribute_pending;	/* ci<->ci move pending [cpu_lock] */
+	int is_flags;			/* see below */
+	int is_type;			/* level, edge */
+	int is_idtvec;
+	int is_minlevel;
+	char is_evname[32];		/* event counter name */
+	char is_intrid[INTRIDBUF];	/* intrid created by create_intrid() */
+	char is_xname[INTRDEVNAMEBUF];	/* device names */
+	cpuid_t is_active_cpu;		/* active cpuid */
+	struct percpu_evcnt *is_saved_evcnt;	/* interrupt count of deactivated cpus */
+	SIMPLEQ_ENTRY(intrsource) is_list;	/* link of intrsources */
+};
+
+#define IS_LEGACY	0x0001		/* legacy ISA irq source */
+#define IS_IPI		0x0002
+#define IS_LOG		0x0004
+
+/*
+ * Interrupt handler chains.  *_intr_establish() insert a handler into
+ * the list.  The handler is called with its (single) argument.
+ */
+
+struct intrhand {
+	struct pic *ih_pic;
+	int	(*ih_fun)(void *);
+	void	*ih_arg;
+	int	ih_level;
+	int	(*ih_realfun)(void *);
+	void	*ih_realarg;
+	struct	intrhand *ih_next;
+	struct	intrhand **ih_prevp;
+	int	ih_pin;
+	int	ih_slot;
+#if defined(XEN)
+	int	ih_pending;
+	struct	intrhand *ih_evt_next;
+#endif
+	struct cpu_info *ih_cpu;
+	char	ih_xname[INTRDEVNAMEBUF];
+};
 
 #ifdef _KERNEL
 
-#if defined(MULTIPROCESSOR) && defined(__HAVE_FAST_SOFTINTS)
-#define __HAVE_PREEMPTION	1
-#define SOFTINT_KPREEMPT	(SOFTINT_COUNT+0)
-#endif
-
-#ifdef __INTR_PRIVATE
-#if 0
-extern	struct splsw	cpu_splsw;
-#endif
-extern	struct ipl_sr_map ipl_sr_map;
-#endif /* __INTR_PRIVATE */
-
-int	splhigh(void);
-int	splhigh_noprof(void);
-int	splsched(void);
-int	splvm(void);
-int	splsoftserial(void);
-int	splsoftnet(void);
-int	splsoftbio(void);
-int	splsoftclock(void);
-int	splraise(int);
-void	splx(int);
-void	splx_noprof(int);
-void	spl0(void);
-int	splintr(unsigned long *);
-
-void	softint_deliver(void);
-
-struct cpu_info;
-
-#define ENABLE_INTERRUPTS()	csr_sstatus_set(SR_SIE)
-
-#define DISABLE_INTERRUPTS()	csr_sstatus_clear(SR_SIE)
-
-void	ipi_init(struct cpu_info *);
-void	ipi_process(struct cpu_info *, unsigned long);
-
-int	riscv_ipi_intr(void *arg);
+void Xspllower(int);
+void spllower(int);
+int splraise(int);
+void softintr(int);
 
 /*
- * These make no sense *NOT* to be inlined.
+ * Convert spl level to local APIC level
  */
+
+#define APIC_LEVEL(l)   ((l) << 4)
+
+/*
+ * Miscellaneous
+ */
+
+#define SPL_ASSERT_BELOW(x) KDASSERT(curcpu()->ci_ilevel < (x))
+#define	spl0()		spllower(IPL_NONE)
+#define	splx(x)		spllower(x)
+
+typedef uint8_t ipl_t;
+typedef struct {
+	ipl_t _ipl;
+} ipl_cookie_t;
+
 static inline ipl_cookie_t
-makeiplcookie(ipl_t s)
+makeiplcookie(ipl_t ipl)
 {
-	return (ipl_cookie_t){._spl = s};
+
+	return (ipl_cookie_t){._ipl = ipl};
 }
 
 static inline int
 splraiseipl(ipl_cookie_t icookie)
 {
-	return splraise(icookie._spl);
+
+	return splraise(icookie._ipl);
 }
 
-void *intr_establish(int, int, int, int (*)(void *), void *);
-void intr_disestablish(void *);
+#include <sys/spl.h>
+
+/*
+ * Stub declarations.
+ */
+
+void Xsoftintr(void);
+void Xrecurse_preempt(void);
+void Xresume_preempt(void);
+
+extern struct intrstub legacy_stubs[];
+extern struct intrstub ioapic_edge_stubs[];
+extern struct intrstub ioapic_level_stubs[];
+extern struct intrstub x2apic_edge_stubs[];
+extern struct intrstub x2apic_level_stubs[];
+
+struct cpu_info;
+
+struct pcibus_attach_args;
+
+typedef uint64_t intr_handle_t;
+
+void intr_default_setup(void);
+void x86_nmi(void);
+void *intr_establish_xname(int, struct pic *, int, int, int, int (*)(void *),
+			   void *, bool, const char *);
+void *intr_establish(int, struct pic *, int, int, int, int (*)(void *), void *, bool);
+void intr_mask(struct intrhand *);
+void intr_unmask(struct intrhand *);
+void intr_disestablish(struct intrhand *);
+void intr_add_pcibus(struct pcibus_attach_args *);
+const char *intr_string(intr_handle_t, char *, size_t);
+void cpu_intr_init(struct cpu_info *);
+int intr_find_mpmapping(int, int, intr_handle_t *);
+struct pic *intr_findpic(int);
+void intr_printconfig(void);
+
+const char *intr_create_intrid(int, struct pic *, int, char *, size_t);
+struct intrsource *intr_allocate_io_intrsource(const char *);
+void intr_free_io_intrsource(const char *);
+
+void x86_init_preempt(struct cpu_info *);
+void x86_intr_calculatemasks(struct cpu_info *);
+
+int x86_send_ipi(struct cpu_info *, int);
+void x86_broadcast_ipi(int);
+void x86_ipi_handler(void);
+
+void x86_intr_get_devname(const char *, char *, size_t);
+void x86_intr_get_assigned(const char *, kcpuset_t *);
+uint64_t x86_intr_get_count(const char *, u_int);
+
+#ifndef XENPV
+extern void (* const ipifunc[X86_NIPI])(struct cpu_info *);
+#endif
 
 #endif /* _KERNEL */
-#endif /* _WASM_INTR_H_ */
+
+#endif /* !_LOCORE */
+
+#endif /* !_X86_INTR_H_ */

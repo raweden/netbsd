@@ -235,6 +235,7 @@ __END_DECLS
 #define atomic_cas_32		wasm_atomic_cas_32
 #define atomic_cas_uint		wasm_atomic_cas_uint
 #define atomic_cas_ulong	wasm_atomic_cas_ulong
+#define _atomic_cas_ulong	wasm_atomic_cas_ulong
 #define atomic_cas_ptr		wasm_atomic_cas_ptr
 #define atomic_cas_64		wasm_atomic_cas_64
 #define atomic_cas_32_ni	wasm_atomic_cas_32_ni

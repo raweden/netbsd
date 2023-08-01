@@ -47,7 +47,8 @@ __KERNEL_RCSID(0, "$NetBSD: isa_stub.c,v 1.4 2022/09/25 17:09:36 thorpej Exp $")
 void	*default_isa_intr_establish_xname(isa_chipset_tag_t ic, int irq,
 	    int type,
 	    int level, int (*ih_fun)(void *), void *ih_arg, const char *xname);
-__strict_weak_alias(isa_intr_establish_xname, default_isa_intr_establish_xname);
+
+void *isa_intr_establish_xname(isa_chipset_tag_t, int, int, int, int (*)(void *), void *, const char *) __attribute__((weak, alias("default_isa_intr_establish_xname")));
 
 void *
 default_isa_intr_establish_xname(isa_chipset_tag_t ic, int irq, int type,

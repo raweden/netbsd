@@ -1,40 +1,62 @@
-/* $NetBSD: kcore.h,v 1.1 2014/09/19 17:36:26 matt Exp $ */
+/*	$NetBSD: kcore.h,v 1.7 2020/04/25 15:26:17 bouyer Exp $	*/
 
-/*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+/*
+ * Copyright (c) 1996 Carnegie-Mellon University.
  * All rights reserved.
  *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * Author: Chris G. Demetriou
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Permission to use, copy, modify and distribute this software and
+ * its documentation is hereby granted, provided that both the copyright
+ * notice and this permission notice appear in all copies of the
+ * software, derivative works or modified versions, and any portions
+ * thereof, and that both notices appear in supporting documentation.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * CARNEGIE MELLON ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+ * CONDITION.  CARNEGIE MELLON DISCLAIMS ANY LIABILITY OF ANY KIND
+ * FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+ *
+ * Carnegie Mellon requests users of this software to return to
+ *
+ *  Software Distribution Coordinator  or  Software.Distribution@CS.CMU.EDU
+ *  School of Computer Science
+ *  Carnegie Mellon University
+ *  Pittsburgh PA 15213-3890
+ *
+ * any improvements or extensions that they make and grant Carnegie the
+ * rights to redistribute these changes.
  */
 
-#ifndef _WASM_KCORE_H_
-#define _WASM_KCORE_H_
+/*
+ * Modified for NetBSD/i386 by Jason R. Thorpe, Numerical Aerospace
+ * Simulation Facility, NASA Ames Research Center.
+ */
+
+#ifndef _I386_KCORE_H_
+#define _I386_KCORE_H_
 
 typedef struct cpu_kcore_hdr {
-	uint64_t kh_misc[8];
-	phys_ram_seg_t kh_ramsegs[0];
+	uint32_t	pdppaddr;		/* PA of PDP */
+	uint32_t	nmemsegs;		/* Number of RAM segments */
+#if 0
+	phys_ram_seg_t  memsegs[];		/* RAM segments */
+#endif
 } cpu_kcore_hdr_t;
 
-#endif /* _WASM_KCORE_H_ */
+/*
+ * Used to indicate that PAE should be used for virtual address
+ * translation. As PDPpaddr is expected to be PAGE_SIZE aligned,
+ * this can be safely OR'ed in pdppaddr.
+ * To avoid any kind of conflict with existing MMU bits, we chose one
+ * ignored by hardware
+ */
+#define I386_KCORE_PAE	PTE_AVL1
+
+#ifdef _KERNEL
+void	dumpsys(void);
+
+extern struct pcb dumppcb;
+extern int	sparse_dump;
+#endif
+
+#endif /* _I386_KCORE_H_ */

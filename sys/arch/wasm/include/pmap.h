@@ -1,12 +1,8 @@
-/* $NetBSD: pmap.h,v 1.18 2023/06/12 19:04:14 skrll Exp $ */
+/*	$NetBSD: pmap.h,v 1.134 2022/08/20 23:49:31 riastradh Exp $	*/
 
 /*
- * Copyright (c) 2014, 2019, 2021 The NetBSD Foundation, Inc.
+ * Copyright (c) 1997 Charles D. Cranor and Washington University.
  * All rights reserved.
- *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas (of 3am Software Foundry), Maxime Villard, and
- * Nick Hudson.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -17,10 +13,44 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * Copyright (c) 2001 Wasabi Systems, Inc.
+ * All rights reserved.
+ *
+ * Written by Frank van der Linden for Wasabi Systems, Inc.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *      This product includes software developed for the NetBSD Project by
+ *      Wasabi Systems, Inc.
+ * 4. The name of Wasabi Systems, Inc. may not be used to endorse
+ *    or promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY WASABI SYSTEMS, INC. ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
  * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL WASABI SYSTEMS, INC
  * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
  * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
  * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
@@ -30,239 +60,181 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _WASM_PMAP_H_
-#define	_WASM_PMAP_H_
+/*
+ * pmap.h: see pmap.c for the history of this pmap module.
+ */
 
-#ifdef _KERNEL_OPT
-#include "opt_modular.h"
-#endif
+#ifndef _X86_PMAP_H_
+#define	_X86_PMAP_H_
 
-#if !defined(_MODULE)
+#if defined(_KERNEL)
+#include <wasm/pmap_pv.h>
+#include <uvm/pmap/pmap_pvt.h>
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-#include <sys/pool.h>
-#include <sys/evcnt.h>
+/*
+ * MD flags that we use for pmap_enter and pmap_kenter_pa:
+ */
 
-#include <uvm/uvm_physseg.h>
-#include <uvm/pmap/vmpagemd.h>
+/*
+ * macros
+ */
 
-#include <machine/pte.h>
-#include <machine/sysreg.h>
+#define pmap_clear_modify(pg)		pmap_clear_attrs(pg, PP_ATTRS_D)
+#define pmap_clear_reference(pg)	pmap_clear_attrs(pg, PP_ATTRS_A)
+#define pmap_copy(DP,SP,D,L,S)		__USE(L)
+#define pmap_is_modified(pg)		pmap_test_attrs(pg, PP_ATTRS_D)
+#define pmap_is_referenced(pg)		pmap_test_attrs(pg, PP_ATTRS_A)
+#define pmap_move(DP,SP,D,L,S)
+#define pmap_phys_address(ppn)		(x86_ptob(ppn) & ~X86_MMAP_FLAG_MASK)
+#define pmap_mmap_flags(ppn)		x86_mmap_flags(ppn)
 
-#define	PMAP_SEGTABSIZE	NPTEPG
-#define	PMAP_PDETABSIZE	NPTEPG
-
-#ifdef _LP64
-#define	PTPSHIFT	3
-/* This is SV57. */
-//#define	XSEGSHIFT	(SEGSHIFT + SEGLENGTH + SEGLENGTH + SEGLENGTH)
-
-/* This is SV48. */
-//#define	XSEGSHIFT	(SEGSHIFT + SEGLENGTH + SEGLENGTH)
-
-/* This is SV39. */
-#define	XSEGSHIFT	(SEGSHIFT + SEGLENGTH)
-#define	NBXSEG		(1ULL << XSEGSHIFT)
-#define	XSEGOFSET	(NBXSEG - 1)		/* byte offset into xsegment */
-#define	XSEGLENGTH	(PGSHIFT - 3)
-#define	NXSEGPG		(1 << XSEGLENGTH)
+#if defined(__x86_64__) || defined(PAE)
+#define X86_MMAP_FLAG_SHIFT	(64 - PGSHIFT)
 #else
-#define	PTPSHIFT	2
-#define	XSEGSHIFT	SEGSHIFT
+#define X86_MMAP_FLAG_SHIFT	(32 - PGSHIFT)
 #endif
 
-#define	SEGLENGTH	(PGSHIFT - PTPSHIFT)
-#define	SEGSHIFT	(SEGLENGTH + PGSHIFT)
-#define	NBSEG		(1 << SEGSHIFT)		/* bytes/segment */
-#define	SEGOFSET	(NBSEG - 1)		/* byte offset into segment */
+#define X86_MMAP_FLAG_MASK	0xf
+#define X86_MMAP_FLAG_PREFETCH	0x1
 
-#define	KERNEL_PID	0
+/*
+ * prototypes
+ */
 
-#define	PMAP_HWPAGEWALKER		1
-#define	PMAP_TLB_MAX			MAXCPUS
-#ifdef _LP64
-#define	PMAP_INVALID_PDETAB_ADDRESS	((pmap_pdetab_t *)(VM_MIN_KERNEL_ADDRESS - PAGE_SIZE))
-#define	PMAP_INVALID_SEGTAB_ADDRESS	((pmap_segtab_t *)(VM_MIN_KERNEL_ADDRESS - PAGE_SIZE))
-#else
-#define	PMAP_INVALID_PDETAB_ADDRESS	((pmap_pdetab_t *)0xdeadbeef)
-#define	PMAP_INVALID_SEGTAB_ADDRESS	((pmap_segtab_t *)0xdeadbeef)
-#endif
-#define	PMAP_TLB_NUM_PIDS		(__SHIFTOUT_MASK(SATP_ASID) + 1)
-#define	PMAP_TLB_BITMAP_LENGTH          PMAP_TLB_NUM_PIDS
-// Should use SBI TLB ops
-#define	PMAP_TLB_NEED_SHOOTDOWN		1
-#define	PMAP_TLB_FLUSH_ASID_ON_RESET	false
+void		pmap_activate(struct lwp *);
+void		pmap_bootstrap(vaddr_t);
+bool		pmap_clear_attrs(struct vm_page *, unsigned);
+bool		pmap_pv_clear_attrs(paddr_t, unsigned);
+void		pmap_deactivate(struct lwp *);
+void		pmap_page_remove(struct vm_page *);
+void		pmap_pv_remove(paddr_t);
+void		pmap_remove(struct pmap *, vaddr_t, vaddr_t);
+bool		pmap_test_attrs(struct vm_page *, unsigned);
+void		pmap_write_protect(struct pmap *, vaddr_t, vaddr_t, vm_prot_t);
+void		pmap_load(void);
+paddr_t		pmap_init_tmp_pgtbl(paddr_t);
+bool		pmap_remove_all(struct pmap *);
+void		pmap_ldt_cleanup(struct lwp *);
+void		pmap_ldt_sync(struct pmap *);
+void		pmap_kremove_local(vaddr_t, vsize_t);
 
-#define	pmap_phys_address(x)		(x)
+#define	__HAVE_PMAP_PV_TRACK	1
+void		pmap_pv_init(void);
+void		pmap_pv_track(paddr_t, psize_t);
+void		pmap_pv_untrack(paddr_t, psize_t);
 
-#ifndef __BSD_PTENTRY_T__
-#define	__BSD_PTENTRY_T__
-#ifdef _LP64
-#define	PRIxPTE         PRIx64
-#else
-#define	PRIxPTE         PRIx32
-#endif
-#endif /* __BSD_PTENTRY_T__ */
+u_int		x86_mmap_flags(paddr_t);
 
-#define	PMAP_NEED_PROCWR
-static inline void
-pmap_procwr(struct proc *p, vaddr_t va, vsize_t len)
+#define PMAP_GROWKERNEL		/* turn on pmap_growkernel interface */
+#define PMAP_FORK		/* turn on pmap_fork interface */
+
+/*
+ * inline functions
+ */
+
+/*
+ * pmap_page_protect: change the protection of all recorded mappings
+ *	of a managed page
+ *
+ * => this function is a frontend for pmap_page_remove/pmap_clear_attrs
+ * => we only have to worry about making the page more protected.
+ *	unprotecting a page is done on-demand at fault time.
+ */
+
+__inline static void __unused
+pmap_page_protect(struct vm_page *pg, vm_prot_t prot)
 {
-	//__asm __volatile("fence\trw,rw; fence.i" ::: "memory");
+	if ((prot & VM_PROT_WRITE) == 0) {
+		if (prot & (VM_PROT_READ|VM_PROT_EXECUTE)) {
+			(void)pmap_clear_attrs(pg, PP_ATTRS_W);
+		} else {
+			pmap_page_remove(pg);
+		}
+	}
 }
 
-#include <uvm/pmap/tlb.h>
-#include <uvm/pmap/pmap_devmap.h>
-#include <uvm/pmap/pmap_tlb.h>
-#include <uvm/pmap/pmap_synci.h>
+/*
+ * pmap_pv_protect: change the protection of all recorded mappings
+ *	of an unmanaged page
+ */
 
-#define	PMAP_GROWKERNEL
-//#define	PMAP_STEAL_MEMORY
-
-#ifdef _KERNEL
-
-#define	__HAVE_PMAP_MD
-struct pmap_md {
-	paddr_t md_ppn;
-};
-
-static inline void
-pmap_md_icache_sync_all(void)
+__inline static void __unused
+pmap_pv_protect(paddr_t pa, vm_prot_t prot)
 {
+	if ((prot & VM_PROT_WRITE) == 0) {
+		if (prot & (VM_PROT_READ|VM_PROT_EXECUTE)) {
+			(void)pmap_pv_clear_attrs(pa, PP_ATTRS_W);
+		} else {
+			pmap_pv_remove(pa);
+		}
+	}
 }
 
-static inline void
-pmap_md_icache_sync_range_index(vaddr_t va, vsize_t size)
+/*
+ * pmap_protect: change the protection of pages in a pmap
+ *
+ * => this function is a frontend for pmap_remove/pmap_write_protect
+ * => we only have to worry about making the page more protected.
+ *	unprotecting a page is done on-demand at fault time.
+ */
+
+__inline static void __unused
+pmap_protect(struct pmap *pmap, vaddr_t sva, vaddr_t eva, vm_prot_t prot)
 {
+	if ((prot & VM_PROT_WRITE) == 0) {
+		if (prot & (VM_PROT_READ|VM_PROT_EXECUTE)) {
+			pmap_write_protect(pmap, sva, eva, prot);
+		} else {
+			pmap_remove(pmap, sva, eva);
+		}
+	}
 }
 
-struct vm_page *
-	pmap_md_alloc_poolpage(int);
-vaddr_t	pmap_md_map_poolpage(paddr_t, vsize_t);
-void	pmap_md_unmap_poolpage(vaddr_t, vsize_t);
+paddr_t vtophys(vaddr_t);
+vaddr_t	pmap_map(vaddr_t, paddr_t, paddr_t, vm_prot_t);
+void	pmap_cpu_init_late(struct cpu_info *);
 
-bool	pmap_md_direct_mapped_vaddr_p(vaddr_t);
-paddr_t	pmap_md_direct_mapped_vaddr_to_paddr(vaddr_t);
-vaddr_t	pmap_md_direct_map_paddr(paddr_t);
-void	pmap_md_init(void);
-bool	pmap_md_io_vaddr_p(vaddr_t);
-bool	pmap_md_ok_to_steal_p(const uvm_physseg_t, size_t);
-void	pmap_md_pdetab_init(struct pmap *);
-void	pmap_md_pdetab_fini(struct pmap *);
-void	pmap_md_tlb_info_attach(struct pmap_tlb_info *, struct cpu_info *);
-void	pmap_md_xtab_activate(struct pmap *, struct lwp *);
-void	pmap_md_xtab_deactivate(struct pmap *);
+/* pmap functions with machine addresses */
+void	pmap_kenter_ma(vaddr_t, paddr_t, vm_prot_t, u_int);
+int	pmap_enter_ma(struct pmap *, vaddr_t, paddr_t, paddr_t,
+	    vm_prot_t, u_int, int);
+bool	pmap_extract_ma(pmap_t, vaddr_t, paddr_t *);
 
-void	pmap_bootstrap(vaddr_t, vaddr_t);
+paddr_t pmap_get_physpage(void);
 
-vsize_t	pmap_kenter_range(vaddr_t, paddr_t, vsize_t, vm_prot_t, u_int);
+/*
+ * Hooks for the pool allocator.
+ */
+#define	POOL_VTOPHYS(va)	vtophys((vaddr_t) (va))
 
-#ifdef _LP64
+#ifdef __HAVE_DIRECT_MAP
+
 extern vaddr_t pmap_direct_base;
 extern vaddr_t pmap_direct_end;
-#define	PMAP_DIRECT_MAP(pa)	RISCV_PA_TO_KVA(pa)
-#define	PMAP_DIRECT_UNMAP(va)	RISCV_KVA_TO_PA(va)
+
+#define PMAP_DIRECT_BASE	pmap_direct_base
+#define PMAP_DIRECT_END		pmap_direct_end
+
+#define PMAP_DIRECT_MAP(pa)	((vaddr_t)PMAP_DIRECT_BASE + (pa))
+#define PMAP_DIRECT_UNMAP(va)	((paddr_t)(va) - PMAP_DIRECT_BASE)
 
 /*
- * Other hooks for the pool allocator.
+ * Alternate mapping hooks for pool pages.
  */
-#define	POOL_PHYSTOV(pa)	RISCV_PA_TO_KVA((paddr_t)(pa))
-#define	POOL_VTOPHYS(va)	RISCV_KVA_TO_PA((vaddr_t)(va))
+#define PMAP_MAP_POOLPAGE(pa)	PMAP_DIRECT_MAP((pa))
+#define PMAP_UNMAP_POOLPAGE(va)	PMAP_DIRECT_UNMAP((va))
 
-#endif	/* _LP64 */
+#endif /* __HAVE_DIRECT_MAP */
 
-#define	MEGAPAGE_TRUNC(x)	((x) & ~SEGOFSET)
-#define	MEGAPAGE_ROUND(x)	MEGAPAGE_TRUNC((x) + SEGOFSET)
-
-#define	PMAP_DEV		__BIT(29)	/* 0x2000_0000 */
-
-#define	DEVMAP_ALIGN(x)		MEGAPAGE_TRUNC((x))
-#define	DEVMAP_SIZE(x)		MEGAPAGE_ROUND((x))
-#define	DEVMAP_FLAGS		PMAP_DEV
-
-#ifdef __PMAP_PRIVATE
-
-static inline bool
-pmap_md_tlb_check_entry(void *ctx, vaddr_t va, tlb_asid_t asid, pt_entry_t pte)
-{
-        // TLB not walked and so not called.
-        return false;
-}
-
-static inline void
-pmap_md_page_syncicache(struct vm_page_md *mdpg, const kcpuset_t *kc)
-{
-	//__asm __volatile("fence\trw,rw; fence.i" ::: "memory");
-}
-
-/*
- * Virtual Cache Alias helper routines.  Not a problem for RISCV CPUs.
- */
-static inline bool
-pmap_md_vca_add(struct vm_page_md *mdpg, vaddr_t va, pt_entry_t *nptep)
-{
-	return false;
-}
-
-static inline void
-pmap_md_vca_remove(struct vm_page_md *mdpg, vaddr_t va)
-{
-}
-
-static inline void
-pmap_md_vca_clean(struct vm_page_md *mdpg, vaddr_t va, int op)
-{
-}
-
-static inline size_t
-pmap_md_tlb_asid_max(void)
-{
-	return PMAP_TLB_NUM_PIDS - 1;
-}
-
-static inline pt_entry_t *
-pmap_md_nptep(pt_entry_t *ptep)
-{
-	return ptep + 1;
-}
-
-static inline bool
-pmap_md_kernel_vaddr_p(vaddr_t va)
-{
-	return false;
-}
-
-static inline paddr_t
-pmap_md_kernel_vaddr_to_paddr(vaddr_t vax)
-{
-	/* Not used due to false from pmap_md_kernel_vaddr_p */
-
-	return 0;
-}
-
-#endif /* __PMAP_PRIVATE */
-#endif /* _KERNEL */
-
-#include <uvm/pmap/pmap.h>
-
-#endif /* !_MODULE */
-
-#if defined(MODULAR) || defined(_MODULE)
-/*
- * Define a compatible vm_page_md so that struct vm_page is the same size
- * whether we are using modules or not.
- */
-#ifndef __HAVE_VM_PAGE_MD
 #define	__HAVE_VM_PAGE_MD
+#define	VM_MDPAGE_INIT(pg) \
+	memset(&(pg)->mdpage, 0, sizeof((pg)->mdpage)); \
+	PMAP_PAGE_INIT(&(pg)->mdpage.mp_pp)
 
 struct vm_page_md {
-	uintptr_t mdpg_dummy[3];
+	struct pmap_page mp_pp;
 };
-__CTASSERT(sizeof(struct vm_page_md) == sizeof(uintptr_t)*3);
 
-#endif /* !__HAVE_VM_PAGE_MD */
+#endif /* _KERNEL */
 
-#endif /* MODULAR || _MODULE */
-
-#endif /* !_WASM_MAP_H_ */
+#endif /* _X86_PMAP_H_ */

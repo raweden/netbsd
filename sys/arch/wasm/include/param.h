@@ -1,11 +1,11 @@
-/* $NetBSD: param.h,v 1.8 2023/05/07 12:41:48 skrll Exp $ */
+/*	$NetBSD: param.h,v 1.88 2021/05/31 14:38:55 simonb Exp $	*/
 
 /*-
- * Copyright (c) 2014 The NetBSD Foundation, Inc.
+ * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
  *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry.
+ * This code is derived from software contributed to Berkeley by
+ * William Jolitz.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,96 +15,150 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)param.h	5.8 (Berkeley) 6/28/91
  */
 
-#ifndef	_WASM_PARAM_H_
-#define	_WASM_PARAM_H_
+#ifndef _I386_PARAM_H_
+#define _I386_PARAM_H_
 
 #ifdef _KERNEL_OPT
 #include "opt_param.h"
 #endif
 
 /*
- * Machine dependent constants for all OpenRISC processors
+ * Machine dependent constants for Intel 386.
  */
 
 /*
- * For KERNEL code:
- *	MACHINE must be defined by the individual port.  This is so that
- *	uname returns the correct thing, etc.
- *
- * For non-KERNEL code:
- *	If ELF, MACHINE and MACHINE_ARCH are forced to "or1k/or1k".
+ * MAXCPUS must be defined before cpu.h inclusion.  Note: i386 might
+ * support more CPUs, but due to the limited KVA space available on
+ * i386, such support would be inefficient.  Use amd64 instead.
  */
+#define	MAXCPUS		32
 
-#ifdef _LP64
-#define	_MACHINE_ARCH		riscv32
-#define	MACHINE_ARCH		"riscv32"
-#define	_MACHINE_ARCH32		riscv32
-#define	MACHINE_ARCH32		"riscv32"
-#else
-#define	_MACHINE_ARCH		wasm32
-#define	MACHINE_ARCH		"wasm32"
+#ifdef _KERNEL
+#include <machine/cpu.h>
 #endif
-#define	_MACHINE		wasm
-#define	MACHINE			"wasm"
 
-#define	MID_MACHINE		MID_WASM32
+// define MID_MACHINE as \0asm the signature of wasm binaries.
+#ifndef MID_WASM
+#define MID_WASM (0x6d736100)
+#endif
 
-/* RISC-V specific macro to align a stack pointer (downwards). */
-#define STACK_ALIGNBYTES	(16UL - 1)
-#define	ALIGNBYTES32		__BIGGEST_ALIGNMENT__
+#define	_MACHINE	wasm
+#define	MACHINE		"wasm"
+#define	_MACHINE_ARCH	wasm
+#define	MACHINE_ARCH	"wasm"
+#define	MID_MACHINE	MID_WASM
 
-#define NKMEMPAGES_MIN_DEFAULT		((128UL * 1024 * 1024) >> PAGE_SHIFT)
-#define NKMEMPAGES_MAX_UNLIMITED	1
+#define ALIGNED_POINTER(p,t)		1
+#define ALIGNED_POINTER_LOAD(q,p,t)	memcpy((q), (p), sizeof(t))
 
-#define PGSHIFT			12
-#define	NBPG			(1 << PGSHIFT)
-#define PGOFSET			(NBPG - 1)
+#define	PGSHIFT		12		/* LOG2(NBPG) */
+#define	NBPG		(1 << PGSHIFT)	/* bytes/page */
+#define	PGOFSET		(NBPG-1)	/* byte offset into page */
+#define	NPTEPG		(NBPG/(sizeof (pt_entry_t)))
 
-#define UPAGES			2
-#define	USPACE			(UPAGES << PGSHIFT)
-#define USPACE_ALIGN		NBPG
+#define	MAXIOMEM	0xffffffff
+
+/*
+ * Maximum physical memory supported by the implementation.
+ */
+#ifdef PAE
+#define MAXPHYSMEM	0x1000000000ULL /* 64GB */
+#else
+#define MAXPHYSMEM	0x100000000ULL	/* 4GB */
+#endif
+
+#if defined(_KERNEL_OPT)
+#include "opt_kernbase.h"
+#endif /* defined(_KERNEL_OPT) */
+
+#ifndef	KERNBASE
+#define	KERNBASE	0xc0000000UL	/* start of kernel virtual space */
+#endif
+
+#define	KERNTEXTOFF	(KERNBASE + 0x100000) /* start of kernel text */
+#define	BTOPKERNBASE	(KERNBASE >> PGSHIFT)
+
+#define	SSIZE		1		/* initial stack size/NBPG */
+#define	SINCR		1		/* increment of stack/NBPG */
+
+#ifndef UPAGES
+# ifdef DIAGNOSTIC
+#  define	UPAGES		3	/* 2 + 1 page for redzone */
+# else
+#  define	UPAGES		2	/* normal pages of u-area */
+# endif /* DIAGNOSTIC */
+#endif /* !defined(UPAGES) */
+#define	USPACE		(UPAGES * NBPG)	/* total size of u-area */
+#define	INTRSTACKSIZE	8192
+
+#ifndef MSGBUFSIZE
+#define MSGBUFSIZE	(16*NBPG)	/* default message buffer size */
+#endif
 
 /*
  * Constants related to network buffer management.
- * MCLBYTES must be no larger than NBPG (the software page size), and
- * NBPG % MCLBYTES must be zero.
+ * MCLBYTES must be no larger than NBPG (the software page size), and,
+ * on machines that exchange pages of input or output buffers with mbuf
+ * clusters (MAPPED_MBUFS), MCLBYTES must also be an integral multiple
+ * of the hardware page size.
  */
-#define	MSIZE			512		/* size of an mbuf */
+#define	MSIZE		256		/* size of an mbuf */
 
 #ifndef MCLSHIFT
-#define	MCLSHIFT		11		/* convert bytes to m_buf clusters */
-						/* 2K cluster can hold Ether frame */
+#define	MCLSHIFT	11		/* convert bytes to m_buf clusters */
+					/* 2K cluster can hold Ether frame */
 #endif	/* MCLSHIFT */
 
-#define	MCLBYTES		(1 << MCLSHIFT)	/* size of a m_buf cluster */
+#define	MCLBYTES	(1 << MCLSHIFT)	/* size of a m_buf cluster */
 
-#ifndef MSGBUFSIZE
-#define MSGBUFSIZE		65536		/* default message buffer size */
+#ifndef NMBCLUSTERS_MAX
+#define	NMBCLUSTERS_MAX	(0x4000000 / MCLBYTES)	/* Limit to 64MB for clusters */
 #endif
 
-#define MAXCPUS			32
-
-#ifdef _KERNEL
-void delay(unsigned long);
-#define	DELAY(x)		delay(x)
+#ifndef NFS_RSIZE
+#define NFS_RSIZE	32768
+#endif
+#ifndef NFS_WSIZE
+#define NFS_WSIZE	32768
 #endif
 
-#define riscv_btop(x)		((unsigned long)(x) >> PGSHIFT)
-#define riscv_ptob(x)		((unsigned long)(x) << PGSHIFT)
+/*
+ * Minimum and maximum sizes of the kernel malloc arena in PAGE_SIZE-sized
+ * logical pages.
+ */
+#define	NKMEMPAGES_MIN_DEFAULT	((16 * 1024 * 1024) >> PAGE_SHIFT)
+#define	NKMEMPAGES_MAX_DEFAULT	((360 * 1024 * 1024) >> PAGE_SHIFT)
 
+/*
+ * Mach derived conversion macros
+ */
+#define	x86_round_pdr(x) \
+	((((unsigned long)(x)) + (NBPD_L2 - 1)) & ~(NBPD_L2 - 1))
+#define	x86_trunc_pdr(x)	((unsigned long)(x) & ~(NBPD_L2 - 1))
+#define	x86_btod(x)		((unsigned long)(x) >> L2_SHIFT)
+#define	x86_dtob(x)		((unsigned long)(x) << L2_SHIFT)
+#define	x86_round_page(x)	((((paddr_t)(x)) + PGOFSET) & ~PGOFSET)
+#define	x86_trunc_page(x)	((paddr_t)(x) & ~PGOFSET)
+#define	x86_btop(x)		((paddr_t)(x) >> PGSHIFT)
+#define	x86_ptob(x)		((paddr_t)(x) << PGSHIFT)
 
-#endif /* _WASM_PARAM_H_ */
+#endif /* _I386_PARAM_H_ */

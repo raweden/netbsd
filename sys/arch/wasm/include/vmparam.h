@@ -1,11 +1,11 @@
-/*	$NetBSD: vmparam.h,v 1.14 2023/05/07 12:41:48 skrll Exp $	*/
+/*	$NetBSD: vmparam.h,v 1.88 2022/08/21 13:15:15 riastradh Exp $	*/
 
 /*-
- * Copyright (c) 2014, 2020 The NetBSD Foundation, Inc.
+ * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
  *
- * This code is derived from software contributed to The NetBSD Foundation
- * by Matt Thomas of 3am Software Foundry, and Nick Hudson.
+ * This code is derived from software contributed to Berkeley by
+ * William Jolitz.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,224 +15,167 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)vmparam.h	5.9 (Berkeley) 5/12/91
  */
 
-#ifndef _WASM_VMPARAM_H_
-#define	_WASM_VMPARAM_H_
+#ifndef _I386_VMPARAM_H_
+#define _I386_VMPARAM_H_
 
-#include <machine/param.h>
+#include <sys/mutex.h>
 
-#ifdef _KERNEL_OPT
-#include "opt_multiprocessor.h"
-#endif
+#include <machine/pte.h>
 
 /*
- * Machine dependent VM constants for RISCV.
+ * Machine dependent constants for 386.
  */
 
 /*
- * We use a 4K page on both RV64 and RV32 systems.
- * Override PAGE_* definitions to compile-time constants.
+ * Page size on the IA-32 is not variable in the traditional sense.
+ * We override the PAGE_* definitions to compile-time constants.
  */
-#define	PAGE_SHIFT	PGSHIFT
+#define	PAGE_SHIFT	12
 #define	PAGE_SIZE	(1 << PAGE_SHIFT)
 #define	PAGE_MASK	(PAGE_SIZE - 1)
 
 /*
- * USRSTACK is the top (end) of the user stack.
- *
- * USRSTACK needs to start a page below the maxuser address so that a memory
- * access with a maximum displacement (0x7ff) won't cross into the kernel's
- * address space.  We use PAGE_SIZE instead of 0x800 since these need to be
- * page-aligned.
+ * Virtual address space arrangement. On 386, both user and kernel
+ * share the address space, not unlike the vax.
+ * USRSTACK is the top (end) of the user stack. Immediately above the
+ * user stack is the page table map, and then kernel address space.
  */
-#define	USRSTACK	(VM_MAXUSER_ADDRESS - PAGE_SIZE) /* Start of user stack */
-#define	USRSTACK32	((uint32_t)VM_MAXUSER_ADDRESS32 - PAGE_SIZE)
+#define	USRSTACK	VM_MAXUSER_ADDRESS
 
 /*
  * Virtual memory related constants, all in bytes
  */
-#ifndef MAXTSIZ
-#define	MAXTSIZ		(128*1024*1024)		/* max text size */
-#endif
+#define	MAXTSIZ		(256*1024*1024)		/* max text size */
 #ifndef DFLDSIZ
 #define	DFLDSIZ		(256*1024*1024)		/* initial data size limit */
 #endif
 #ifndef MAXDSIZ
-#define	MAXDSIZ		(1536*1024*1024)	/* max data size */
+#define	MAXDSIZ		(3U*1024*1024*1024)	/* 3G max data size */
+#endif
+#ifndef MAXDSIZ_BU
+#define	MAXDSIZ_BU	(2U*1024*1024*1024 +	/* 2.5G max data size for */ \
+			 1U* 512*1024*1024)	/* bottom-up allocation */ \
+						/* could be a bit more */
 #endif
 #ifndef	DFLSSIZ
-#define	DFLSSIZ		(4*1024*1024)		/* initial stack size limit */
+#define	DFLSSIZ		(2*1024*1024)		/* initial stack size limit */
 #endif
 #ifndef	MAXSSIZ
-#define	MAXSSIZ		(120*1024*1024)		/* max stack size */
+#define	MAXSSIZ		(64*1024*1024)		/* max stack size */
 #endif
 
 /*
- * Virtual memory related constants, all in bytes
+ * IA-32 can't do per-page execute permission, so instead we implement
+ * two executable segments for %cs, one that covers everything and one
+ * that excludes some of the address space (currently just the stack).
+ * I386_MAX_EXE_ADDR is the upper boundary for the smaller segment.
  */
-#ifndef DFLDSIZ32
-#define	DFLDSIZ32	DFLDSIZ			/* initial data size limit */
-#endif
-#ifndef MAXDSIZ32
-#define	MAXDSIZ32	MAXDSIZ			/* max data size */
-#endif
-#ifndef	DFLSSIZ32
-#define	DFLSSIZ32	DFLTSIZ			/* initial stack size limit */
-#endif
-#ifndef	MAXSSIZ32
-#define	MAXSSIZ32	MAXSSIZ			/* max stack size */
-#endif
+#define I386_MAX_EXE_ADDR	(USRSTACK - MAXSSIZ)
 
 /*
- * PTEs for mapping user space into the kernel for phyio operations.
- * The default PTE number is enough to cover 8 disks * MAXBSIZE.
+ * Size of User Raw I/O map
  */
-#ifndef USRIOSIZE
-#define USRIOSIZE	(MAXBSIZE/PAGE_SIZE * 8)
+#define	USRIOSIZE 	300
+
+/*
+ * See pmap_private.h for details.
+ */
+#ifdef PAE
+#define L2_SLOT_PTE	(KERNBASE/NBPD_L2-4) /* 1532: for recursive PDP map */
+#define L2_SLOT_KERN	(KERNBASE/NBPD_L2)   /* 1536: start of kernel space */
+#else /* PAE */
+#define L2_SLOT_PTE	(KERNBASE/NBPD_L2-1) /* 767: for recursive PDP map */
+#define L2_SLOT_KERN	(KERNBASE/NBPD_L2)   /* 768: start of kernel space */
+#endif /* PAE */
+
+#define L2_SLOT_KERNBASE L2_SLOT_KERN
+
+#define PDIR_SLOT_KERN	L2_SLOT_KERN
+#define PDIR_SLOT_PTE	L2_SLOT_PTE
+
+/* size of a PDP: usually one page, except for PAE */
+#ifdef PAE
+#define PDP_SIZE 4
+#else
+#define PDP_SIZE 1
 #endif
 
-/*
- * User/kernel map constants.
- */
-#define VM_MIN_ADDRESS		((vaddr_t)PAGE_SIZE)
-#ifdef _LP64	/* Sv39 / Sv48 / Sv57 */
-/*
- * SV39 gives 1 << (39 - 1) address space to kernel and same to userland.
- * This is 256GiB each. Split the kernel space in two and use the top half
- * for direct map.
- *
- * kernel virtual space layout:
- *   0xffff_ffc0_0000_0000  -   64GiB  KERNEL VM Space (inc. text/data/bss)
- *  (0xffff_ffc0_4000_0000      +1GiB) KERNEL VM start of KVA
- *  (0xffff_ffd0_0000_0000      64GiB) reserved
- *   0xffff_ffe0_0000_0000  -  128GiB  direct mapping
- */
-#define VM_MAXUSER_ADDRESS	((vaddr_t)0x0000004000000000 - 16 * PAGE_SIZE)
-#define VM_MIN_KERNEL_ADDRESS	((vaddr_t)0xffffffc000000000)
-#define VM_MAX_KERNEL_ADDRESS	((vaddr_t)0xffffffd000000000)
+/* largest value (-1 for APTP space) */
+#define NKL2_MAX_ENTRIES	(NTOPLEVEL_PDES - (KERNBASE/NBPD_L2) - 1)
+#define NKL1_MAX_ENTRIES	(unsigned long)(NKL2_MAX_ENTRIES * NPDPG)
 
-#else		/* Sv32 */
-/*
- * kernel virtual space layout:
- *   0x8000_0000  -   64GiB  KERNEL VM Space (inc. text/data/bss)
- *  (0x4000_0000      +1GiB) KERNEL VM start of KVA
- *  (0x0000_0000      64GiB) reserved
- */
+#define NKL2_KIMG_ENTRIES	0	/* XXX unused */
+
+#define NKL2_START_ENTRIES	0	/* XXX computed on runtime */
+#define NKL1_START_ENTRIES	0	/* XXX unused */
+
+#ifndef XENPV
+#define NTOPLEVEL_PDES		(PAGE_SIZE * PDP_SIZE / (sizeof (pd_entry_t)))
+#else	/* !XENPV */
+#ifdef  PAE
+#define NTOPLEVEL_PDES		1964	/* 1964-2047 reserved by Xen */
+#else	/* PAE */
+#define NTOPLEVEL_PDES		1008	/* 1008-1023 reserved by Xen */
+#endif	/* PAE */
+#endif  /* !XENPV */
 
 /*
- * kernel virtual space layout without direct map (common case)
- *
- *   0x8000_0000 -  256MB kernel text/data/bss
- *   0x9000_0000 - 1536MB Kernel VM Space
- *   0xf000_0000 -  256MB IO
- *
- * kernel virtual space layout with KASAN
- *
- *   0x8000_0000 -  256MB kernel text/data/bss
- *   0x9000_0000 -  768MB Kernel VM Space
- *   0xc000_0000 -  128MB (KASAN SHADOW MAP)
- *   0xc800_0000 -  640MB (spare)
- *   0xf000_0000 -  256MB IO
- *
- * kernel virtual space layout with direct map (1GB limited)
- *   0x8000_0000 - 1024MB kernel text/data/bss and direct map start
- *   0xc000_0000 -  768MB Kernel VM Space
- *   0xf000_0000 -  256MB IO
- *
+ * Mach derived constants
  */
 
-extern paddr_t physical_start;
-extern paddr_t physical_end;
-
-
-#define VM_MAXUSER_ADDRESS	((vaddr_t)-0x7fffffff-1)/* 0xffff_ffff_8000_0000 */
-#define VM_MIN_KERNEL_ADDRESS	((vaddr_t)-0x7fffffff-1)/* 0xffff_ffff_8000_0000 */
-#define VM_MAX_KERNEL_ADDRESS	((vaddr_t)-0x10000000)	/* 0xffff_ffff_f000_0000 */
-
-#endif
-#define VM_KERNEL_BASE		VM_MIN_KERNEL_ADDRESS
-#define VM_KERNEL_SIZE		0x2000000	/* 32 MiB (8 / 16 megapages) */
-#define VM_KERNEL_DTB_BASE	(VM_KERNEL_BASE + VM_KERNEL_SIZE)
-#define VM_KERNEL_DTB_SIZE	0x1000000	/* 16 MiB (4 / 8 megapages) */
-#define VM_KERNEL_IO_BASE	(VM_KERNEL_DTB_BASE + VM_KERNEL_DTB_SIZE)
-#define VM_KERNEL_IO_SIZE	0x1000000	/* 16 MiB (4 / 8 megapages) */
-
-#define VM_KERNEL_RESERVED	(VM_KERNEL_SIZE + VM_KERNEL_DTB_SIZE + VM_KERNEL_IO_SIZE)
-
-#define VM_KERNEL_VM_BASE	(VM_MIN_KERNEL_ADDRESS + VM_KERNEL_RESERVED)
-#define VM_KERNEL_VM_SIZE	(VM_MAX_KERNEL_ADDRESS - VM_KERNEL_VM_BASE)
-
-#define VM_MAX_ADDRESS		VM_MAXUSER_ADDRESS
-#define VM_MAXUSER_ADDRESS32	((vaddr_t)(1UL << 31))/* 0x0000000080000000 */
-
-#ifdef _LP64
-/*
- * Since we have the address space, we map all of physical memory (RAM)
- * using gigapages on SV39, terapages on SV48 and petapages on SV57.
- */
-#define RISCV_DIRECTMAP_MASK	((vaddr_t) 0xffffffe000000000L)
-#define RISCV_DIRECTMAP_SIZE	(-RISCV_DIRECTMAP_MASK - PAGE_SIZE)	/* 128GiB */
-#define RISCV_DIRECTMAP_START	RISCV_DIRECTMAP_MASK
-#define RISCV_DIRECTMAP_END	(RISCV_DIRECTMAP_START + RISCV_DIRECTMAP_SIZE)
-#define RISCV_DIRECTMAP_P(va)	(((vaddr_t) (va) & RISCV_DIRECTMAP_MASK) == RISCV_DIRECTMAP_MASK)
-#define RISCV_PA_TO_KVA(pa)	((vaddr_t) ((pa) | RISCV_DIRECTMAP_START))
-#define RISCV_KVA_TO_PA(va)	((paddr_t) ((va) & ~RISCV_DIRECTMAP_MASK))
-#endif
+/* user/kernel map constants */
+#define VM_MIN_ADDRESS		((vaddr_t)0)
+#define	VM_MAXUSER_ADDRESS	((vaddr_t)(PDIR_SLOT_PTE << L2_SHIFT) - PAGE_SIZE)
+#define	VM_MAX_ADDRESS		\
+	((vaddr_t)((PDIR_SLOT_PTE << L2_SHIFT) + (PDIR_SLOT_PTE << L1_SHIFT)))
+#define	VM_MIN_KERNEL_ADDRESS	((vaddr_t)(PDIR_SLOT_KERN << L2_SHIFT))
+#define	VM_MAX_KERNEL_ADDRESS	((vaddr_t)((PDIR_SLOT_KERN + NKL2_MAX_ENTRIES) << L2_SHIFT))
 
 /*
  * The address to which unspecified mapping requests default
  */
+#ifdef _KERNEL_OPT
+#include "opt_uvm.h"
+#include "opt_xen.h"
+#endif
 #define __USE_TOPDOWN_VM
-
-#define VM_DEFAULT_ADDRESS_TOPDOWN(da, sz) \
-    trunc_page(USRSTACK - MAXSSIZ - (sz) - user_stack_guard_size)
 #define VM_DEFAULT_ADDRESS_BOTTOMUP(da, sz) \
-    round_page((vaddr_t)(da) + (vsize_t)maxdmap)
-
-#define VM_DEFAULT_ADDRESS32_TOPDOWN(da, sz) \
-    trunc_page(USRSTACK32 - MAXSSIZ32 - (sz) - user_stack_guard_size)
-#define VM_DEFAULT_ADDRESS32_BOTTOMUP(da, sz) \
-    round_page((vaddr_t)(da) + (vsize_t)MAXDSIZ32)
+    round_page((vaddr_t)(da) + (vsize_t)MIN(maxdmap, MAXDSIZ_BU))
 
 /* virtual sizes (bytes) for various kernel submaps */
 #define VM_PHYS_SIZE		(USRIOSIZE*PAGE_SIZE)
 
-/*
- * max number of non-contig chunks of physical RAM you can have
- */
-#define VM_PHYSSEG_MAX		64
+#define VM_PHYSSEG_STRAT	VM_PSTRAT_BIGFIRST
 
-/*
- * when converting a physical address to a vm_page structure, we
- * want to use a binary search on the chunks of physical memory
- * to find our RAM
- */
-#define	VM_PHYSSEG_STRAT	VM_PSTRAT_BSEARCH
+#ifdef XENPV
+#define	VM_PHYSSEG_MAX		1
+#define	VM_NFREELIST		1
+#else
+#define	VM_PHYSSEG_MAX		32	/* 1 "hole" + 31 free lists */
+#define	VM_NFREELIST		4
+#define	VM_FREELIST_FIRST16	3
+#define	VM_FREELIST_FIRST1G	2
+#define	VM_FREELIST_FIRST4G	1
+#endif /* XENPV */
+#define	VM_FREELIST_DEFAULT	0
 
-#ifndef VM_NFREELIST
-#define	VM_NFREELIST		2	/* 2 distinct memory segments */
-#define VM_FREELIST_DEFAULT	0
-#define VM_FREELIST_DIRECTMAP	1
-#endif
-
-#ifdef _KERNEL
-#ifdef _LP64
-void *	cpu_uarea_alloc(bool);
-bool	cpu_uarea_free(void *);
-#endif
-#endif
-
-#endif /* ! _WASM_VMPARAM_H_ */
+#endif /* _I386_VMPARAM_H_ */

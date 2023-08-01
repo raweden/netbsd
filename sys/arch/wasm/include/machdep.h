@@ -35,6 +35,47 @@
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: machdep.h,v 1.5 2023/06/12 19:04:14 skrll Exp $");
 
+#include <sys/kcore.h>
+
+extern phys_ram_seg_t mem_clusters[];
+extern int mem_cluster_cnt;
+extern vaddr_t msgbuf_vaddr;
+extern unsigned int msgbuf_p_cnt;
+
+
+struct btinfo_memmap;
+struct extent;
+struct sysctllog;
+
+struct msgbuf_p_seg {
+	paddr_t paddr;
+	psize_t sz;
+};
+
+extern struct msgbuf_p_seg msgbuf_p_seg[];
+
+void x86_cpu_idle_init(void);
+void x86_cpu_idle_get(void (**)(void), char *, size_t);
+void x86_cpu_idle_set(void (*)(void), const char *, bool);
+
+extern u_long x86_rtclock_tval;
+extern void (*x86_initclock_func)(void);
+
+void x86_dummy_initclock(void);
+
+int	x86_select_freelist(uint64_t);
+
+void init_x86_clusters(void);
+int	init_x86_vm(paddr_t);
+void init_x86_msgbuf(void);
+
+void x86_startup(void);
+void x86_sysctl_machdep_setup(struct sysctllog **);
+
+void x86_rndseed(void);
+
+// below is riscv TODO: remove
+
 #include <sys/proc.h>
 #include <sys/lwp.h>
 #include <sys/siginfo.h>
@@ -65,7 +106,7 @@ void	uartputc(int);
 int	uartgetc(void);
 
 paddr_t	init_mmu(paddr_t);
-void	init_wasm32(register_t, paddr_t);
+void	init_wasm32(paddr_t);
 
 void	riscv_timer_frequency_set(uint32_t);	// which header?
 uint32_t
