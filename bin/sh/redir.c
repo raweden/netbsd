@@ -69,6 +69,7 @@ __RCSID("$NetBSD: redir.c,v 1.72 2021/11/22 05:17:43 kre Exp $");
 #include "error.h"
 #include "show.h"
 
+void onint(void);
 
 #define EMPTY -2		/* marks an unused slot in redirtab */
 #define CLOSED -1		/* fd was not open before redir */
@@ -457,7 +458,7 @@ openhere(const union node *redir)
 	int pip[2];
 	int len = 0;
 
-	if (pipe(pip) < 0)
+	if (pipe2(pip, 0) < 0)
 		error("Pipe call failed");
 	len = strlen(redir->nhere.text);
 	VTRACE(DBG_REDIR, ("openhere(%p) [%d] \"%.*s\"%s\n", redir, len,

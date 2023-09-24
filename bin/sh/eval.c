@@ -123,6 +123,9 @@ STATIC void prehash(union node *);
 
 STATIC char *find_dot_file(char *);
 
+void exraise(int);
+void onint(void);
+
 /*
  * Called to reset things after an exception.
  */
@@ -153,7 +156,7 @@ sh_pipe(int fds[2])
 {
 	int nfd;
 
-	if (pipe(fds))
+	if (pipe2(fds, 0))
 		return -1;
 
 	if (fds[0] < 3) {

@@ -69,6 +69,8 @@ __RCSID("$NetBSD: input.c,v 1.72 2021/02/16 15:30:26 kre Exp $");
 
 #define EOF_NLEFT -99		/* value of parsenleft when EOF pushed back */
 
+void onint(void);
+
 MKINIT
 struct strpush {
 	struct strpush *prev;	/* preceding string on stack */

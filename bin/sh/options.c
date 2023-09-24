@@ -80,6 +80,8 @@ STATIC void minus_o(char *, int);
 STATIC void setoption(int, int);
 STATIC int getopts(char *, char *, char **, char ***, char **);
 
+void exraise(int);
+void onint(void);
 
 /*
  * Process the shell command line arguments.

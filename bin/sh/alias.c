@@ -64,6 +64,7 @@ STATIC int unalias(char *);
 STATIC struct alias **freealias(struct alias **, int);
 STATIC struct alias **hashalias(const char *);
 STATIC int countaliases(void);
+void onint(void);
 
 STATIC
 void

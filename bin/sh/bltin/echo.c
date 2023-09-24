@@ -54,6 +54,12 @@
 #include <sys/cdefs.h>
 __RCSID("$NetBSD: echo.c,v 1.15 2021/05/18 21:39:06 kre Exp $");
 
+#include <sys/null.h>
+
+#ifndef	NULL
+#define	NULL	((void *)0)
+#endif
+
 #define main echocmd
 
 #include "bltin.h"

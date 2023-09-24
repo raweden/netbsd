@@ -98,6 +98,9 @@ void onint(void);
 void error(const char *, ...) __dead __printflike(1, 2);
 void exerror(int, const char *, ...) __dead __printflike(2, 3);
 const char *errmsg(int, int);
+#else
+void error(const char *msg, ...) __printflike(1, 2);
+void exerror(int cond, const char *msg, ...) __printflike(2, 3);
 #endif /* ! SHELL_BUILTIN */
 
 void sh_err(int, const char *, ...) __dead __printflike(2, 3);
@@ -111,6 +114,17 @@ void sh_vwarnx(const char *, va_list) __printflike(1, 0);
 
 void sh_exit(int) __dead;
 
+#ifdef __WASM
+#ifndef __WASM_IMPORT
+#define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
+#endif
+#include <setjmp.h>
+typedef struct label_t {
+	int val[6];
+} label_t;
+int sigsetjmp(sigjmp_buf, int) __WASM_IMPORT(sys, setjmp) __returns_twice;
+void siglongjmp(sigjmp_buf, int) __WASM_IMPORT(sys, longjmp) __dead;
+#endif
 
 /*
  * BSD setjmp saves the signal mask, which violates ANSI C and takes time,

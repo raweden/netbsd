@@ -53,6 +53,8 @@ __RCSID("$NetBSD: memalloc.c,v 1.39 2023/04/07 10:42:28 kre Exp $");
 #include "machdep.h"
 #include "mystring.h"
 
+void onint(void);
+
 /*
  * Like malloc, but returns an error when out of space.
  */

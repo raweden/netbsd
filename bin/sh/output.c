@@ -82,6 +82,7 @@ __RCSID("$NetBSD: output.c,v 1.41 2023/04/07 10:34:13 kre Exp $");
 #define	CHAIN	,NULL
 #endif
 
+void onint(void);
 
 		/*      nextc  nleft  bufsize  buf     fd  flags  chain */
 struct output output = {NULL,    0, OUTBUFSIZ, NULL,    1,    0   CHAIN };

@@ -109,6 +109,9 @@ STATIC void clearcmdentry(int);
 STATIC struct tblentry *cmdlookup(const char *, int);
 STATIC void delete_cmd_entry(void);
 
+void exraise(int);
+void onint(void);
+
 #ifndef BSD
 STATIC void execinterp(char **, char **);
 #endif

@@ -74,6 +74,8 @@ STATIC bool updatepwd(const char *);
 STATIC void find_curdir(int noerror);
 STATIC bool is_curdir(const char *);
 
+void onint(void);
+
 char *curdir = NULL;		/* current working directory */
 char *prevdir;			/* previous working directory */
 STATIC char *cdcomppath;

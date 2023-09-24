@@ -17,8 +17,8 @@ IFS=' 	'	# blank, tab (no newline)
 IF="$1"
 OF="${3+$3/}$2"
 
-E_FILE=$(${MKTEMP:-mktemp} -t MKO.E.$$)
-O_FILE=$(${MKTEMP:-mktemp} -t MKO.O.$$)
+E_FILE=$(mktemp -t MKO.error-XXXX)
+O_FILE=$(mktemp -t MKO.output-XXXX)
 trap 'rm -f "${E_FILE}" "${O_FILE}"' EXIT
 
 exec 5> "${E_FILE}"

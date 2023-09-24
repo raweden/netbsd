@@ -128,6 +128,9 @@ STATIC void synerror(const char *) __dead;
 STATIC void setprompt(int);
 STATIC int pgetc_linecont(void);
 
+void exraise(int);
+void onint(void);
+
 static const char EOFhere[] = "EOF reading here (<<) document";
 
 #ifdef DEBUG

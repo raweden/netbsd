@@ -123,6 +123,8 @@ static int collate_range_cmp(wchar_t, wchar_t);
 STATIC void add_args(struct strlist *);
 STATIC void rmescapes_nl(char *);
 
+void onint(void);
+
 #ifdef	DEBUG
 #define	NULLTERM_4_TRACE(p)	STACKSTRNUL(p)
 #else

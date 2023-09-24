@@ -65,6 +65,8 @@ __RCSID("$NetBSD: miscbltin.c,v 1.53 2022/12/11 08:23:10 kre Exp $");
 #include "mystring.h"
 #include "redir.h"		/* for user_fd_limit */
 
+void onint(void);
+
 #undef rflag
 
 

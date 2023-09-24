@@ -95,6 +95,8 @@ extern int etext();
 
 STATIC void read_profile(const char *);
 
+void onint(void);
+
 /*
  * Main routine.  We initialize things, parse the arguments, execute
  * profiles if we're a login shell, and then call cmdloop to execute

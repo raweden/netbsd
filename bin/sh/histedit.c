@@ -87,6 +87,8 @@ static int comparator(const void *, const void *);
 static char **sh_matches(const char *, int, int);
 static unsigned char sh_complete(EditLine *, int);
 
+void onint(void);
+
 /*
  * Set history and editing status.  Called whenever the status may
  * have changed (figures out what to do).

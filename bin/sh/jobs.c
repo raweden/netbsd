@@ -116,6 +116,8 @@ STATIC void cmdlist(union node *, int);
 STATIC void cmdputs(const char *);
 inline static void cmdputi(int);
 
+void onint(void);
+
 #define	JNUM(j)	((int)((j) != NULL ? ((j) - jobtab) + 1 : 0))
 
 #ifdef SYSV

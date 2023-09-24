@@ -77,6 +77,8 @@ __RCSID("$NetBSD: var.c,v 1.82 2022/09/18 17:11:33 kre Exp $");
 #include "myhistedit.h"
 #endif
 
+void onint(void);
+
 #ifdef SMALL
 #define VTABSIZE 39
 #else
