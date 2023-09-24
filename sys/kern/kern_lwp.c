@@ -216,6 +216,7 @@
  *	three states, hence p_lock is rarely taken for state transitions.
  */
 
+
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: kern_lwp.c,v 1.252 2023/04/09 09:18:09 riastradh Exp $");
 
@@ -269,6 +270,11 @@ SDT_PROVIDER_DEFINE(proc);
 SDT_PROBE_DEFINE1(proc, kernel, , lwp__create, "struct lwp *");
 SDT_PROBE_DEFINE1(proc, kernel, , lwp__start, "struct lwp *");
 SDT_PROBE_DEFINE1(proc, kernel, , lwp__exit, "struct lwp *");
+
+#ifdef __WASM
+struct cpu_info cpu0 = {};
+#define LWP0_CPU_INFO &(cpu0)
+#endif
 
 struct turnstile turnstile0 __cacheline_aligned;
 struct lwp lwp0 __aligned(MIN_LWP_ALIGNMENT) = {

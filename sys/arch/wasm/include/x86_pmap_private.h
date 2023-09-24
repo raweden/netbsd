@@ -328,7 +328,7 @@ kvtopte(vaddr_t va)
 {
 	pd_entry_t *pde;
 
-	KASSERT(va >= VM_MIN_KERNEL_ADDRESS);
+	//KASSERT(va >= VM_MIN_KERNEL_ADDRESS);
 
 	pde = L2_BASE + pl2_i(va);
 	if (*pde & PTE_PS)

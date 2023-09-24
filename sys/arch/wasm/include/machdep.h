@@ -32,6 +32,7 @@
 #ifndef _WASM_MACHDEP_H_
 #define _WASM_MACHDEP_H_
 
+#include "extent.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: machdep.h,v 1.5 2023/06/12 19:04:14 skrll Exp $");
 
@@ -41,6 +42,8 @@ extern phys_ram_seg_t mem_clusters[];
 extern int mem_cluster_cnt;
 extern vaddr_t msgbuf_vaddr;
 extern unsigned int msgbuf_p_cnt;
+extern paddr_t __first_avail;
+extern paddr_t __physmemlimit;
 
 
 struct btinfo_memmap;
@@ -53,6 +56,16 @@ struct msgbuf_p_seg {
 };
 
 extern struct msgbuf_p_seg msgbuf_p_seg[];
+
+// 
+struct wasm_boot_meminfo {
+	struct bootspace *bootspace;
+	psize_t *physmem;
+	paddr_t iomem_start;
+	paddr_t iomem_end;
+};
+
+extern struct wasm_boot_meminfo __wasm_meminfo;
 
 void x86_cpu_idle_init(void);
 void x86_cpu_idle_get(void (**)(void), char *, size_t);

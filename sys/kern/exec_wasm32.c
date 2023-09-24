@@ -31,7 +31,6 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sigtypes.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: exec_elf32.c,v 1.143 2019/11/20 19:37:53 pgoyette Exp $");
 
@@ -44,6 +43,13 @@ __KERNEL_RCSID(0, "$NetBSD: exec_elf32.c,v 1.143 2019/11/20 19:37:53 pgoyette Ex
 #include <sys/exec_wasm.h>
 #include <sys/resourcevar.h>
 #include <sys/module.h>
+#include <sys/errno.h>
+#include <sys/sigtypes.h>
+
+// 8 bytes would be enough for the signature + version
+// 64 bytes allows for a peek of the first section.
+#define WASM_HDR_SIZE 64
+#define WASM_HDR_SIGN_LE 0x6D736100     // \x00asm
 
 static int exec_wasm32_modcmd(modcmd_t, void *);
 
@@ -56,7 +62,7 @@ static int wasm_exec_setup_stack(struct lwp *, struct exec_package *);
 static int netbsd_wasm32_probe(struct lwp *, struct exec_package *, void *, char *, vaddr_t *);
 
 static struct execsw exec_wasm32_execsw = {
-    .es_hdrsz = sizeof (struct exec_wasm_hdr),
+    .es_hdrsz = WASM_HDR_SIZE,
     .es_makecmds = exec_wasm32_makecmds,
 #if 0
     .u = {
@@ -88,9 +94,27 @@ exec_wasm32_modcmd(modcmd_t cmd, void *arg)
         }
 }
 
+/**
+ * Checks if the executable has the binary signature of a WebAssembly Binary.
+ */
 static int
-exec_wasm32_makecmds(struct lwp *, struct exec_package *)
+exec_wasm32_makecmds(struct lwp *l, struct exec_package *epp)
 {
+    char *hdrstr = epp->ep_hdr; // where is ep_hdr from? and how is it handled/loaded before this function get call?
+    uint32_t ver;
+
+    // the allocated size of ep_hdr size is of exec_maxhdrsz which is set at init by computing the max value from all
+    // the defined exec handlers. Its set trough exec_sw->es_hdrsz
+
+    if (*((uint32_t *)hdrstr) != WASM_HDR_SIGN_LE) {
+        return ENOEXEC;
+    }
+
+    ver = ((uint32_t *)hdrstr)[1];
+    if (ver != 0x01) {
+        return ENOEXEC;
+    }
+
     return (0);
 }
 

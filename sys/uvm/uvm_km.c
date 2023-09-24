@@ -268,6 +268,8 @@ uvm_km_bootstrap(vaddr_t start, vaddr_t end)
 	struct uvm_map_args args;
 	int error;
 
+	printf("%s start: %lu end: %lu\n", __func__, start, end);
+
 	UVMHIST_FUNC(__func__);
 	UVMHIST_CALLARGS(maphist, "start=%#jx end=%#jx", start, end, 0,0);
 

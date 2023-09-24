@@ -91,7 +91,8 @@
 #endif /* defined(_KERNEL_OPT) */
 
 #ifndef	KERNBASE
-#define	KERNBASE	0xc0000000UL	/* start of kernel virtual space */
+//#define	KERNBASE	0xc0000000UL	/* start of kernel virtual space */
+#define	KERNBASE 0
 #endif
 
 #define	KERNTEXTOFF	(KERNBASE + 0x100000) /* start of kernel text */

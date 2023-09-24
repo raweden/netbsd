@@ -1020,14 +1020,17 @@ pmap_pat_flags(u_int flags)
 void
 pmap_kenter_pa(vaddr_t va, paddr_t pa, vm_prot_t prot, u_int flags)
 {
+#if 0
 	pt_entry_t *pte, opte, npte;
 
-	KASSERT(!(prot & ~VM_PROT_ALL));
+	//KASSERT(!(prot & ~VM_PROT_ALL));
 
+#if 0 // TODO: wasm remove
 	if (va < VM_MIN_KERNEL_ADDRESS)
 		pte = vtopte(va);
 	else
-		pte = kvtopte(va);
+#endif
+	pte = kvtopte(va);
 #if defined(XENPV) && defined(DOM0OPS)
 	if (pa < pmap_pa_start || pa >= pmap_pa_end) {
 #ifdef DEBUG
@@ -1035,8 +1038,9 @@ pmap_kenter_pa(vaddr_t va, paddr_t pa, vm_prot_t prot, u_int flags)
 		    " outside range\n", __func__, pa, va);
 #endif /* DEBUG */
 		npte = pa;
-	} else
+	//} else
 #endif /* XENPV && DOM0OPS */
+
 		npte = pmap_pa2pte(pa);
 	npte |= protection_codes[prot] | PTE_P | pmap_pg_g;
 	npte |= pmap_pat_flags(flags);
@@ -1056,6 +1060,7 @@ pmap_kenter_pa(vaddr_t va, paddr_t pa, vm_prot_t prot, u_int flags)
 		pmap_tlb_shootdown(pmap_kernel(), va, opte, TLBSHOOT_KENTER);
 		kpreempt_enable();
 	}
+#endif
 }
 
 void pmap_kenter_ma(vaddr_t va, paddr_t pa, vm_prot_t prot, u_int flags) __attribute__((weak, alias("pmap_kenter_pa")));

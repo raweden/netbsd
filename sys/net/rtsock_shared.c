@@ -1723,6 +1723,7 @@ COMPATNAME(route_enqueue)(struct mbuf *m, int family)
 static void
 COMPATNAME(route_init)(void)
 {
+#ifndef __WASM
 	struct route_info * const ri = &COMPATNAME(route_info);
 
 #ifndef COMPAT_RTSOCK
@@ -1742,6 +1743,7 @@ COMPATNAME(route_init)(void)
 
 #ifdef MBUFTRACE
 	MOWNER_ATTACH(&COMPATNAME(routedomain).dom_mowner);
+#endif
 #endif
 }
 

@@ -881,6 +881,8 @@ module_do_builtin(const module_t *pmod, const char *name, module_t **modp,
 
 	KASSERT(kernconfig_is_held());
 
+	printf("%s loading = %s\n", __func__, name);
+
 	/*
 	 * Search the list to see if we have a module by this name.
 	 */

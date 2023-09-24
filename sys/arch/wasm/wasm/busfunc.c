@@ -29,11 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "arch/wasm/include/types.h"
+
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: busfunc.S,v 1.9 2013/06/22 05:20:57 uebayasi Exp $");
 
 #include <sys/types.h>
+#include <machine/types.h>
 #include <machine/bus_defs.h>
 
 #include <wasm/wasm_module.h>
@@ -48,10 +49,13 @@ uint8_t
 bus_space_read_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset)
 {
     vaddr_t off = bsh + offset;
-    if (tag->bst_type == X86_BUS_SPACE_IO) {
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
         uint8_t *p = (uint8_t *)((void *)off);
         return *p;
     }
+
+	// TODO: the difference between movb and inb is that inb reads from I/O port on the CPU.
+	// 
 
     uint8_t *p = (uint8_t *)((void *)off);
     return *p;
@@ -64,6 +68,12 @@ bus_space_read_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset)
 uint16_t
 bus_space_read_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset)
 {
+	vaddr_t off = bsh + offset;
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
+        uint16_t *p = (uint16_t *)((void *)off);
+        return *p;
+    }
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %eax
 	movl	8(%esp), %edx
@@ -88,6 +98,12 @@ bus_space_read_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset)
 uint32_t
 bus_space_read_4(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset)
 {
+	vaddr_t off = bsh + offset;
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
+        uint32_t *p = (uint32_t *)((void *)off);
+        return *p;
+    }
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %eax
 	movl	8(%esp), %edx
@@ -115,6 +131,14 @@ uint32_t bus_space_read_stream_4(bus_space_tag_t, bus_space_handle_t, bus_size_t
 void
 bus_space_write_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, uint8_t value)
 {
+	vaddr_t off = bsh + offset;
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
+        uint8_t *p = (uint8_t *)((void *)off);
+		*p = value;
+		
+		return;
+    }
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %eax
 	movl	8(%esp), %edx
@@ -138,6 +162,14 @@ bus_space_write_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset
 void
 bus_space_write_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, uint16_t value)
 {
+	vaddr_t off = bsh + offset;
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
+        uint16_t *p = (uint16_t *)((void *)off);
+		*p = value;
+
+		return;
+    }
+	
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %eax
 	movl	8(%esp), %edx
@@ -161,6 +193,14 @@ bus_space_write_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset
 void
 bus_space_write_4(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, uint32_t value)
 {
+	vaddr_t off = bsh + offset;
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
+        uint32_t *p = (uint32_t *)((void *)off);
+		*p = value;
+
+		return;
+    }
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %eax
 	movl	8(%esp), %edx
@@ -188,6 +228,19 @@ void bus_space_write_stream_4(bus_space_tag_t tag, bus_space_handle_t bsh, bus_s
 void
 bus_space_read_multi_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, uint8_t *addr, size_t count)
 {
+    if (tag->bst_type == X86_BUS_SPACE_MEM) {
+		const uint8_t *src = (uint8_t *)((void *)(bsh + offset));
+		uint8_t *dst = addr;
+		while (count > 0) {
+			*dst = *src;
+			dst++;
+			src++;
+			count--;
+		}
+
+		return;
+    }
+	
 #if 0 // TODO: wasm fixme
 	pushl	%edi
 	movl	8(%esp), %eax
@@ -221,6 +274,18 @@ bus_space_read_multi_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t o
 void
 bus_space_read_multi_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, uint16_t *addr, size_t count)
 {
+	if (tag->bst_type == X86_BUS_SPACE_MEM) {
+		const uint16_t *src = (uint16_t *)((void *)(bsh + offset));
+		uint16_t *dst = addr;
+		while (count > 0) {
+			*dst = *src;
+			dst++;
+			src++;
+			count--;
+		}
+
+		return;
+    }
 #if 0 // TODO: wasm fixme
 	pushl	%edi
 	movl	8(%esp), %eax
@@ -254,6 +319,19 @@ bus_space_read_multi_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t o
 void
 bus_space_read_multi_4(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, uint32_t *addr, size_t count)
 {
+	if (tag->bst_type == X86_BUS_SPACE_MEM) {
+		const uint32_t *src = (uint32_t *)((void *)(bsh + offset));
+		uint32_t *dst = addr;
+		while (count > 0) {
+			*dst = *src;
+			dst++;
+			src++;
+			count--;
+		}
+
+		return;
+    }
+
 #if 0 // TODO: wasm fixme
 	pushl	%edi
 	movl	8(%esp), %eax
@@ -291,6 +369,18 @@ void bus_space_read_multi_stream_4(bus_space_tag_t, bus_space_handle_t, bus_size
 void
 bus_space_write_multi_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, const uint8_t *addr, size_t count)
 {
+	if (tag->bst_type == X86_BUS_SPACE_MEM) {
+		const uint8_t *src = addr;
+		uint8_t *dst = (uint8_t *)((void *)(bsh + offset));
+		while (count > 0) {
+			*dst = *src;
+			dst++;
+			src++;
+			count--;
+		}
+
+		return;
+    }
 #if 0 // TODO: wasm fixme
 	pushl	%esi
 	movl	8(%esp), %eax
@@ -324,6 +414,18 @@ bus_space_write_multi_1(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t 
 void
 bus_space_write_multi_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, const uint16_t *addr, size_t count)
 {
+	if (tag->bst_type == X86_BUS_SPACE_MEM) {
+		const uint16_t *src = addr;
+		uint16_t *dst = (uint16_t *)((void *)(bsh + offset));
+		while (count > 0) {
+			*dst = *src;
+			dst++;
+			src++;
+			count--;
+		}
+
+		return;
+    }
 #if 0 // TODO: wasm fixme
 	pushl	%esi
 	movl	8(%esp), %eax
@@ -357,6 +459,18 @@ bus_space_write_multi_2(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t 
 void
 bus_space_write_multi_4(bus_space_tag_t tag, bus_space_handle_t bsh, bus_size_t offset, const uint32_t *addr, size_t count)
 {
+	if (tag->bst_type == X86_BUS_SPACE_MEM) {
+		const uint32_t *src = addr;
+		uint32_t *dst = (uint32_t *)((void *)(bsh + offset));
+		while (count > 0) {
+			*dst = *src;
+			dst++;
+			src++;
+			count--;
+		}
+
+		return;
+    }
 #if 0 // TODO: wasm fixme
 	pushl	%esi
 	movl	8(%esp), %eax

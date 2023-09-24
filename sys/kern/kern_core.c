@@ -77,7 +77,8 @@ static off_t	coredump_offset(struct coredump_iostate *);
 static int
 coredump_modcmd(modcmd_t cmd, void *arg)
 {
-
+#ifndef __WASM
+	// TODO: WASM fixme!
 	switch (cmd) {
 	case MODULE_CMD_INIT:
 		MODULE_HOOK_SET(coredump_hook, coredump);
@@ -110,6 +111,7 @@ coredump_modcmd(modcmd_t cmd, void *arg)
 	default:
 		return ENOTTY;
 	}
+#endif
 }
 
 /*

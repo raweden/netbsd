@@ -61,6 +61,7 @@
  *	@(#)kern_proc.c	8.7 (Berkeley) 2/14/95
  */
 
+
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: kern_proc.c,v 1.270 2023/04/09 09:18:09 riastradh Exp $");
 
@@ -495,6 +496,11 @@ proc0_init(void)
 	rw_init(&p->p_reflock);
 	cv_init(&p->p_waitcv, "wait");
 	cv_init(&p->p_lwpcv, "lwpwait");
+
+#ifdef __WASM
+	struct cpu_info *cpu = lwp0.l_cpu;
+	cpu->ci_pmap = kernel_pmap_ptr;
+#endif
 
 	LIST_INSERT_HEAD(&p->p_lwps, &lwp0, l_sibling);
 

@@ -34,12 +34,14 @@
  *	@(#)autoconf.c	7.1 (Berkeley) 5/9/91
  */
 
+#include "types.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: x86_autoconf.c,v 1.87 2022/03/19 13:51:35 hannken Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/device.h>
+#include <sys/device_impl.h>
 #include <sys/disklabel.h>
 #include <sys/conf.h>
 #include <sys/malloc.h>
@@ -72,6 +74,8 @@ __KERNEL_RCSID(0, "$NetBSD: x86_autoconf.c,v 1.87 2022/03/19 13:51:35 hannken Ex
 #if NHYPERV > 0
 #include <x86/x86/hypervvar.h>
 #endif
+
+extern struct device opfs_rootdev;
 
 struct disklist *x86_alldisks;
 int x86_ndisks;
@@ -551,14 +555,29 @@ cpu_bootconf(void)
 	matchbiosdisks();
 }
 
+int opfsblk_init(void);
+int opfsblk_register(const char *path, devminor_t *dmin, uint64_t offset, uint64_t size);
+
 void
 cpu_rootconf(void)
 {
+	int majdev;
+	int mindev;
+
+	opfsblk_init();
+	opfsblk_register("/root", &mindev, 0, 0);
+#if 0
 	cpu_bootconf();
+#endif
+	
+	majdev = devsw_name2blk(device_xname(&opfs_rootdev), NULL, 0);
+	rootdev = MAKEDISKDEV(majdev, device_unit(&opfs_rootdev), mindev);
+	root_device = &opfs_rootdev;
+	booted_device = &opfs_rootdev;
 
 	aprint_normal("boot device: %s\n",
 	    booted_device ? device_xname(booted_device) : "<unknown>");
-	rootconf();
+	//rootconf();
 }
 
 void

@@ -32,13 +32,12 @@
 //#include <sys/stdint.h>
 //#include <uvm/pmap/pmap.h>
 
-#include "arch/wasm/include/bootspace.h"
-#include "arch/wasm/include/types.h"
 #include <sys/null.h>
-
 #include <sys/types.h>
+
 #include <machine/bootspace.h>
 #include <wasm/machdep.h>
+#include <dev/isa/isareg.h>
 
 #include <wasm/wasm_module.h>
 
@@ -74,9 +73,21 @@ paddr_t __PDP_pa = WASM_UNINIT_ADDR;
 vaddr_t lwp0uarea = WASM_UNINIT_ADDR;
 paddr_t PDPpaddr = WASM_UNINIT_ADDR;
 paddr_t __kernel_end = WASM_UNINIT_ADDR;
+paddr_t __first_avail = WASM_UNINIT_ADDR;
+paddr_t __physmemlimit = WASM_UNINIT_ADDR;
+
+extern struct bootspace bootspace;
+extern psize_t physmem;
+
+struct wasm_boot_meminfo __wasm_meminfo = {
+	.bootspace = &bootspace,
+	.physmem = &physmem,
+	.iomem_start = IOM_BEGIN,
+	.iomem_end = IOM_END,
+};
 
 char *lwp0uspace;
-extern struct bootspace bootspace;
+
 
 
 static uint8_t gdt[16] = {
@@ -87,6 +98,15 @@ static uint8_t gdt[16] = {
 static void init_bootspace(void);
 void main(void);
 
+#define	PDE_SIZE	sizeof(pd_entry_t)
+#define fillkpt 							\
+		
+
+static void
+fill_pg_tables(void)
+{
+
+}
 
 #ifdef __WASM
 __attribute__((export_name("global_start")))
@@ -109,11 +129,16 @@ void global_start(void)
         __panic_abort();
     }
 
+	// virtual address is equal to physical until we support emulated virtual memory.
+	atdevbase = IOM_BEGIN;
+
+	fill_pg_tables();
+
     register_t hartid = 0;
     paddr_t dtb = __fdt_base;
 
     init_bootspace();
-    init_wasm32(0);
+    init_wasm32(__first_avail);
     main();
 }
 
@@ -129,8 +154,8 @@ init_bootspace(void)
 
 	memset(&bootspace, 0, sizeof(bootspace));
 
-	bootspace.head.va = 0;
-	bootspace.head.pa = 0 - __KERNBASE;
+	bootspace.head.va = physmem;
+	bootspace.head.pa = physmem;	// is this mapped top-down?
 	bootspace.head.sz = 0;
 
 	bootspace.segs[i].type = BTSEG_TEXT;
@@ -141,20 +166,20 @@ init_bootspace(void)
 
 	bootspace.segs[i].type = BTSEG_RODATA;
 	bootspace.segs[i].va = (vaddr_t)&__rodata_start;
-	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__rodata_start - __KERNBASE;
+	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__rodata_start - KERNBASE;
 	bootspace.segs[i].sz = (size_t)&__data_start - (size_t)&__rodata_start;
 	i++;
 
 	bootspace.segs[i].type = BTSEG_DATA;
 	bootspace.segs[i].va = (vaddr_t)&__data_start;
-	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__data_start - __KERNBASE;
+	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__data_start - KERNBASE;
 	bootspace.segs[i].sz = (size_t)&__kernel_end - (size_t)&__data_start;
 	i++;
 
 	bootspace.boot.va = (vaddr_t)&__kernel_end;
-	bootspace.boot.pa = (paddr_t)(vaddr_t)&__kernel_end - __KERNBASE;
-	bootspace.boot.sz = (size_t)(atdevbase + __IOM_SIZE) - (size_t)&__kernel_end;
+	bootspace.boot.pa = (paddr_t)(vaddr_t)&__kernel_end - KERNBASE;
+	bootspace.boot.sz = (size_t)(atdevbase + IOM_SIZE);
 
 	/* Virtual address of the top level page */
-	bootspace.pdir = (vaddr_t)(__PDP_pa + __KERNBASE);
+	bootspace.pdir = (vaddr_t)(PDPpaddr);
 }

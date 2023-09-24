@@ -75,4 +75,7 @@ uint64_t atomic_xor64(volatile uint64_t *valp, uint64_t val);
 uint64_t atomic_xchg64(volatile uint64_t *valp, uint64_t val);
 uint64_t atomic_cmpxchg64(volatile uint64_t *valp, uint64_t expected, uint64_t replacement);
 
+void wasm_inst_nop(void);
+
+
 #endif /* _MACHINE_ATOMIC_INST_H_ */

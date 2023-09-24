@@ -102,7 +102,10 @@
 #ifdef PAE
 #define L2_SLOT_PTE	(KERNBASE/NBPD_L2-4) /* 1532: for recursive PDP map */
 #define L2_SLOT_KERN	(KERNBASE/NBPD_L2)   /* 1536: start of kernel space */
-#else /* PAE */
+#elif defined(__WASM)
+#define L2_SLOT_PTE	 0 /* 767: the index within pte which is the first kernel virtual address (0 for wasm) */
+#define L2_SLOT_KERN 0   /* 768: start of kernel space (0 for wasm)*/
+#else /* !PAE */
 #define L2_SLOT_PTE	(KERNBASE/NBPD_L2-1) /* 767: for recursive PDP map */
 #define L2_SLOT_KERN	(KERNBASE/NBPD_L2)   /* 768: start of kernel space */
 #endif /* PAE */
@@ -149,6 +152,11 @@
 	((vaddr_t)((PDIR_SLOT_PTE << L2_SHIFT) + (PDIR_SLOT_PTE << L1_SHIFT)))
 #define	VM_MIN_KERNEL_ADDRESS	((vaddr_t)(PDIR_SLOT_KERN << L2_SHIFT))
 #define	VM_MAX_KERNEL_ADDRESS	((vaddr_t)((PDIR_SLOT_KERN + NKL2_MAX_ENTRIES) << L2_SHIFT))
+
+#undef VM_MAX_KERNEL_ADDRESS
+#undef VM_MIN_KERNEL_ADDRESS
+#define VM_MAX_KERNEL_ADDRESS 0xF0000000
+#define VM_MIN_KERNEL_ADDRESS 0x00000000
 
 /*
  * The address to which unspecified mapping requests default

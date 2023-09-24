@@ -36,7 +36,6 @@
  * Functions to provide access to x86-specific instructions.
  */
 
-#include "arch/wasm/include/cpufunc.h"
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
@@ -693,7 +692,8 @@ x86_disable_intr(void)
 #if 0 // TODO: WASM
 	__asm volatile ("cli" ::: "memory");
 #endif
-	__panic_abort();
+	//__panic_abort();
+	//printf("interupt disabled");
 }
 
 static inline void
@@ -702,7 +702,8 @@ x86_enable_intr(void)
 #if 0 // TODO: WASM
 	__asm volatile ("sti" ::: "memory");
 #endif
-	__panic_abort();
+	//__panic_abort();
+	//printf("interupt enabled");
 }
 #endif /* XENPV */
 

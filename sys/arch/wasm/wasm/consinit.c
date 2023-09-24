@@ -162,6 +162,10 @@ int comkgdbmode = KGDB_DEVMODE;
 void
 consinit(void)
 {
+	// TODO: wasm; fix this for video console (render to framebuffer)
+#ifdef __WASM
+	return;
+#else 
 	const struct btinfo_console *consinfo;
 #if (NGENFB > 0)
 	const struct btinfo_framebuffer *fbinfo;
@@ -280,6 +284,7 @@ dokbd:
 	}
 #endif
 	panic("invalid console device %s", consinfo->devname);
+#endif
 }
 
 #ifdef KGDB

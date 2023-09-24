@@ -392,7 +392,7 @@ extern struct cpu_info *cpu_info_list;
 #define CPU_STOP(_ci)	        	((_ci)->ci_func->stop(_ci))
 #define CPU_START_CLEANUP(_ci)		((_ci)->ci_func->cleanup(_ci))
 
-#if 0 // wasm remove
+#ifndef __WASM
 #if !defined(__GNUC__) || defined(_MODULE)
 /* For non-GCC and modules */
 struct cpu_info	*x86_curcpu(void);
@@ -403,6 +403,8 @@ lwp_t   *x86_curlwp(void);
 # endif
 #endif
 #endif
+
+
 
 #define cpu_number() 		(cpu_index(curcpu()))
 
@@ -421,15 +423,17 @@ void cpu_pcpuarea_init(struct cpu_info *);
 void cpu_svs_init(struct cpu_info *);
 void cpu_speculation_init(struct cpu_info *);
 
-#if 0 // TODO: wasm remove
+#ifndef __WASM
 #define	curcpu()		x86_curcpu()
 #define	curlwp			x86_curlwp()
 #define	curpcb			((struct pcb *)lwp_getpcb(curlwp))
-#endif
-extern struct lwp *wasm_curlwp;
+#else
+extern volatile struct lwp *wasm_curlwp;
 #define	curlwp		wasm_curlwp
-#define	curcpu()	lwp_getcpu(curlwp)
-#define	curpcb		((struct pcb *)lwp_getpcb(curlwp))
+#define	curcpu()	lwp_getcpu(wasm_curlwp)
+#define	curpcb		((struct pcb *)lwp_getpcb(wasm_curlwp))
+#endif
+// TODO: wasm; might actully be better to replace a call instruction??
 
 /*
  * Give a profiling tick to the current process when the user profiling

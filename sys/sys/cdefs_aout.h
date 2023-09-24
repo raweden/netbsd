@@ -156,7 +156,7 @@ extern struct {								\
 #define __read_frequently
 #define __exclusive_cache_line
 #define __builtin_return_address(x) (0)
-#define __warn_references(x)
+#define __warn_references(x, y)
 #define	__IDSTRING(x,y) \
 "used __IDSTRING"
 #define	___RENAME(x)	 			,"no use of ___RENAME() in WASM"

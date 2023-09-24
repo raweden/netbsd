@@ -47,6 +47,7 @@ __KERNEL_RCSID(0, "$NetBSD: i386func.S,v 1.22 2020/05/19 21:40:55 ad Exp $");
 
 void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 
+// https://www.felixcloutier.com/x86/invlpg
 void
 invlpg(vaddr_t va)
 {
@@ -55,9 +56,11 @@ invlpg(vaddr_t va)
 	invlpg	(%eax)
 	ret
 #endif
-    __panic_abort();
+    //__panic_abort();
 }
 
+// both lgdt and lldt has todo with virtual memory access
+// https://pdos.csail.mit.edu/6.828/2011/readings/i386/s05_01.htm
 void
 lldt(u_short)
 {
@@ -71,7 +74,7 @@ lldt(u_short)
 	lldt	%ax
 	ret
 #endif
-    __panic_abort();
+    //__panic_abort();
 }
 
 void
@@ -81,8 +84,8 @@ ltr(u_short)
 	movl	4(%esp), %eax
 	ltr	%ax
 	ret
+	__panic_abort();
 #endif
-    __panic_abort();
 }
 
 /*
@@ -120,7 +123,7 @@ tlbflushg(void)
 	movl	%eax, %cr4
 	ret
 #endif
-    __panic_abort();
+   	// do nothing
 }
 
 void
@@ -174,5 +177,6 @@ lgdt(struct region_descriptor *rdp)
 	movl	%eax, %fs
 	jmp	_C_LABEL(x86_flush)
 #endif
-    __panic_abort();
+    //__panic_abort();
+	// wasm? whats is this for?
 }

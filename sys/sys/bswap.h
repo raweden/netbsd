@@ -15,6 +15,9 @@ __BEGIN_DECLS
 #if defined(_KERNEL) || defined(_STANDALONE) || !defined(__BSWAP_RENAME)
 uint16_t bswap16(uint16_t) __constfunc;
 uint32_t bswap32(uint32_t) __constfunc;
+#elif defined(__WASM)
+uint16_t bswap16(uint16_t) __constfunc;
+uint32_t bswap32(uint32_t) __constfunc;
 #else
 uint16_t bswap16(uint16_t) __RENAME(__bswap16) __constfunc;
 uint32_t bswap32(uint32_t) __RENAME(__bswap32) __constfunc;

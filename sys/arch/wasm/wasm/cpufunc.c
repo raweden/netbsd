@@ -83,6 +83,7 @@ x86_mfence(void)
 }
 
 #ifndef XENPV
+// also is related to virtual memory gdt
 void
 lidt(struct region_descriptor *arg)
 {
@@ -91,7 +92,7 @@ lidt(struct region_descriptor *arg)
 	lidt	(%eax)
 	ret
 #endif
-    __panic_abort();
+    //__panic_abort();
 }
 
 void

@@ -36,19 +36,31 @@
  * line.  Please check alignment with 'objdump -d' after making changes.
  */
 
+
+#include <stdint.h>
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: lock_stubs.S,v 1.38 2022/09/08 06:57:44 knakahara Exp $");
 
 #include "opt_lockdebug.h"
 
+#define __RWLOCK_PRIVATE
+#define __MUTEX_PRIVATE
+
+#include <sys/types.h>
+
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
 #include <machine/cputypes.h>
+#include <sys/cpu.h>
 
 #include <wasm/wasm_module.h>
+#include <wasm/wasm_inst.h>
 
 void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 
+void __cpu_simple_lock(__cpu_simple_lock_t *lockp);
+void __cpu_simple_unlock(__cpu_simple_lock_t *lockp);
+int __cpu_simple_lock_try(__cpu_simple_lock_t *lockp);
 
 #if 0
 #define	ALIGN64		.align	64
@@ -74,6 +86,16 @@ void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 void
 mutex_enter(kmutex_t *mtx)
 {
+	if ((mtx->u.mtxa_owner & MUTEX_BIT_SPIN) != 0) {
+		__cpu_simple_lock(&mtx->u.s.mtxs_lock);
+		return;
+	}
+
+	uintptr_t lwp = (uintptr_t)curlwp;
+	uintptr_t old;
+	old = atomic_cmpxchg32(&mtx->u.mtxa_owner, 0, (uint32_t)lwp);
+	if (old == 0 || old == lwp)
+		return;
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
 	xorl	%eax, %eax
@@ -100,6 +122,17 @@ mutex_enter(kmutex_t *mtx)
 void
 mutex_exit(kmutex_t *mtx)
 {
+	if ((mtx->u.mtxa_owner & MUTEX_BIT_SPIN) != 0) {
+		__cpu_simple_unlock(&mtx->u.s.mtxs_lock);
+		return;
+	}
+
+	uintptr_t lwp = (uintptr_t)curlwp;
+	uintptr_t old;
+	old = atomic_cmpxchg32(&mtx->u.mtxa_owner, (uint32_t)lwp, 0);
+	if (old == lwp)
+		return;
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
 	xorl	%ecx, %ecx
@@ -121,6 +154,8 @@ mutex_exit(kmutex_t *mtx)
 void
 rw_enter(krwlock_t *rwl, krw_t op)
 {
+	// TODO: wasm; implement real rw locking..
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
 	cmpl	$RW_READER, 8(%esp)
@@ -154,7 +189,7 @@ rw_enter(krwlock_t *rwl, krw_t op)
 3:
 	jmp	_C_LABEL(rw_vector_enter)
 #endif
-    __panic_abort();
+    //__panic_abort();
 }
 
 /*
@@ -165,6 +200,25 @@ rw_enter(krwlock_t *rwl, krw_t op)
 void
 rw_exit(krwlock_t *rwl)
 {
+	// TODO: wasm; implement real rw locking..
+
+#if 0
+	uintptr_t owner;
+	uintptr_t newv;
+	uintptr_t oldv;
+
+	owner = atomic_load32(&rwl->rw_owner);
+
+	if ((owner & RW_WRITE_LOCKED) != 0) {
+		uintptr_t lwp = owner & RW_THREAD;
+		if (lwp == (uintptr_t)curlwp) {
+			newv = owner & ~RW_THREAD;
+			oldv = atomic_cmpxchg32(&rwl->rw_owner, owner, newv);
+			// this should not be possible..
+		}
+	}
+#endif
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
 	movl	(%edx), %eax
@@ -202,7 +256,6 @@ rw_exit(krwlock_t *rwl)
 	 */
 3:	jmp	_C_LABEL(rw_vector_exit)
 #endif
-    __panic_abort();
 }
 
 /*
@@ -213,6 +266,8 @@ rw_exit(krwlock_t *rwl)
 int
 rw_tryenter(krwlock_t *rwl, krw_t op)
 {
+	// TODO: wasm; implement real rw locking..
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
 	cmpl	$RW_READER, 8(%esp)
@@ -251,7 +306,7 @@ rw_tryenter(krwlock_t *rwl, krw_t op)
 	xorl	%eax, %eax
 	jmp	3b
 #endif
-    __panic_abort();
+    //__panic_abort();
 	return 0;
 }
 
@@ -287,7 +342,10 @@ mutex_spin_enter(kmutex_t *mtx)
 	ALIGN64
 LABEL(mutex_spin_enter_end)
 #endif
-    __panic_abort();
+
+	// TODO: wasm; fix spin lock
+
+    //__panic_abort();
 }
 
 #ifndef XENPV
@@ -318,7 +376,9 @@ mutex_spin_exit(kmutex_t *mtx)
 	.space	32, 0xCC
 	.align	32
 #endif
-    __panic_abort();
+    //__panic_abort();
+
+	// TODO: wasm; fix spin lock
 }
 #else  /* XENPV */
 __t__ mutex_spin_exit(__t__) __attribute__((alias("i686_mutex_spin_exit")))
@@ -387,17 +447,29 @@ LABEL(i686_mutex_spin_exit_end)
 void
 __cpu_simple_lock_init(__cpu_simple_lock_t *lockp)
 {
-#if 0 // TODO: wasm fixme
-	movl	4(%esp), %edx
-	movb	$0, (%edx)
-	ret
-#endif
-    __panic_abort();
+	*lockp = 0;
 }
 
 void
 __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 {
+	uint32_t count = 0;
+	uint8_t old;
+	old = atomic_cmpxchg8(lockp, 0, 1);
+	if (old == 0)
+		return;
+	
+	while (true) {
+		wasm_inst_nop();
+		wasm_inst_nop();
+		old = atomic_cmpxchg8(lockp, 0, 1);
+		if (old == 0)
+			return;
+		if (count > 0xf00000)
+			__panic_abort();
+		count++;
+	}
+
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
 	movl	$0x0100, %eax
@@ -421,27 +493,14 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 void
 __cpu_simple_unlock(__cpu_simple_lock_t *lockp)
 {
-#if 0 // TODO: wasm fixme
-	movl	4(%esp), %edx
-	movb	$0, (%edx)
-	ret
-#endif
-    __panic_abort();
+	atomic_store8(lockp, 0);
 }
 
 int
 __cpu_simple_lock_try(__cpu_simple_lock_t *lockp)
 {
-#if 0 // TODO: wasm fixme
-	movl	4(%esp), %edx
-	movl	$0x0100, %eax
-	LOCK(7)
-	cmpxchgb %ah, (%edx)
-	movl	$0, %eax
-	setz	%al
-	RET(8)
-#endif
-    __panic_abort();
-	return 0;
+	uint8_t old;
+	old = atomic_cmpxchg8(lockp, 0, 1);
+	return old == 0 ? true : false;
 }
 

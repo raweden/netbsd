@@ -525,6 +525,7 @@ static struct {
 	uint64_t limit;
 } x86_freelists[VM_NFREELIST] = {
 	{ VM_FREELIST_DEFAULT, 0 },
+#ifndef __WASM
 #ifdef VM_FREELIST_FIRST1T
 	/* 40-bit addresses needed for modern graphics. */
 	{ VM_FREELIST_FIRST1T,	1ULL * 1024 * 1024 * 1024 * 1024 },
@@ -541,6 +542,7 @@ static struct {
 	{ VM_FREELIST_FIRST1G,	1ULL * 1024 * 1024 * 1024 },
 	/* 24-bit addresses needed for ISA DMA. */
 	{ VM_FREELIST_FIRST16,	16 * 1024 * 1024 },
+#endif
 };
 
 int
@@ -757,6 +759,9 @@ x86_fake_clusters(void)
 	phys_ram_seg_t *cluster;
 	KASSERT(mem_cluster_cnt == 0);
 
+	printf("iomem_ex: %p", iomem_ex);
+	printf("start %d biosbasemem: %d kb (%lu bytes)", 0, biosbasemem, KBTOB(biosbasemem));
+
 	/*
 	 * Allocate the physical addresses used by RAM from the iomem extent
 	 * map. This is done before the addresses are page rounded just to make
@@ -772,6 +777,9 @@ x86_fake_clusters(void)
 	cluster->start = 0;
 	cluster->size = trunc_page(KBTOB(biosbasemem));
 	physmem += atop(cluster->size);
+
+	printf("iomem_ex: %p", iomem_ex);
+	printf("start %d size; (biosextmem): %d kb (%lu bytes)", IOM_END, biosextmem, KBTOB(biosextmem));
 
 	if (extent_alloc_region(iomem_ex, IOM_END, KBTOB(biosextmem),
 	    EX_NOWAIT)) {

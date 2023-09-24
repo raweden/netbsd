@@ -186,12 +186,16 @@ void
 uvm_proc_fork(struct proc *p1, struct proc *p2, bool shared)
 {
 
+#ifndef __WASM
 	if (shared == true) {
 		p2->p_vmspace = NULL;
 		uvmspace_share(p1, p2);
 	} else {
 		p2->p_vmspace = uvmspace_fork(p1->p_vmspace);
 	}
+#else
+	p2->p_vmspace = NULL;
+#endif
 
 	cpu_proc_fork(p1, p2);
 }

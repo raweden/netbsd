@@ -378,6 +378,7 @@ uvm_page_init(vaddr_t *kvm_startp, vaddr_t *kvm_endp)
 	     uvm_physseg_valid_p(bank) ;
 	     bank = uvm_physseg_get_next(bank)) {
 		freepages += (uvm_physseg_get_end(bank) - uvm_physseg_get_start(bank));
+		printf("%s freepages: %lu (start: %lu end: %lu )", __func__, freepages, uvm_physseg_get_start(bank), uvm_physseg_get_end(bank));
 	}
 
 	/*

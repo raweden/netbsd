@@ -94,12 +94,14 @@ SPINLOCK_INLINE int
 __cpu_simple_lock_try(__cpu_simple_lock_t *lockp)
 {
 	uint8_t val;
-
+#ifndef __WASM
+	// TODO: FIXME
 	val = __SIMPLELOCK_LOCKED;
 	__asm volatile ("xchgb %0,(%2)" : 
 	    "=qQ" (val)
 	    :"0" (val), "r" (lockp));
 	__insn_barrier();
+#endif
 	return val == __SIMPLELOCK_UNLOCKED;
 }
 
