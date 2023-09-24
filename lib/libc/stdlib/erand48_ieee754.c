@@ -25,7 +25,7 @@ __RCSID("$NetBSD: erand48_ieee754.c,v 1.2 2006/03/31 11:42:31 drochner Exp $");
 
 #include "rand48.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(erand48,_erand48)
 #endif
 

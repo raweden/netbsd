@@ -37,7 +37,7 @@ __RCSID("$NetBSD: inet_neta.c,v 1.3 2012/06/25 22:32:44 abs Exp $");
 #include <stdio.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_neta,_inet_neta)
 #endif
 

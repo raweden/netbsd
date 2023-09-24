@@ -9,7 +9,7 @@
 #include <limits.h>
 #include <compat/include/dirent.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(readdir,_readdir)
 __weak_alias(readdir_r,_readdir_r)
 #endif

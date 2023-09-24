@@ -16,7 +16,7 @@ __RCSID("$NetBSD: l64a.c,v 1.14 2012/03/13 21:13:48 christos Exp $");
 #include <errno.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(l64a,_l64a)
 __weak_alias(l64a_r,_l64a_r)
 #endif

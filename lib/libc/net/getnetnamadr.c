@@ -72,7 +72,7 @@ __RCSID("$NetBSD: getnetnamadr.c,v 1.45 2020/06/05 11:16:15 nia Exp $");
 #include <rpcsvc/ypclnt.h>
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getnetbyaddr,_getnetbyaddr)
 __weak_alias(getnetbyname,_getnetbyname)
 #endif

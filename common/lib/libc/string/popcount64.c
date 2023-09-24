@@ -82,7 +82,7 @@ __strong_alias(popcountl, popcount64)
 #endif
 
 #if ULLONG_MAX == 0xffffffffffffffffULL
-__strong_alias(popcountll, popcount64)
+unsigned int popcountll(uint64_t v) __attribute__((alias("popcount64")));
 #endif
 
 #endif /* !popcount64 */

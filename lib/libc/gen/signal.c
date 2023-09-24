@@ -44,7 +44,7 @@ __RCSID("$NetBSD: signal.c,v 1.14 2016/06/03 23:57:37 christos Exp $");
 #include "namespace.h"
 #include <signal.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(signal,_signal)
 #endif
 

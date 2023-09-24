@@ -49,7 +49,7 @@ __RCSID("$NetBSD: execvp.c,v 1.31 2014/09/26 19:28:03 christos Exp $");
 #include <paths.h>
 #include "reentrant.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(execvp,_execvp)
 __weak_alias(execvpe,_execvpe)
 #endif

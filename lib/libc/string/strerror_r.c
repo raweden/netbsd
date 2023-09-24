@@ -48,7 +48,9 @@ __RCSID("$NetBSD: strerror_r.c,v 1.5 2020/03/25 16:15:41 kre Exp $");
 
 #include "extern.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strerror_r, _strerror_r)
+#endif
 
 int
 _strerror_lr(int num, char *buf, size_t buflen, locale_t loc)

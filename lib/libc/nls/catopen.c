@@ -61,8 +61,10 @@ __RCSID("$NetBSD: catopen.c,v 1.33 2014/09/16 01:30:28 christos Exp $");
 #define NLS_DEFAULT_PATH "/usr/share/nls/%L/%N.cat:/usr/share/nls/%N/%L"
 #define NLS_DEFAULT_LANG "C"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(catopen, _catopen)
 __weak_alias(catopen_l, _catopen_l)
+#endif
 
 static nl_catd load_msgcat(const char *);
 

@@ -49,7 +49,7 @@ __RCSID("$NetBSD: compat_aio_suspend.c,v 1.2 2009/01/11 02:46:26 christos Exp $"
 __warn_references(aio_suspend,
     "warning: reference to compatibility aio_suspend(); include <aio.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(aio_suspend, _aio_suspend)
 __weak_alias(_sys_aio_suspend, _aio_suspend)
 #endif

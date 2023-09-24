@@ -91,7 +91,7 @@ __RCSID("$NetBSD: res_mkquery.c,v 1.16 2017/09/28 23:32:01 christos Exp $");
 #include "port_after.h"
 
 #if 0
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(res_nmkquery,_res_nmkquery)
 __weak_alias(res_nopt,_res_nopt)
 #endif

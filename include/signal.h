@@ -46,13 +46,28 @@
 
 __BEGIN_DECLS
 #if defined(_NETBSD_SOURCE)
+#ifdef __WASM
+#define sys_signame __sys_signame14
+extern const char *const *sys_signame;
+#else
 extern const char *const *sys_signame __RENAME(__sys_signame14);
+#endif
 #ifndef __SYS_SIGLIST_DECLARED
 #define __SYS_SIGLIST_DECLARED
 /* also in unistd.h */
+#ifdef __WASM
+#define sys_siglist __sys_siglist14
+extern const char *const *sys_siglist;
+#else
 extern const char *const *sys_siglist __RENAME(__sys_siglist14);
+#endif
 #endif /* __SYS_SIGLIST_DECLARED */
+#ifdef __WASM
+#define sys_nsig __sys_nsig14
+extern const int sys_nsig;
+#else
 extern const int sys_nsig __RENAME(__sys_nsig14);
+#endif
 #endif
 
 int	raise(int);
@@ -82,6 +97,29 @@ int	__libc_thr_sigsetmask(int, const sigset_t * __restrict,
 #endif
 
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#if 0
+#define sigaction __sigaction_siginfo
+#define sigaddset __sigaddset14
+#define sigdelset __sigdelset14
+#define sigemptyset __sigemptyset14
+#define sigfillset __sigfillset14
+#define sigismember __sigismember14
+#define sigpending __sigpending14
+#define sigprocmask __sigprocmask14
+#define sigsuspend __sigsuspend14
+#endif
+int	sigaction(int, const struct sigaction * __restrict,
+	    struct sigaction * __restrict);
+int	sigaddset(sigset_t *, int);
+int	sigdelset(sigset_t *, int);
+int	sigemptyset(sigset_t *);
+int	sigfillset(sigset_t *);
+int	sigismember(const sigset_t *, int);
+int	sigpending(sigset_t *);
+int	sigprocmask(int, const sigset_t * __restrict, sigset_t * __restrict);
+int	sigsuspend(const sigset_t *);
+#else
 int	sigaction(int, const struct sigaction * __restrict,
 	    struct sigaction * __restrict) __RENAME(__sigaction_siginfo);
 int	sigaddset(sigset_t *, int) __RENAME(__sigaddset14);
@@ -93,6 +131,7 @@ int	sigpending(sigset_t *) __RENAME(__sigpending14);
 int	sigprocmask(int, const sigset_t * __restrict, sigset_t * __restrict)
 	    __RENAME(__sigprocmask14);
 int	sigsuspend(const sigset_t *) __RENAME(__sigsuspend14);
+#endif
 
 #if defined(__c99inline) || defined(__SIGSETOPS_BODY)
 
@@ -170,8 +209,13 @@ int	killpg(pid_t, int);
 int	siginterrupt(int, int);
 int	sigstack(const struct sigstack *, struct sigstack *);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define sigaltstack __sigaltstack14
+int	sigaltstack(const stack_t * __restrict, stack_t * __restrict);
+#else
 int	sigaltstack(const stack_t * __restrict, stack_t * __restrict)
     __RENAME(__sigaltstack14);
+#endif
 #endif
 int	sighold(int);
 int	sigignore(int);
@@ -194,12 +238,21 @@ void	psiginfo(const siginfo_t *, const char *);
 
 #ifndef __LIBC12_SOURCE__
 #include <sys/timespec.h>
+#ifdef __WASM
+#define sigtimedwait __sigtimedwait50
+#define __sigtimedwait ____sigtimedwait50
+int	sigtimedwait(const sigset_t * __restrict,
+    siginfo_t * __restrict, const struct timespec * __restrict);
+int	__sigtimedwait(const sigset_t * __restrict,
+    siginfo_t * __restrict, struct timespec * __restrict);
+#else
 int	sigtimedwait(const sigset_t * __restrict,
     siginfo_t * __restrict, const struct timespec * __restrict)
     __RENAME(__sigtimedwait50);
 int	__sigtimedwait(const sigset_t * __restrict,
     siginfo_t * __restrict, struct timespec * __restrict)
     __RENAME(____sigtimedwait50);
+#endif
 #endif
 #endif /* _POSIX_C_SOURCE >= 200112 || _XOPEN_SOURCE_EXTENDED || ... */
 

@@ -67,7 +67,7 @@ __RCSID("$NetBSD: regcomp.c,v 1.47 2022/12/21 17:44:15 wiz Exp $");
 #include <regex.h>
 #include <stdbool.h>
 
-#if defined(__weak_alias) && !defined(LIBHACK)
+#if defined(__weak_alias) && !defined(LIBHACK) && !defined (__WASM)
 __weak_alias(regcomp,_regcomp)
 #endif
 

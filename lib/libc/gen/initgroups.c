@@ -47,7 +47,7 @@ __RCSID("$NetBSD: initgroups.c,v 1.22 2012/06/25 22:32:43 abs Exp $");
 #include <stdlib.h>
 #include <errno.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(initgroups,_initgroups)
 #endif
 

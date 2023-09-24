@@ -48,7 +48,7 @@ __RCSID("$NetBSD: isnand_ieee754.c,v 1.2 2021/08/09 20:49:09 andvar Exp $");
 #include <math.h>
 
 /* libc.so.12 ABI compatibility */
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(isnan,__isnand)
 #endif
 

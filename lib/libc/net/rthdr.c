@@ -46,7 +46,7 @@ __RCSID("$NetBSD: rthdr.c,v 1.19 2019/05/29 02:30:42 msaitoh Exp $");
 #include <string.h>
 #include <stdio.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet6_rthdr_add,_inet6_rthdr_add)
 __weak_alias(inet6_rthdr_getaddr,_inet6_rthdr_getaddr)
 __weak_alias(inet6_rthdr_getflags,_inet6_rthdr_getflags)

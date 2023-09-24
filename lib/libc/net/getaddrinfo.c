@@ -96,7 +96,7 @@ __RCSID("$NetBSD: getaddrinfo.c,v 1.123 2022/04/19 20:32:15 rillig Exp $");
 #include "servent.h"
 
 #ifndef RUMP_ACTION
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getaddrinfo,_getaddrinfo)
 __weak_alias(allocaddrinfo,_allocaddrinfo)
 __weak_alias(freeaddrinfo,_freeaddrinfo)
@@ -1692,9 +1692,6 @@ ip6_str2scopeid(char *scope, struct sockaddr_in6 *sin6, u_int32_t *scopeid)
 
 /* code duplicate with gethnamaddr.c */
 
-static const char AskedForGot[] =
-	"gethostby*.getanswer: asked for \"%s\", got \"%s\"";
-
 #define maybe_ok(res, nm, ok) (((res)->options & RES_NOCHECKNAME) != 0U || \
                                (ok)(nm) != 0)
 static struct addrinfo *
@@ -1836,7 +1833,7 @@ getanswer(res_state res, const querybuf *answer, int anslen, const char *qname,
 			if (strcasecmp(canonname, bp) != 0) {
 				struct syslog_data sd = SYSLOG_DATA_INIT;
 				syslog_r(LOG_NOTICE|LOG_AUTH, &sd,
-				       AskedForGot, canonname, bp);
+				       "gethostby*.getanswer: asked for \"%s\", got \"%s\"", canonname, bp);
 				cp += n;
 				continue;	/* XXX - had_error++ ? */
 			}

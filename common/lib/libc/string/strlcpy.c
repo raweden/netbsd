@@ -36,7 +36,7 @@ __RCSID("$NetBSD: strlcpy.c,v 1.3 2007/06/04 18:19:27 christos Exp $");
 
 #ifdef _LIBC
 # ifdef __weak_alias
-__weak_alias(strlcpy, _strlcpy)
+size_t _strlcpy(char *, const char *, size_t) __attribute__((weak, alias("strlcpy")));
 # endif
 #endif
 #else

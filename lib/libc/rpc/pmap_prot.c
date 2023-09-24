@@ -56,7 +56,7 @@ __RCSID("$NetBSD: pmap_prot.c,v 1.12 2013/03/11 20:19:29 tron Exp $");
 #include <rpc/xdr.h>
 #include <rpc/pmap_prot.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_pmap,_xdr_pmap)
 #endif
 

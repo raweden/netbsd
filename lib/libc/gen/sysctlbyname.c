@@ -44,7 +44,7 @@ __RCSID("$NetBSD: sysctlbyname.c,v 1.7 2010/12/13 23:10:13 pooka Exp $");
 #include <rump/rump_syscalls.h>
 #define sysctl(a,b,c,d,e,f) rump_sys___sysctl(a,b,c,d,e,f)
 #else
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sysctlbyname,_sysctlbyname)
 #endif
 #endif

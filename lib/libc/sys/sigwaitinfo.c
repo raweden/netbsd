@@ -40,7 +40,7 @@ __RCSID("$NetBSD: sigwaitinfo.c,v 1.3 2012/03/20 16:26:12 matt Exp $");
 #include <unistd.h>
 #include <signal.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sigwaitinfo,_sigwaitinfo)
 #endif
 

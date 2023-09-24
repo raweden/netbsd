@@ -52,7 +52,7 @@ __RCSID("$NetBSD: getttyent.c,v 1.26 2013/06/30 10:07:43 martin Exp $");
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endttyent,_endttyent)
 __weak_alias(getttyent,_getttyent)
 __weak_alias(getttynam,_getttynam)

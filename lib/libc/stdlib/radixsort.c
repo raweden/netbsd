@@ -61,7 +61,7 @@ __RCSID("$NetBSD: radixsort.c,v 1.22 2022/03/12 17:31:39 christos Exp $");
 #include <errno.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(radixsort,_radixsort)
 __weak_alias(sradixsort,_sradixsort)
 #endif

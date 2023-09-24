@@ -90,7 +90,7 @@ __RCSID("$NetBSD: res_comp.c,v 1.14 2022/01/24 09:14:36 andvar Exp $");
 #include <unistd.h>
 #include "port_after.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(dn_expand,_dn_expand)
 __weak_alias(dn_comp,__dn_comp)
 #if 0

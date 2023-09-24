@@ -42,7 +42,7 @@ __RCSID("$NetBSD: initfini.c,v 1.16 2023/07/18 11:44:32 riastradh Exp $");
 #include <stdbool.h>
 #include "csu-common.h"
 
-void	_libc_init(void) __attribute__((__constructor__, __used__));
+//void	_libc_init(void) __attribute__((__constructor__));
 
 void	__guard_setup(void);
 void	__libc_thr_init(void);
@@ -54,12 +54,27 @@ void	__libc_env_init(void);
 __dso_hidden void	__libc_static_tls_setup(void);
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(_dlauxinfo,___dlauxinfo)
 static void *__libc_dlauxinfo;
 
 void *___dlauxinfo(void) __pure;
 __weakref_visible void * real_dlauxinfo(void) __weak_reference(_dlauxinfo);
+
+void *
+___dlauxinfo(void)
+{
+	return __libc_dlauxinfo;
+}
+#endif
+#ifdef __WASM 
+#undef __common
+#define __common
+void *_dlauxinfo(void) __attribute__((weak, alias("___dlauxinfo")));
+static void *__libc_dlauxinfo;
+
+void *___dlauxinfo(void);
+void *real_dlauxinfo(void) __attribute__((weak, alias("___dlauxinfo")));
 
 void *
 ___dlauxinfo(void)
@@ -102,7 +117,10 @@ char **environ __common;
  * environment with ASLR this can cause the assignment of
  * __libc_dlauxinfo to receive SIGSEGV.
  */
-void __section(".text.startup")
+void
+#ifndef __WASM
+__section(".text.startup")
+#endif
 _libc_init(void)
 {
 

@@ -37,7 +37,7 @@ __RCSID("$NetBSD: fparseln.c,v 1.10 2009/10/21 01:07:45 snj Exp $");
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fparseln,_fparseln)
 #endif
 

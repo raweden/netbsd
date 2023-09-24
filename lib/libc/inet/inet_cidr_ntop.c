@@ -43,7 +43,7 @@ __RCSID("$NetBSD: inet_cidr_ntop.c,v 1.8 2012/03/13 21:13:38 christos Exp $");
 
 #include "port_after.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_cidr_ntop,_inet_cidr_ntop)
 #endif
 

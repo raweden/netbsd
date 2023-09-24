@@ -45,7 +45,7 @@ __RCSID("$NetBSD: inet_ntop.c,v 1.12 2018/03/02 06:31:53 lukem Exp $");
 
 #include "port_after.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_ntop,_inet_ntop)
 #endif
 

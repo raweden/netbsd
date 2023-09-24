@@ -31,7 +31,7 @@ __RCSID("$NetBSD: ethers.c,v 1.25 2014/09/18 13:58:20 christos Exp $");
 #include <rpcsvc/ypclnt.h>
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ether_aton,_ether_aton)
 __weak_alias(ether_hostton,_ether_hostton)
 __weak_alias(ether_line,_ether_line)

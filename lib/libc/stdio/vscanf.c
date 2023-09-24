@@ -50,7 +50,9 @@ __RCSID("$NetBSD: vscanf.c,v 1.16 2018/02/04 01:13:45 mrg Exp $");
 #include "reentrant.h"
 #include "local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vscanf_l, _vscanf_l)
+#endif
 
 int
 vscanf(const char *fmt, va_list ap)

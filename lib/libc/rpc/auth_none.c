@@ -58,7 +58,7 @@ __RCSID("$NetBSD: auth_none.c,v 1.16 2013/03/11 20:19:28 tron Exp $");
 #include <rpc/xdr.h>
 #include <rpc/auth.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(authnone_create,_authnone_create)
 #endif
 

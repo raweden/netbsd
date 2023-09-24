@@ -22,7 +22,7 @@
 #define	CONCAT(x,y)	__CONCAT(x,y)
 #define	MDNAME(x)	CONCAT(MDALGORITHM,x)
 
-#if !defined(_KERNEL) && defined(__weak_alias) && !defined(HAVE_NBTOOL_CONFIG_H)
+#if !defined(_KERNEL) && defined(__weak_alias) && !defined(HAVE_NBTOOL_CONFIG_H) && !defined (__WASM)
 #define	WA(a,b)	__weak_alias(a,b)
 WA(MDNAME(End),CONCAT(_,MDNAME(End)))
 WA(MDNAME(File),CONCAT(_,MDNAME(File)))

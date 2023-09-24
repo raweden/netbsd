@@ -282,8 +282,15 @@ int	 rename (const char *, const char *);
 __END_DECLS
 
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define fgetpos __fgetpos50
+#define fsetpos __fsetpos50
+int	 fgetpos(FILE * __restrict, fpos_t * __restrict);
+int	 fsetpos(FILE *, const fpos_t *);
+#else
 int	 fgetpos(FILE * __restrict, fpos_t * __restrict) __RENAME(__fgetpos50);
 int	 fsetpos(FILE *, const fpos_t *) __RENAME(__fsetpos50);
+#endif
 #endif
 /*
  * IEEE Std 1003.1-90

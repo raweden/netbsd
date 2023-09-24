@@ -54,9 +54,7 @@ __RCSID("$NetBSD: sysconf.c,v 1.43 2019/12/15 20:25:25 joerg Exp $");
 #include <paths.h>
 #include <pwd.h>
 
-#ifdef __weak_alias
-__weak_alias(sysconf,__sysconf)
-#endif
+long __sysconf(int name) __attribute__((weak, alias("sysconf")));
 
 /*
  * sysconf --

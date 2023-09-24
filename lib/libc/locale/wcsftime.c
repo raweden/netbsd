@@ -39,7 +39,9 @@ __RCSID("$NetBSD: wcsftime.c,v 1.5 2013/08/19 20:41:15 joerg Exp $");
 
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(wcsftime_l, _wcsftime_l)
+#endif
 
 /*
  * Convert date and time to a wide-character string.

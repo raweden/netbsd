@@ -84,7 +84,7 @@ __RCSID("$NetBSD: nlist.c,v 1.25 2014/09/18 13:58:20 christos Exp $");
 #include <nlist.h>
 
 #if 0
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(nlist,_nlist)
 #endif
 #endif

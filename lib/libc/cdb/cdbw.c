@@ -117,14 +117,12 @@ fast_remainder32(uint32_t v, uint32_t div, uint32_t m, uint8_t s1,
 }
 #endif
 
-#ifdef __weak_alias
-__weak_alias(cdbw_close,_cdbw_close)
-__weak_alias(cdbw_open,_cdbw_open)
-__weak_alias(cdbw_output,_cdbw_output)
-__weak_alias(cdbw_put,_cdbw_put)
-__weak_alias(cdbw_put_data,_cdbw_put_data)
-__weak_alias(cdbw_put_key,_cdbw_put_key)
-#endif
+void _cdbw_close(struct cdbw *cdbw) __attribute__((weak, alias("cdbw_close")));
+struct cdbw *_cdbw_open(void) __attribute__((weak, alias("cdbw_open")));
+int _cdbw_output(struct cdbw *cdbw, int fd, const char descr[16], uint32_t (*seedgen)(void)) __attribute__((weak, alias("cdbw_output")));
+int _cdbw_put(struct cdbw *cdbw, const void *key, size_t keylen, const void *data, size_t datalen) __attribute__((weak, alias("cdbw_put")));
+int _cdbw_put_data(struct cdbw *cdbw, const void *data, size_t datalen, uint32_t *idx) __attribute__((weak, alias("cdbw_put_data")));
+int _cdbw_put_key(struct cdbw *cdbw, const void *key, size_t keylen, uint32_t idx) __attribute__((weak, alias("cdbw_put_key")));
 
 struct key_hash {
 	SLIST_ENTRY(key_hash) link;

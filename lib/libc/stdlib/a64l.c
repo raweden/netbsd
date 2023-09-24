@@ -13,7 +13,7 @@ __RCSID("$NetBSD: a64l.c,v 1.10 2012/06/08 11:15:26 abs Exp $");
 #include <assert.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(a64l,_a64l)
 #endif
 

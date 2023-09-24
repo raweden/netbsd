@@ -50,7 +50,7 @@ __RCSID("$NetBSD: xdr_sizeof.c,v 1.5 2013/03/11 20:19:30 tron Exp $");
 #include <sys/types.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_sizeof,_xdr_sizeof)
 #endif 
 

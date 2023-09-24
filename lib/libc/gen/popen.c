@@ -58,7 +58,7 @@ __RCSID("$NetBSD: popen.c,v 1.38 2022/04/19 20:32:15 rillig Exp $");
 
 #include "env.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(popen,_popen)
 __weak_alias(pclose,_pclose)
 #endif

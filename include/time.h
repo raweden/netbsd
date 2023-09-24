@@ -90,12 +90,27 @@ __BEGIN_DECLS
 char *asctime(const struct tm *);
 clock_t clock(void);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define ctime __ctime50
+#define difftime __difftime50
+#define gmtime __gmtime50
+#define localtime __locatime50
+#define time __time50
+#define mktime __mktime50
+char *ctime(const time_t *);
+double difftime(time_t, time_t);
+struct tm *gmtime(const time_t *);
+struct tm *localtime(const time_t *);
+time_t time(time_t *);
+time_t mktime(struct tm *);
+#else
 char *ctime(const time_t *) __RENAME(__ctime50);
 double difftime(time_t, time_t) __RENAME(__difftime50);
 struct tm *gmtime(const time_t *) __RENAME(__gmtime50);
 struct tm *localtime(const time_t *) __RENAME(__locatime50);
 time_t time(time_t *) __RENAME(__time50);
 time_t mktime(struct tm *) __RENAME(__mktime50);
+#endif
 #endif
 size_t strftime(char * __restrict, size_t, const char * __restrict,
     const struct tm * __restrict)
@@ -116,7 +131,12 @@ long __sysconf(int);
 
 extern __aconst char *tzname[2];
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define tzset __tzset50
+void tzset(void);
+#else
 void tzset(void) __RENAME(__tzset50);
+#endif
 #endif
 
 /*
@@ -125,7 +145,12 @@ void tzset(void) __RENAME(__tzset50);
 #if defined(_XOPEN_SOURCE) || defined(_NETBSD_SOURCE)
 extern int daylight;
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define timezone __timezone13
+extern long int timezone;
+#else
 extern long int timezone __RENAME(__timezone13);
+#endif
 #endif
 char *strptime(const char * __restrict, const char * __restrict,
     struct tm * __restrict);
@@ -147,17 +172,28 @@ struct sigevent;
 struct itimerspec;
 int clock_nanosleep(clockid_t, int, const struct timespec *, struct timespec *);
 #ifndef __LIBC12_SOURCE__
-int clock_getres(clockid_t, struct timespec *)
-    __RENAME(__clock_getres50);
-int clock_gettime(clockid_t, struct timespec *)
-    __RENAME(__clock_gettime50);
-int clock_settime(clockid_t, const struct timespec *)
-    __RENAME(__clock_settime50);
-int nanosleep(const struct timespec *, struct timespec *)
-    __RENAME(__nanosleep50);
+#ifdef __WASM
+#define clock_getres __clock_getres50
+#define clock_gettime __clock_gettime50
+#define clock_settime __clock_settime50
+#define nanosleep __nanosleep50
+#define timer_gettime __timer_gettime50
+#define timer_settime __timer_settime50
+int clock_getres(clockid_t, struct timespec *);
+int clock_gettime(clockid_t, struct timespec *);
+int clock_settime(clockid_t, const struct timespec *);
+int nanosleep(const struct timespec *, struct timespec *);
+int timer_gettime(timer_t, struct itimerspec *);
+int timer_settime(timer_t, int, const struct itimerspec * __restrict,  struct itimerspec * __restrict);
+#else
+int clock_getres(clockid_t, struct timespec *) __RENAME(__clock_getres50);
+int clock_gettime(clockid_t, struct timespec *) __RENAME(__clock_gettime50);
+int clock_settime(clockid_t, const struct timespec *) __RENAME(__clock_settime50);
+int nanosleep(const struct timespec *, struct timespec *) __RENAME(__nanosleep50);
 int timer_gettime(timer_t, struct itimerspec *) __RENAME(__timer_gettime50);
 int timer_settime(timer_t, int, const struct itimerspec * __restrict, 
     struct itimerspec * __restrict) __RENAME(__timer_settime50);
+#endif
 #endif
 #ifdef _NETBSD_SOURCE
 #include <sys/idtype.h>
@@ -175,11 +211,20 @@ int timer_getoverrun(timer_t);
     defined(_REENTRANT) || defined(_NETBSD_SOURCE)
 char *asctime_r(const struct tm * __restrict, char * __restrict);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define ctime_r __ctime_r50
+#define gmtime_r __gmtime_r50
+#define localtime_r __localtime_r50
+char *ctime_r(const time_t *, char *);
+struct tm *gmtime_r(const time_t * __restrict, struct tm * __restrict);
+struct tm *localtime_r(const time_t * __restrict, struct tm * __restrict);
+#else
 char *ctime_r(const time_t *, char *) __RENAME(__ctime_r50);
 struct tm *gmtime_r(const time_t * __restrict, struct tm * __restrict)
     __RENAME(__gmtime_r50);
 struct tm *localtime_r(const time_t * __restrict, struct tm * __restrict)
     __RENAME(__localtime_r50);
+#endif
 #endif
 #endif
 
@@ -198,6 +243,44 @@ size_t strftime_l(char * __restrict, size_t, const char * __restrict,
 typedef struct __state *timezone_t;
 
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define time2posix __time2posix50
+#define posix2time __posix2time50
+#define timegm __timegm50
+#define timeoff __timeoff50
+#define timelocal __timelocal50
+#define offtime __offtime50
+#define tzsetwall __tzsetwall50
+#define offtime_r __offtime_r50
+#define localtime_rz __localtime_rz50
+#define ctime_rz __ctime_rz50
+#define mktime_z __mktime_z50
+#define timelocal_z __timelocal_z50
+#define time2posix_z __time2posix_z50
+#define posix2time_z __posix2time_z50
+#define tzalloc __tzalloc50
+#define tzfree __tzfree50
+#define tzgetname __tzgetname50
+#define tzgetgmtoff __tzgetgmtoff50
+time_t time2posix(time_t);
+time_t posix2time(time_t);
+time_t timegm(struct tm *);
+time_t timeoff(struct tm *, long);
+time_t timelocal(struct tm *);
+struct tm *offtime(const time_t *, long);
+void tzsetwall(void);
+struct tm *offtime_r(const time_t *, long, struct tm *);
+struct tm *localtime_rz(timezone_t __restrict, const time_t * __restrict, struct tm * __restrict);
+char *ctime_rz(timezone_t __restrict, const time_t *, char *);
+time_t mktime_z(timezone_t __restrict, struct tm * __restrict);
+time_t timelocal_z(timezone_t __restrict, struct tm *);
+time_t time2posix_z(timezone_t __restrict, time_t);
+time_t posix2time_z(timezone_t __restrict, time_t);
+timezone_t tzalloc(const char *);
+void tzfree(timezone_t __restrict);
+const char *tzgetname(timezone_t __restrict, int);
+long tzgetgmtoff(timezone_t __restrict, int);
+#else
 time_t time2posix(time_t) __RENAME(__time2posix50);
 time_t posix2time(time_t) __RENAME(__posix2time50);
 time_t timegm(struct tm *) __RENAME(__timegm50);
@@ -221,6 +304,7 @@ timezone_t tzalloc(const char *) __RENAME(__tzalloc50);
 void tzfree(timezone_t __restrict) __RENAME(__tzfree50);
 const char *tzgetname(timezone_t __restrict, int) __RENAME(__tzgetname50);
 long tzgetgmtoff(timezone_t __restrict, int) __RENAME(__tzgetgmtoff50);
+#endif
 #endif
 
 size_t strftime_lz(timezone_t __restrict, char * __restrict, size_t,

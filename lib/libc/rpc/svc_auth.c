@@ -57,7 +57,7 @@ __RCSID("$NetBSD: svc_auth.c,v 1.18 2022/03/22 21:45:13 andvar Exp $");
 #include <assert.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(svc_auth_reg,_svc_auth_reg)
 #endif
 

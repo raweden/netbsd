@@ -48,7 +48,7 @@ __RCSID("$NetBSD: rewinddir.c,v 1.13 2010/09/26 02:26:59 yamt Exp $");
 
 #include "dirent_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(rewinddir,_rewinddir)
 #endif
 

@@ -53,7 +53,7 @@ __RCSID("$NetBSD: rpcb_st_xdr.c,v 1.12 2017/08/13 01:08:41 ginsbach Exp $");
 
 /* Link list of all the stats about getport and getaddr */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_rpcbs_addrlist,_xdr_rpcbs_addrlist)
 __weak_alias(xdr_rpcbs_rmtcalllist,_xdr_rpcbs_rmtcalllist)
 __weak_alias(xdr_rpcbs_proc,_xdr_rpcbs_proc)

@@ -69,7 +69,7 @@ struct timeval _yplib_rpc_timeout = { YPLIB_TIMEOUT / YPLIB_RPC_RETRIES,
 int _yplib_nerrs = 5;
 int _yplib_bindtries = 0;
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(yp_bind, _yp_bind)
 __weak_alias(yp_unbind, _yp_unbind)
 __weak_alias(yp_get_default_domain, _yp_get_default_domain)

@@ -139,12 +139,25 @@ typedef struct _ftsent {
 
 __BEGIN_DECLS
 #ifndef	__LIBC12_SOURCE__
+#ifdef __WASM
+#define fts_children __fts_children60
+#define fts_close __fts_close60
+#define fts_open __fts_open60
+#define fts_read __fts_read60
+#define fts_set __fts_set60
+FTSENT	*fts_children(FTS *, int);
+int	 fts_close(FTS *);
+FTS	*fts_open(char * const *, int, int (*)(const FTSENT **, const FTSENT **));
+FTSENT	*fts_read(FTS *);
+int	 fts_set(FTS *, FTSENT *, int);
+#else
 FTSENT	*fts_children(FTS *, int)		__RENAME(__fts_children60);
 int	 fts_close(FTS *)			__RENAME(__fts_close60);
 FTS	*fts_open(char * const *, int,
     int (*)(const FTSENT **, const FTSENT **))	__RENAME(__fts_open60);
 FTSENT	*fts_read(FTS *)			__RENAME(__fts_read60);
 int	 fts_set(FTS *, FTSENT *, int)		__RENAME(__fts_set60);
+#endif
 #endif
 __END_DECLS
 

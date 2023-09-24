@@ -93,7 +93,7 @@ extern	FILE 	*_nsyyin;
 extern	int	 _nsyyparse(void);
 
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(nsdispatch,_nsdispatch)
 #endif
 

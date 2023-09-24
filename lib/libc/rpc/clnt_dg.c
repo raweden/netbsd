@@ -68,7 +68,7 @@ __RCSID("$NetBSD: clnt_dg.c,v 1.32 2022/01/24 09:14:36 andvar Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(clnt_dg_create,_clnt_dg_create)
 #endif
 

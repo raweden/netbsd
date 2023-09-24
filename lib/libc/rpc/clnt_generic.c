@@ -62,7 +62,7 @@ __RCSID("$NetBSD: clnt_generic.c,v 1.33 2014/05/28 14:45:19 christos Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(clnt_create_vers,_clnt_create_vers)
 __weak_alias(clnt_create,_clnt_create)
 __weak_alias(clnt_tp_create,_clnt_tp_create)

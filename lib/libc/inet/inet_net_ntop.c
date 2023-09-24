@@ -39,7 +39,7 @@ __RCSID("$NetBSD: inet_net_ntop.c,v 1.4 2017/05/09 02:56:44 maya Exp $");
 
 #include "port_after.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_net_ntop,_inet_net_ntop)
 #endif
 

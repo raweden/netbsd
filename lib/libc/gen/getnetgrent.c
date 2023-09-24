@@ -54,7 +54,7 @@ __RCSID("$NetBSD: getnetgrent.c,v 1.43 2016/05/31 03:43:10 dholland Exp $");
 #include <rpcsvc/yp_prot.h>
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endnetgrent,_endnetgrent)
 __weak_alias(getnetgrent,_getnetgrent)
 __weak_alias(innetgr,_innetgr)

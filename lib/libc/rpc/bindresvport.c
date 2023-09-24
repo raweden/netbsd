@@ -59,7 +59,7 @@ __RCSID("$NetBSD: bindresvport.c,v 1.25 2013/03/11 20:19:28 tron Exp $");
 #include <rpc/rpc.h>
 #include "svc_fdset.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(bindresvport,_bindresvport)
 __weak_alias(bindresvport_sa,_bindresvport_sa)
 #endif

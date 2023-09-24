@@ -126,7 +126,7 @@ __RCSID("$NetBSD: getpwent.c,v 1.83 2022/04/19 20:32:15 rillig Exp $");
 
 #define	_PASSWD_COMPAT	/* "passwd" defaults to compat, so always provide it */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endpwent,_endpwent)
 __weak_alias(setpassent,_setpassent)
 __weak_alias(setpwent,_setpwent)

@@ -53,7 +53,7 @@ __RCSID("$NetBSD: ffs.c,v 1.4 2011/08/07 01:52:47 mrg Exp $");
 /*
  * ffs -- vax ffs instruction
  */
-__weak_alias(__ffssi2,ffs)
+int __ffs(int mask) __attribute__((weak, alias("ffs")));
 int
 ffs(int mask)
 {

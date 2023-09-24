@@ -39,7 +39,7 @@ __RCSID("$NetBSD: strerror_ss.c,v 1.2 2017/01/12 00:43:55 christos Exp $");
 
 #include "extern.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strerror_r_ss,_strerror_r_ss)
 #endif
 

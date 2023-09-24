@@ -50,7 +50,7 @@ extern int _yplib_nerrs;
 extern int _yplib_bindtries;
 extern char _yp_domain[];
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(yp_match,_yp_match)
 #endif
 

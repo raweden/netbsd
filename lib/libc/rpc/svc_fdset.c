@@ -57,6 +57,7 @@ __RCSID("$NetBSD: svc_fdset.c,v 1.16 2017/04/18 11:35:34 maya Exp $");
 extern __fd_set_256 svc_fdset;
 #endif
 extern int svc_maxfd;
+extern int __isthreaded;
 int __svc_flags;
 
 struct svc_fdset {

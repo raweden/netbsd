@@ -61,14 +61,27 @@ typedef _BSD_JBSLOT_T_ jmp_buf[_JBLEN] _JB_ATTRIBUTES;
 #include <sys/cdefs.h>
 
 __BEGIN_DECLS
+#if  defined(__WASM) && !defined (__WASM_IMPORT)
+#define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
+#endif
 #ifndef __LIBC12_SOURCE__
+#ifndef __WASM
 int	setjmp(jmp_buf)			 __RENAME(__setjmp14) __returns_twice;
 void	longjmp(jmp_buf, int)		 __RENAME(__longjmp14) __dead;
+#else
+int	setjmp(jmp_buf) __returns_twice __WASM_IMPORT(runtime, __setjmp14);
+void longjmp(jmp_buf, int) __dead   __WASM_IMPORT(runtime, __longjmp14);
+#endif
 
 #if defined(_POSIX_C_SOURCE) || defined(_XOPEN_SOURCE) || \
     defined(_NETBSD_SOURCE)
+#ifndef __WASM
 int	sigsetjmp(sigjmp_buf, int)	__RENAME(__sigsetjmp14) __returns_twice;
 void	siglongjmp(sigjmp_buf, int)	 __RENAME(__siglongjmp14) __dead;
+#else
+int	sigsetjmp(sigjmp_buf, int) __returns_twice  __WASM_IMPORT(runtime, __sigsetjmp14);
+void	siglongjmp(sigjmp_buf, int) __dead      __WASM_IMPORT(runtime, __siglongjmp14);
+#endif
 #endif /* not ANSI */
 #endif /* __LIBC12_SOURCE__ */
 

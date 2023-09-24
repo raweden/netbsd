@@ -120,7 +120,7 @@ __RCSID("$NetBSD: getgrent.c,v 1.67 2012/08/29 18:50:35 dholland Exp $");
 
 #include "gr_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endgrent,_endgrent)
 __weak_alias(getgrent,_getgrent)
 __weak_alias(getgrent_r,_getgrent_r)

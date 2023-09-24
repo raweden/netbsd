@@ -51,7 +51,9 @@ __RCSID("$NetBSD: fscanf.c,v 1.14 2013/04/19 23:32:17 joerg Exp $");
 #include "reentrant.h"
 #include "local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fscanf_l, _fscanf_l)
+#endif
 
 int
 fscanf(FILE *fp, char const *fmt, ...)

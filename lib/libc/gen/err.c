@@ -46,7 +46,7 @@ __RCSID("$NetBSD: err.c,v 1.26 2007/06/18 14:13:54 ginsbach Exp $");
 #include <err.h>
 #include <stdarg.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(err, _err)
 #endif
 

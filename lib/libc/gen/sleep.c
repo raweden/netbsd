@@ -38,7 +38,7 @@ __RCSID("$NetBSD: sleep.c,v 1.23 2012/06/25 22:32:44 abs Exp $");
 #include <time.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sleep,_sleep)
 #endif
 

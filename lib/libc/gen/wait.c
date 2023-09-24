@@ -44,7 +44,7 @@ __RCSID("$NetBSD: wait.c,v 1.9 2012/03/20 16:36:05 matt Exp $");
 #include <sys/wait.h>
 #include <sys/resource.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(wait,_wait)
 #endif
 

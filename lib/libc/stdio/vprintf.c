@@ -47,7 +47,9 @@ __RCSID("$NetBSD: vprintf.c,v 1.14 2018/02/04 01:13:45 mrg Exp $");
 #include <stdarg.h>
 #include <stdio.h>
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vprintf_l, _vprintf_l)
+#endif
 
 int
 vprintf(const char *fmt, va_list ap)

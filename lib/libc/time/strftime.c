@@ -73,7 +73,7 @@ __RCSID("$NetBSD: strftime.c,v 1.51 2022/12/11 17:57:23 christos Exp $");
 # define DEPRECATE_TWO_DIGIT_YEARS false
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strftime_l, _strftime_l)
 __weak_alias(strftime_lz, _strftime_lz)
 __weak_alias(strftime_z, _strftime_z)

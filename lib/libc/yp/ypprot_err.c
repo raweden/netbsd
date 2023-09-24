@@ -36,7 +36,7 @@ __RCSID("$NetBSD: ypprot_err.c,v 1.6 2012/06/25 22:32:46 abs Exp $");
 #include <rpcsvc/yp_prot.h>
 #include <rpcsvc/ypclnt.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ypprot_err,_ypprot_err)
 #endif
 

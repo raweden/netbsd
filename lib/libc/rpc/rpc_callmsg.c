@@ -58,7 +58,7 @@ __RCSID("$NetBSD: rpc_callmsg.c,v 1.20 2013/03/11 20:19:29 tron Exp $");
 
 #include <rpc/rpc.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_callmsg,_xdr_callmsg)
 #endif
 

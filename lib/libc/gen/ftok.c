@@ -38,7 +38,7 @@ __RCSID("$NetBSD: ftok.c,v 1.12 2018/07/26 00:05:28 kamil Exp $");
 #include <assert.h>
 #include <errno.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ftok,_ftok)
 #endif
 

@@ -72,7 +72,7 @@ __RCSID("$NetBSD: sha1.c,v 1.7 2021/10/28 15:09:08 christos Exp $");
 
 
 #if !defined(_KERNEL) && !defined(_STANDALONE)
-#if defined(__weak_alias)
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(SHA1Transform,_SHA1Transform)
 __weak_alias(SHA1Init,_SHA1Init)
 __weak_alias(SHA1Update,_SHA1Update)

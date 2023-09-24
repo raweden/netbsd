@@ -47,7 +47,9 @@ __RCSID("$NetBSD: getenv.c,v 1.37 2022/02/11 21:36:46 rillig Exp $");
 #include "env.h"
 #include "local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getenv_r, _getenv_r)
+#endif
 
 /*
  * getenv --

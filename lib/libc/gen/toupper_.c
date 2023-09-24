@@ -55,7 +55,7 @@ const short _C_toupper_tab_[1 + _CTYPE_NUM_CHARS] = {
 };
 
 #ifdef __BUILD_LEGACY
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(_C_toupper_, _C_toupper_tab_)
 #endif
 #endif

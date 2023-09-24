@@ -44,7 +44,7 @@ __RCSID("$NetBSD: getprotobynumber_r.c,v 1.3 2005/04/18 19:39:45 kleink Exp $");
 
 #include "protoent.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getprotobynumber_r,_getprotobynumber_r)
 #endif
 

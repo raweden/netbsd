@@ -21,7 +21,7 @@ __RCSID("$NetBSD: mrand48.c,v 1.8 2013/10/22 08:08:51 matt Exp $");
 #include "namespace.h"
 #include "rand48.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(mrand48,_mrand48)
 #endif
 

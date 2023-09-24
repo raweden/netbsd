@@ -50,7 +50,7 @@ __RCSID("$NetBSD: telldir.c,v 1.20 2013/03/06 11:27:28 yamt Exp $");
 
 #include "dirent_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(telldir,_telldir)
 #endif
 

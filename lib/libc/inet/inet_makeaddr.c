@@ -43,7 +43,7 @@ __RCSID("$NetBSD: inet_makeaddr.c,v 1.1 2004/05/20 23:13:02 christos Exp $");
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_makeaddr,_inet_makeaddr)
 #endif
 

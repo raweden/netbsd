@@ -48,7 +48,7 @@ void	syslogp_ss(int, struct syslog_data60 *, const char *, const char *,
 void	vsyslogp_ss(int, struct syslog_data60 *, const char *, const char *, 
     const char *, va_list) __printflike(5, 0);
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(closelog_r,_closelog_r)
 __weak_alias(openlog_r,_openlog_r)
 __weak_alias(setlogmask_r,_setlogmask_r)

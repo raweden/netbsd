@@ -52,7 +52,7 @@ __warn_references(mq_timedreceive,
 __warn_references(mq_timedsend,
     "warning: reference to compatibility mq_timedsend(); include <mqueue.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(mq_timedreceive, _mq_timedreceive)
 __weak_alias(mq_timedsend, _mq_timedsend)
 __weak_alias(_sys_mq_timedreceive, _mq_timedreceive)

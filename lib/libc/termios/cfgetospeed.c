@@ -44,7 +44,7 @@ __RCSID("$NetBSD: cfgetospeed.c,v 1.8 2012/06/25 22:32:46 abs Exp $");
 #include <stdio.h>
 #include <termios.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(cfgetospeed,_cfgetospeed)
 #endif
 

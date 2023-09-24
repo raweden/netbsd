@@ -50,7 +50,7 @@ __RCSID("$NetBSD: getgrouplist.c,v 1.22 2008/04/28 20:22:59 martin Exp $");
 #include <stdarg.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getgrouplist,_getgrouplist)
 #endif
 

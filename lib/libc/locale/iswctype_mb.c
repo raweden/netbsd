@@ -182,8 +182,10 @@ towctrans_l(wint_t wc, wctrans_t charmap, locale_t loc)
 	return towctrans(wc, charmap);
 }
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(wcwidth,_wcwidth)
 __weak_alias(wcwidth_l,_wcwidth_l)
+#endif
 
 int
 wcwidth_l(wchar_t wc, locale_t loc)

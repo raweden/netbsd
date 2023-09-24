@@ -165,7 +165,12 @@ unsigned short *
 void	 srand48(long);
 
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define putenv __putenv50
+int	 putenv(char *);
+#else
 int	 putenv(char *) __RENAME(__putenv50);
+#endif
 #endif
 #endif
 
@@ -181,8 +186,15 @@ char	*l64a(long);
 long	 random(void);
 char	*setstate(char *);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define initstate __initstate60
+#define srandom __srandom60
+char	*initstate(unsigned int, char *, size_t);
+void	 srandom(unsigned int);
+#else
 char	*initstate(unsigned int, char *, size_t) __RENAME(__initstate60);
 void	 srandom(unsigned int) __RENAME(__srandom60);
+#endif
 #endif
 #ifdef _NETBSD_SOURCE
 #define	RANDOM_MAX	0x7fffffff	/* (((long)1 << 31) - 1) */
@@ -190,11 +202,18 @@ int	 mkostemp(char *, int);
 int	 mkostemps(char *, int, int);
 #endif
 
+#ifdef __WASM
+#ifdef __MKTEMP_OK__
+#define mktemp _mktemp
+#endif
+char *mktemp(char *);
+#else
 char	*mktemp(char *)
 #ifdef __MKTEMP_OK__
 	__RENAME(_mktemp)
 #endif
 	;
+#endif
 
 int	 setkey(const char *);
 
@@ -244,7 +263,12 @@ __dead void quick_exit(int);
     defined(_NETBSD_SOURCE)
 int	 setenv(const char *, const char *, int);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define unsetenv __unsetenv13
+int	 unsetenv(const char *);
+#else
 int	 unsetenv(const char *) __RENAME(__unsetenv13);
+#endif
 #endif
 
 int	 posix_openpt(int);
@@ -296,7 +320,12 @@ void	 csetexpandtc(int);
 int	 daemon(int, int);
 int	 devname_r(dev_t, mode_t, char *, size_t);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define devname __devname50
+__aconst char *devname(dev_t, mode_t);
+#else
 __aconst char *devname(dev_t, mode_t) __RENAME(__devname50);
+#endif
 #endif
 
 #define	HN_DECIMAL		0x01

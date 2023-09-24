@@ -46,7 +46,7 @@ __RCSID("$NetBSD: warnc.c,v 1.3 2014/06/06 11:38:41 joerg Exp $");
 #include <err.h>
 #include <stdarg.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(warnc, _warnc)
 #endif
 

@@ -57,7 +57,7 @@ __RCSID("$NetBSD: shquote.c,v 1.8 2006/03/19 02:33:02 christos Exp $");
 #include <wchar.h>
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(shquote,_shquote)
 #endif
 

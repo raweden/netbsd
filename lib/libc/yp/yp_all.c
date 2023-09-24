@@ -41,7 +41,7 @@ __RCSID("$NetBSD: yp_all.c,v 1.13 2012/06/25 22:32:46 abs Exp $");
 
 extern struct timeval _yplib_timeout;
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(yp_all,_yp_all)
 #endif
 

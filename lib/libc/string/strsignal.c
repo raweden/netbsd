@@ -43,7 +43,7 @@ __RCSID("$NetBSD: strsignal.c,v 1.15 2012/06/25 22:32:46 abs Exp $");
 #include <limits.h>
 #include "extern.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strsignal,_strsignal)
 #endif
 

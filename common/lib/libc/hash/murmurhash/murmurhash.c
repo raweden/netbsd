@@ -34,9 +34,7 @@ __RCSID("$NetBSD: murmurhash.c,v 1.8 2019/08/20 15:17:02 para Exp $");
 #include <sys/hash.h>
 
 #if !defined(_KERNEL) && !defined(_STANDALONE)
-#ifdef __weak_alias
-__weak_alias(murmurhash2,_murmurhash2)
-#endif
+uint32_t _murmurhash2(const void *, size_t, uint32_t) __attribute__((weak, alias("murmurhash2")));
 #endif
 
 uint32_t

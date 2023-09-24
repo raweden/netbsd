@@ -43,7 +43,7 @@ __RCSID("$NetBSD: fpgetsticky.c,v 1.3 2008/04/28 20:23:00 martin Exp $");
 #include "milieu.h"
 #include "softfloat.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fpgetsticky,_fpgetsticky)
 #endif
 

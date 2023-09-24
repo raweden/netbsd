@@ -70,10 +70,10 @@ __RCSID("$NetBSD: xdr_array.c,v 1.3 2019/06/16 16:01:44 christos Exp $");
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#ifdef __weak_alias
-__weak_alias(xdr_array,_xdr_array)
-__weak_alias(xdr_vector,_xdr_vector)
-#endif
+bool_t _xdr_array(XDR *xdrs, char **, u_int *, u_int, u_int,
+    xdrproc_t) __attribute__((weak, alias("xdr_array")));
+bool_t _xdr_vector(XDR *, char *, u_int, u_int,
+    xdrproc_t) __attribute__((weak, alias("xdr_vector")));
 
 #endif /* _KERNEL || _STANDALONE */
 

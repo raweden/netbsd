@@ -42,9 +42,7 @@ __RCSID("$NetBSD: catgets.c,v 1.19 2012/06/25 22:32:45 abs Exp $");
 #include <string.h>
 #include <nl_types.h>
 
-#ifdef __weak_alias
-__weak_alias(catgets, _catgets)
-#endif
+char *catgets(nl_catd catd, int set_id, int msg_id, const char *s) __attribute__((weak, alias("_catgets")));
 
 char *
 _catgets(nl_catd catd, int set_id, int msg_id, const char *s)

@@ -47,7 +47,7 @@ __RCSID("$NetBSD: tcgetsid.c,v 1.7 2012/06/25 22:32:46 abs Exp $");
 #include <termios.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(tcgetsid,_tcgetsid)
 #endif
 

@@ -63,7 +63,7 @@ __RCSID("$NetBSD: clnt_simple.c,v 1.33 2015/01/20 18:31:25 christos Exp $");
 #include <fcntl.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(rpc_call,_rpc_call)
 #endif
 

@@ -9,7 +9,7 @@
 #include <compat/include/dirent.h>
 #include <compat/sys/statvfs.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(opendir,_opendir)
 #endif
 

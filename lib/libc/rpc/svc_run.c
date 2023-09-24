@@ -60,7 +60,7 @@ __RCSID("$NetBSD: svc_run.c,v 1.28 2017/01/10 17:45:27 christos Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(svc_run,_svc_run)
 __weak_alias(svc_exit,_svc_exit)
 #endif

@@ -112,7 +112,7 @@ __RCSID("$NetBSD: clnt_bcast.c,v 1.26 2013/03/11 20:19:28 tron Exp $");
  * also here it will get two responses ... inefficient and clumsy.
  */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(rpc_broadcast_exp,_rpc_broadcast_exp)
 __weak_alias(rpc_broadcast,_rpc_broadcast)
 #endif

@@ -54,7 +54,7 @@ __RCSID("$NetBSD: getcwd.c,v 1.53 2012/06/21 23:29:23 enami Exp $");
 
 #include "extern.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getcwd,_getcwd)
 __weak_alias(_sys_getcwd,_getcwd)
 __weak_alias(realpath,_realpath)

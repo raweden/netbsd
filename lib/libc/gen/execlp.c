@@ -44,7 +44,7 @@ __RCSID("$NetBSD: execlp.c,v 1.13 2014/09/26 19:28:03 christos Exp $");
 #include <unistd.h>
 #include <errno.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(execlp,_execlp)
 __weak_alias(execlpe,_execlpe)
 #endif

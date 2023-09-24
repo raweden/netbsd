@@ -79,7 +79,7 @@ __RCSID("$NetBSD: xdr_rec.c,v 1.39 2023/06/16 20:01:20 andvar Exp $");
 
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdrrec_create,_xdrrec_create)
 __weak_alias(xdrrec_endofrecord,_xdrrec_endofrecord)
 __weak_alias(xdrrec_eof,_xdrrec_eof)

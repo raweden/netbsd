@@ -240,6 +240,10 @@ void	 __dbpanic(DB *);
 struct stat;
 int	 __dbopen(const char *, int, mode_t, struct stat *);
 int	 __dbtemp(const char *, struct stat *);
+#else
+#ifdef __WASM
+#define _DBFIT(a, t) 
+#endif
 #endif
 __END_DECLS
 #endif /* !_DB_H_ */

@@ -57,7 +57,7 @@ __RCSID("$NetBSD: authunix_prot.c,v 1.16 2013/03/11 20:19:28 tron Exp $");
 #include <rpc/auth.h>
 #include <rpc/auth_unix.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_authunix_parms,_xdr_authunix_parms)
 #endif
 

@@ -41,7 +41,7 @@ __RCSID("$NetBSD: siginterrupt.c,v 1.13 2012/06/25 22:32:43 abs Exp $");
 #include "namespace.h"
 #include <signal.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(siginterrupt,_siginterrupt)
 #endif
 

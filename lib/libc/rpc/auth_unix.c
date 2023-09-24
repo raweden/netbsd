@@ -69,7 +69,7 @@ __RCSID("$NetBSD: auth_unix.c,v 1.27 2020/10/03 18:31:29 christos Exp $");
 #include <rpc/auth.h>
 #include <rpc/auth_unix.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(authunix_create,_authunix_create)
 __weak_alias(authunix_create_default,_authunix_create_default)
 #endif

@@ -52,7 +52,7 @@ __RCSID("$NetBSD: snprintf_ss.c,v 1.4 2007/02/02 23:00:28 christos Exp $");
 #include "extern.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(snprintf_ss,_snprintf_ss)
 #endif
 

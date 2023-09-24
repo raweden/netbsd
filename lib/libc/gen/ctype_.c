@@ -90,7 +90,7 @@ const unsigned char _C_compat_bsdctype[1 + _CTYPE_NUM_CHARS] = {
 #undef _B
 #undef _N
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(_C_ctype_, _C_compat_bsdctype)
 #endif
 

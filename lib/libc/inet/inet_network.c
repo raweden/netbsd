@@ -49,7 +49,7 @@ __RCSID("$NetBSD: inet_network.c,v 1.5 2022/10/06 06:03:06 ryo Exp $");
 #include <stddef.h>	/* for NULL */
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_network,_inet_network)
 #endif
 

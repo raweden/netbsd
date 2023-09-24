@@ -44,7 +44,7 @@ __RCSID("$NetBSD: daemon.c,v 1.10 2012/06/25 22:32:43 abs Exp $");
 #include <stdlib.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(daemon,_daemon)
 #endif
 

@@ -71,9 +71,7 @@ __RCSID("$NetBSD: xdr_mem.c,v 1.2 2019/06/05 16:25:43 hannken Exp $");
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#ifdef __weak_alias
-__weak_alias(xdrmem_create,_xdrmem_create)
-#endif
+void _xdrmem_create(XDR *, char *, u_int, enum xdr_op) __attribute__((weak, alias("xdrmem_create")));
 
 #endif /* _KERNEL || _STANDALONE */
 

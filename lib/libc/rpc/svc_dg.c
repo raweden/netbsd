@@ -73,7 +73,7 @@ __RCSID("$NetBSD: svc_dg.c,v 1.17 2013/03/11 20:19:29 tron Exp $");
 #define	su_data(xprt)	((struct svc_dg_data *)(xprt->xp_p2))
 #define	rpc_buffer(xprt) ((xprt)->xp_p1)
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(svc_dg_create,_svc_dg_create)
 #endif
 

@@ -48,7 +48,9 @@ __RCSID("$NetBSD: strxfrm.c,v 1.14 2013/05/17 12:55:57 joerg Exp $");
 #include <string.h>
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strxfrm_l, _strxfrm_l)
+#endif
 
 /*
  * Transform src, storing the result in dst, such that

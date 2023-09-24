@@ -47,8 +47,13 @@ int	sched_getscheduler(pid_t);
 int	sched_get_priority_max(int);
 int	sched_get_priority_min(int);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define sched_rr_get_interval __sched_rr_get_interval50
+int	sched_rr_get_interval(pid_t, struct timespec *);
+#else
 int	sched_rr_get_interval(pid_t, struct timespec *)
     __RENAME(__sched_rr_get_interval50);
+#endif
 #endif
 
 int	sched_yield(void);

@@ -51,7 +51,7 @@ __RCSID("$NetBSD: ttyname.c,v 1.26 2012/06/12 18:17:04 joerg Exp $");
 #include <termios.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ttyname,_ttyname)
 __weak_alias(ttyname_r,_ttyname_r)
 #endif

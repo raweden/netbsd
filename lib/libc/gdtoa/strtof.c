@@ -37,7 +37,7 @@ THIS SOFTWARE.
 #include <locale.h>
 #include "setlocale_local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strtof, _strtof)
 __weak_alias(strtof_l, _strtof_l)
 #endif

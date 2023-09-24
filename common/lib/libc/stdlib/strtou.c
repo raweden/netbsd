@@ -64,6 +64,7 @@ __RCSID("$NetBSD: strtou.c,v 1.3 2019/11/28 12:33:23 roy Exp $");
 #include "_strtoi.h"
 
 #ifdef _LIBC
-__weak_alias(strtou, _strtou)
-__weak_alias(strtou_l, _strtou_l)
+uintmax_t strtou(const char * __restrict, char ** __restrict, int, uintmax_t,
+    uintmax_t, int *) __attribute__((weak, alias("_strtou")));
+void strtou_l(void) __attribute__((weak, alias("_strtou_l")));
 #endif

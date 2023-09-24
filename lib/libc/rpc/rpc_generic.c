@@ -70,7 +70,7 @@ __RCSID("$NetBSD: rpc_generic.c,v 1.30 2017/05/03 21:39:27 christos Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(taddr2uaddr,_taddr2uaddr)
 __weak_alias(uaddr2taddr,_uaddr2taddr)
 #endif

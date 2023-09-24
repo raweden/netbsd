@@ -40,7 +40,7 @@ __RCSID("$NetBSD: dirname.c,v 1.14 2018/09/27 00:45:34 kre Exp $");
 #include <limits.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(dirname,_dirname)
 #endif
 

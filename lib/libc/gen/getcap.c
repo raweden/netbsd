@@ -65,7 +65,7 @@ __RCSID("$NetBSD: getcap.c,v 1.57 2017/06/18 03:56:39 manu Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#if defined(__weak_alias) && !defined(LIBHACK)
+#if defined(__weak_alias) && !defined(LIBHACK) && !defined(__WASM)
 __weak_alias(cgetcap,_cgetcap)
 __weak_alias(cgetclose,_cgetclose)
 __weak_alias(cgetent,_cgetent)

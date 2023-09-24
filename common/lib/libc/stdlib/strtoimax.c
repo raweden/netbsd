@@ -63,6 +63,6 @@ __RCSID("$NetBSD: strtoimax.c,v 1.2 2013/12/02 12:20:44 joerg Exp $");
 #include "_strtol.h"
 
 #ifdef _LIBC
-__weak_alias(strtoimax, _strtoimax)
-__weak_alias(strtoimax_l, _strtoimax_l)
+intmax_t  _strtoimax(const char *, char **, int) __attribute__((weak, alias("strtoimax")));
+void _strtoimax_l(void) __attribute__((weak, alias("strtoimax_l")));
 #endif

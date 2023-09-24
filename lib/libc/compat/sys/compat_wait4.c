@@ -50,7 +50,7 @@ __warn_references(wait4,
 
 extern void __rusage_to_rusage50(const struct rusage *, struct rusage50 *);
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(wait4, _wait4)
 __weak_alias(_sys_wait4, _wait4)
 __weak_alias(wait3, _wait3)

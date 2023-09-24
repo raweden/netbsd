@@ -45,7 +45,7 @@ __RCSID("$NetBSD: tcdrain.c,v 1.9 2012/06/25 22:32:46 abs Exp $");
 #include <errno.h>
 #include <termios.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(tcdrain,_tcdrain)
 #endif
 

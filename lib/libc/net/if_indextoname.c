@@ -44,7 +44,7 @@ __RCSID("$NetBSD: if_indextoname.c,v 1.7 2010/12/13 23:10:12 pooka Exp $");
 #include <errno.h>
 
 #ifndef RUMP_ACTION
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(if_indextoname,_if_indextoname)
 #endif
 #endif

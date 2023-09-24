@@ -59,7 +59,7 @@ __RCSID("$NetBSD: getrpcent.c,v 1.24 2021/04/13 00:29:22 mrg Exp $");
 
 #include <rpc/rpc.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endrpcent,_endrpcent)
 __weak_alias(getrpcbyname,_getrpcbyname)
 __weak_alias(getrpcbynumber,_getrpcbynumber)

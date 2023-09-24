@@ -47,7 +47,7 @@ __RCSID("$NetBSD: compat_sigtimedwait.c,v 1.2 2009/01/11 02:46:27 christos Exp $
 #include <signal.h>
 #include <compat/include/signal.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sigtimedwait, _sigtimedwait)
 #endif
 /*

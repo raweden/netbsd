@@ -77,7 +77,7 @@ typedef uint32_t UINT4;
 #define S43 15
 #define S44 21
 
-#if !defined(_KERNEL) && !defined(_STANDALONE) && defined(__weak_alias)
+#if !defined(_KERNEL) && !defined(_STANDALONE) && defined(__weak_alias) && !defined (__WASM)
 __weak_alias(MD5Init,_MD5Init)
 __weak_alias(MD5Update,_MD5Update)
 __weak_alias(MD5Final,_MD5Final)

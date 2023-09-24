@@ -42,7 +42,7 @@ __RCSID("$NetBSD: vwarn.c,v 1.16 2014/01/16 17:21:38 christos Exp $");
 #include <err.h>
 #include <errno.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vwarn, _vwarn)
 #endif
 

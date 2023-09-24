@@ -305,6 +305,15 @@ __RCSID("$NetBSD: jemalloc.c,v 1.56 2023/05/07 12:41:47 skrll Exp $");
 #  define SIZEOF_PTR_2POW	2
 #  define USE_BRK
 #endif
+#if defined(__WASM) && __WASM == 32
+#  define QUANTUM_2POW_MIN	4
+#  define SIZEOF_PTR_2POW	2
+#  define USE_BRK
+#ifndef __WASM_IMPORT
+#define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
+#endif
+void *sbrk(intptr_t) __WASM_IMPORT(sys, sbrk);
+#endif
 
 #define	SIZEOF_PTR		(1 << SIZEOF_PTR_2POW)
 

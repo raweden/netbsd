@@ -50,7 +50,7 @@ __RCSID("$NetBSD: fstab.c,v 1.31 2012/03/13 21:13:34 christos Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endfsent,_endfsent)
 __weak_alias(getfsent,_getfsent)
 __weak_alias(getfsfile,_getfsfile)

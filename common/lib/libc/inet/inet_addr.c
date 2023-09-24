@@ -94,9 +94,7 @@ __RCSID("$NetBSD: inet_addr.c,v 1.4 2018/07/26 00:20:41 kamil Exp $");
 
 #include "port_after.h"
 
-#ifdef __weak_alias
-__weak_alias(inet_aton,_inet_aton)
-#endif
+int inet_aton(const char *, struct in_addr *) __attribute__((weak, alias("_inet_aton")))
 #else
 #include <lib/libkern/libkern.h>
 #include <netinet/in.h>

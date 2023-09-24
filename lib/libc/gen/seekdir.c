@@ -47,7 +47,7 @@ __RCSID("$NetBSD: seekdir.c,v 1.15 2013/03/06 11:27:46 yamt Exp $");
 
 #include "dirent_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(seekdir,_seekdir)
 #endif
 

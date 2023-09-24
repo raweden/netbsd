@@ -37,7 +37,7 @@ __RCSID("$NetBSD: yperr_string.c,v 1.9 2015/06/17 00:15:26 christos Exp $");
 #include <rpcsvc/yp_prot.h>
 #include <rpcsvc/ypclnt.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(yperr_string,_yperr_string)
 #endif
 

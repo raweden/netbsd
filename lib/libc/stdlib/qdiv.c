@@ -44,7 +44,7 @@ __RCSID("$NetBSD: qdiv.c,v 1.7 2012/06/25 22:32:45 abs Exp $");
 #include "namespace.h"
 #include <stdlib.h>		/* qdiv_t */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(qdiv,_qdiv)
 #endif
 

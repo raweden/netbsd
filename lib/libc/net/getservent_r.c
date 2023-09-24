@@ -49,7 +49,7 @@ __RCSID("$NetBSD: getservent_r.c,v 1.13 2022/03/12 17:31:39 christos Exp $");
 
 #include "servent.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endservent_r,_endservent_r)
 __weak_alias(getservent_r,_getservent_r)
 __weak_alias(setservent_r,_setservent_r)

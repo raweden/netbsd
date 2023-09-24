@@ -72,7 +72,7 @@ __RCSID("$NetBSD: pmap_rmt.c,v 1.34 2013/03/11 20:19:29 tron Exp $");
 #include <rpc/pmap_clnt.h>
 #include <rpc/pmap_rmt.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_rmtcall_args,_xdr_rmtcall_args)
 __weak_alias(xdr_rmtcallres,_xdr_rmtcallres)
 #endif

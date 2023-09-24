@@ -58,7 +58,7 @@ __RCSID("$NetBSD: xdr_stdio.c,v 1.19 2013/03/11 20:19:30 tron Exp $");
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdrstdio_create,_xdrstdio_create)
 #endif
 

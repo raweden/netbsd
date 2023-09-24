@@ -18,7 +18,7 @@
 #include <glob.h>
 #include <compat/include/glob.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(glob,_glob)
 __weak_alias(globfree,_globfree)
 #endif /* __weak_alias */

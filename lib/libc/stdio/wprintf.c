@@ -40,7 +40,9 @@ __RCSID("$NetBSD: wprintf.c,v 1.3 2013/04/19 15:22:25 joerg Exp $");
 #include <stdio.h>
 #include <wchar.h>
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(wprintf_l, _wprintf_l)
+#endif
 
 int
 wprintf(const wchar_t * __restrict fmt, ...)

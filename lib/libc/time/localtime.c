@@ -31,7 +31,7 @@ __RCSID("$NetBSD: localtime.c,v 1.137 2023/01/15 18:12:37 christos Exp $");
 #include "tzfile.h"
 #include <fcntl.h>
 
-#if defined(__weak_alias)
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(daylight,_daylight)
 __weak_alias(tzname,_tzname)
 #endif

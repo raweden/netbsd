@@ -71,7 +71,7 @@ __RCSID("$NetBSD: arc4random.c,v 1.33 2022/04/19 20:32:15 rillig Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(arc4random,_arc4random)
 __weak_alias(arc4random_addrandom,_arc4random_addrandom)
 __weak_alias(arc4random_buf,_arc4random_buf)

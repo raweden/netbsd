@@ -34,7 +34,7 @@
 #include <fts.h>
 #include <compat/include/fts.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fts_children,_fts_children)
 __weak_alias(fts_close,_fts_close)
 __weak_alias(fts_open,_fts_open)

@@ -102,7 +102,7 @@ static const unsigned char *pad[] = {
  */
 /*static*/ void MD2Transform __P((MD2_CTX *));
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(MD2Init,_MD2Init)
 __weak_alias(MD2Update,_MD2Update)
 __weak_alias(MD2Final,_MD2Final)

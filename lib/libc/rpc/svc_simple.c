@@ -66,7 +66,7 @@ __RCSID("$NetBSD: svc_simple.c,v 1.33 2013/03/11 20:19:29 tron Exp $");
 
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(rpc_reg,_rpc_reg)
 #endif
 

@@ -51,7 +51,7 @@ __RCSID("$NetBSD: getpass.c,v 1.30 2016/01/31 23:41:38 christos Exp $");
 #include <fcntl.h>
 #include <poll.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getpassfd,_getpassfd)
 __weak_alias(getpass_r,_getpass_r)
 __weak_alias(getpass,_getpass)

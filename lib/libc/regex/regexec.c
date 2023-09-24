@@ -67,7 +67,7 @@ __RCSID("$NetBSD: regexec.c,v 1.26 2021/02/26 19:24:47 christos Exp $");
 #include <ctype.h>
 #include <regex.h>
 
-#if defined(__weak_alias) && !defined(LIBHACK)
+#if defined(__weak_alias) && !defined(LIBHACK) && !defined (__WASM)
 __weak_alias(regexec,_regexec)
 #endif
 

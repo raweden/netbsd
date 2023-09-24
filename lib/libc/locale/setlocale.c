@@ -45,6 +45,43 @@ __RCSID("$NetBSD: setlocale.c,v 1.65 2018/01/04 20:57:29 kamil Exp $");
 
 const char *_PathLocale = NULL;
 
+#ifdef __WASM
+const char *_generic_LC_ALL_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+
+const char *_dummy_LC_COLLATE_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+
+const char *_citrus_LC_CTYPE_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+
+const char *_citrus_LC_MONETARY_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+
+const char *_citrus_LC_NUMERIC_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+
+const char *_citrus_LC_TIME_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+
+const char *_citrus_LC_MESSAGES_setlocale(const char * __restrict, struct _locale * __restrict)
+{
+	return NULL;
+}
+#endif
+
 static _locale_set_t all_categories[_LC_LAST] = {
 	[LC_ALL     ] = &_generic_LC_ALL_setlocale,
 	[LC_COLLATE ] = &_dummy_LC_COLLATE_setlocale,
@@ -57,7 +94,11 @@ static _locale_set_t all_categories[_LC_LAST] = {
 
 /* XXX Consider locking the list. Race condition leaks memory. */
 static SLIST_HEAD(, _locale_cache_t) caches = {
+#ifdef __WASM
+	&_C_cache
+#else
     __UNCONST(&_C_cache)
+#endif
 };
 
 int

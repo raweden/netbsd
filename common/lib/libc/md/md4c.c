@@ -118,7 +118,7 @@ static const unsigned char PADDING[64] = {
 	(a) = ROTATE_LEFT ((a), (s)); \
 }
 
-#if !defined(_KERNEL) && !defined(_STANDALONE) && defined(__weak_alias)
+#if !defined(_KERNEL) && !defined(_STANDALONE) && defined(__weak_alias) && !defined (__WASM)
 __weak_alias(MD4Init,_MD4Init)
 __weak_alias(MD4Update,_MD4Update)
 __weak_alias(MD4Final,_MD4Final)

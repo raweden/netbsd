@@ -59,7 +59,9 @@ fprintf(FILE *fp, const char *fmt, ...)
 	return ret;
 }
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fprintf_l, _fprintf_l)
+#endif
 
 int
 fprintf_l(FILE *fp, locale_t loc, const char *fmt, ...)

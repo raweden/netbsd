@@ -41,7 +41,7 @@ __RCSID("$NetBSD: getprotoent.c,v 1.12 2008/04/28 20:23:00 martin Exp $");
 
 #include "protoent.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endprotoent,_endprotoent)
 __weak_alias(getprotoent,_getprotoent)
 __weak_alias(setprotoent,_setprotoent)

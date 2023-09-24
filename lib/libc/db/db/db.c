@@ -47,9 +47,8 @@ __RCSID("$NetBSD: db.c,v 1.20 2019/10/05 18:07:58 uwe Exp $");
 #include <db.h>
 static int __dberr(const DB *, ...);
 
-#ifdef __weak_alias
-__weak_alias(dbopen,_dbopen)
-#endif
+DB *_dbopen(const char *, int , mode_t, DBTYPE,
+    const void *) __attribute__((weak, alias("dbopen")));
 
 #ifndef O_CLOEXEC
 #define O_CLOEXEC 0

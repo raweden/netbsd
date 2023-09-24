@@ -87,7 +87,12 @@ typedef struct _locale		*locale_t;
 
 __BEGIN_DECLS
 struct lconv *localeconv(void);
+#ifdef __WASM
+#define setlocale __setlocale50
+char *setlocale(int, const char *);
+#else
 char *setlocale(int, const char *) __RENAME(__setlocale50);
+#endif
 
 #if (_POSIX_C_SOURCE - 0) >= 200809L || defined(_NETBSD_SOURCE)
 #  ifndef __LOCALE_T_DECLARED

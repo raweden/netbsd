@@ -44,7 +44,7 @@ __RCSID("$NetBSD: ftello.c,v 1.7 2012/03/27 15:05:42 christos Exp $");
 #include "reentrant.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ftello, _ftello)
 #endif
 

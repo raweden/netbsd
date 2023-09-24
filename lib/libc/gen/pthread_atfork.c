@@ -43,19 +43,13 @@ __RCSID("$NetBSD: pthread_atfork.c,v 1.17 2022/09/13 10:18:47 riastradh Exp $");
 #include "extern.h"
 #include "reentrant.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pthread_atfork, _pthread_atfork)
 __weak_alias(fork, _fork)
 #endif /* __weak_alias */
 
 pid_t	__fork(void);	/* XXX */
-pid_t	__locked_fork(int *) __weak; /* XXX */
-
-pid_t
-__locked_fork(int *my_errno)
-{
-	return __fork();
-}
+pid_t	__locked_fork(int *) __attribute__((weak, alias("fork"))); /* XXX */
 
 struct atfork_callback {
 	SIMPLEQ_ENTRY(atfork_callback) next;

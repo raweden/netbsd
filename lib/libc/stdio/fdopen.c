@@ -56,7 +56,7 @@ __RCSID("$NetBSD: fdopen.c,v 1.18 2017/11/09 20:30:02 christos Exp $");
 #include "reentrant.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fdopen,_fdopen)
 #endif
 

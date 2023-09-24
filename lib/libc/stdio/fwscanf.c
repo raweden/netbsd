@@ -41,7 +41,9 @@ __RCSID("$NetBSD: fwscanf.c,v 1.3 2013/04/19 23:32:17 joerg Exp $");
 #include <stdio.h>
 #include <wchar.h>
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fwscanf_l, _fwscanf_l)
+#endif
 
 int
 fwscanf(FILE * __restrict fp, const wchar_t * __restrict fmt, ...)

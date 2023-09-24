@@ -23,7 +23,7 @@ __RCSID("$NetBSD: wcsdup.c,v 1.6 2022/03/12 17:31:40 christos Exp $");
 #include <errno.h>
 #include <wchar.h>
 
-__weak_alias(wcsdup,_wcsdup)
+wchar_t *_wcsdup(const wchar_t *) __attribute__((weak, alias("wcsdup")));
 
 wchar_t *
 wcsdup(const wchar_t *str)

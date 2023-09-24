@@ -38,7 +38,7 @@ __RCSID("$NetBSD: vars6.c,v 1.7 2005/08/07 16:00:01 christos Exp $");
 #include <sys/types.h>
 #include <netinet/in.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(in6addr_any, _in6addr_any)
 __weak_alias(in6addr_loopback, _in6addr_loopback)
 __weak_alias(in6addr_nodelocal_allnodes, _in6addr_nodelocal_allnodes)

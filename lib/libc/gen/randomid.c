@@ -95,7 +95,7 @@ __RCSID("$NetBSD: randomid.c,v 1.16 2022/05/15 20:37:50 andvar Exp $");
 #include <errno.h>
 #include <randomid.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(randomid,_randomid)
 __weak_alias(randomid_new,_randomid_new)
 __weak_alias(randomid_delete,_randomid_delete)

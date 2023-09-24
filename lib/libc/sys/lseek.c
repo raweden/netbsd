@@ -43,7 +43,7 @@ __RCSID("$NetBSD: lseek.c,v 1.11 2012/03/20 16:26:12 matt Exp $");
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(lseek,_lseek)
 #endif
 

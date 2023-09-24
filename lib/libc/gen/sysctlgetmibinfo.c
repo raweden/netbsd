@@ -53,7 +53,7 @@ __RCSID("$NetBSD: sysctlgetmibinfo.c,v 1.15 2022/04/19 20:32:15 rillig Exp $");
 #include <rump/rump_syscalls.h>
 #define sysctl(a,b,c,d,e,f) rump_sys___sysctl(a,b,c,d,e,f)
 #else
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(__learn_tree,___learn_tree)
 __weak_alias(sysctlgetmibinfo,_sysctlgetmibinfo)
 #endif

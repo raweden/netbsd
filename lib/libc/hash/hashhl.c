@@ -34,7 +34,7 @@
 #define	HASH_LEN	CONCAT(HASH_ALGORITHM,_DIGEST_LENGTH)
 #define	HASH_STRLEN	CONCAT(HASH_ALGORITHM,_DIGEST_STRING_LENGTH)
 
-#if !defined(_KERNEL) && defined(__weak_alias) && !defined(HAVE_NBTOOL_CONFIG_H)
+#if !defined(_KERNEL) && defined(__weak_alias) && !defined(__WASM) && !defined(HAVE_NBTOOL_CONFIG_H)
 #define	WA(a,b)	__weak_alias(a,b)
 WA(FNPREFIX(End),CONCAT(_,FNPREFIX(End)))
 WA(FNPREFIX(FileChunk),CONCAT(_,FNPREFIX(FileChunk)))

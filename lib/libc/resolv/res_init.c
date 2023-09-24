@@ -115,7 +115,7 @@ __RCSID("$NetBSD: res_init.c,v 1.32 2021/09/30 12:35:55 christos Exp $");
 #include "port_after.h"
 
 #if 0
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(res_ninit,_res_ninit)
 __weak_alias(res_randomid,__res_randomid)
 __weak_alias(res_nclose,_res_nclose)

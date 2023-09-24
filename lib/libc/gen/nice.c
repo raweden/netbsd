@@ -45,7 +45,7 @@ __RCSID("$NetBSD: nice.c,v 1.13 2011/05/01 02:49:54 christos Exp $");
 #include <errno.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(nice,_nice)
 #endif
 

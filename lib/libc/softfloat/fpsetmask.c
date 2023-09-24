@@ -43,7 +43,7 @@ __RCSID("$NetBSD: fpsetmask.c,v 1.5 2013/01/10 08:16:10 matt Exp $");
 #include "milieu.h"
 #include "softfloat.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fpsetmask,_fpsetmask)
 #endif
 

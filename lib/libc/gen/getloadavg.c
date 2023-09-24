@@ -49,7 +49,7 @@ __RCSID("$NetBSD: getloadavg.c,v 1.14 2012/03/13 21:13:36 christos Exp $");
 #include <errno.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getloadavg,_getloadavg)
 #endif
 

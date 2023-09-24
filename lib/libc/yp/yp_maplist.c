@@ -42,7 +42,7 @@ extern struct timeval _yplib_timeout;
 extern int _yplib_nerrs;
 extern int _yplib_bindtries;
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(yp_maplist,_yp_maplist)
 #endif
 

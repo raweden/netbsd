@@ -87,7 +87,7 @@ __RCSID("$NetBSD: xdryp.c,v 1.32 2012/03/20 16:30:26 matt Exp $");
 #include <rpcsvc/yp_prot.h>
 #include <rpcsvc/ypclnt.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_datum,_xdr_datum)
 __weak_alias(xdr_domainname,_xdr_domainname)
 __weak_alias(xdr_mapname,_xdr_mapname)

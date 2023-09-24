@@ -59,7 +59,7 @@ __RCSID("$NetBSD: clnt_perror.c,v 1.30 2013/03/11 20:19:29 tron Exp $");
 #include <rpc/auth.h>
 #include <rpc/clnt.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(clnt_pcreateerror,_clnt_pcreateerror)
 __weak_alias(clnt_perrno,_clnt_perrno)
 __weak_alias(clnt_perror,_clnt_perror)

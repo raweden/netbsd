@@ -48,7 +48,7 @@ __RCSID("$NetBSD: compat_adjtime.c,v 1.2 2009/01/11 02:46:26 christos Exp $");
 __warn_references(adjtime,
     "warning: reference to compatibility adjtime(); include <time.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(adjtime, _adjtime)
 __weak_alias(__adjtime, _adjtime)
 #endif

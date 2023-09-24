@@ -58,7 +58,7 @@ __RCSID("$NetBSD: regerror.c,v 1.26 2022/11/05 11:33:55 riastradh Exp $");
 
 #include "utils.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(regerror,_regerror)
 #endif
 

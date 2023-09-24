@@ -39,7 +39,7 @@ __RCSID("$NetBSD: fmtcheck.c,v 1.16 2017/12/13 06:43:45 rin Exp $");
 #include <string.h>
 #include <ctype.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fmtcheck,__fmtcheck)
 #endif
 

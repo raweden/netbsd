@@ -43,7 +43,7 @@ __RCSID("$NetBSD: flockfile.c,v 1.11 2012/03/15 18:22:30 christos Exp $");
 #include "reentrant.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(flockfile,_flockfile)
 __weak_alias(ftrylockfile,_ftrylockfile)
 __weak_alias(funlockfile,_funlockfile)

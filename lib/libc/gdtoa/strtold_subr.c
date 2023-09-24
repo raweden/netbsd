@@ -26,7 +26,7 @@ __RCSID("$NetBSD: strtold_subr.c,v 1.3 2013/05/17 12:55:57 joerg Exp $");
 #include <locale.h>
 #include "setlocale_local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strtold, _strtold)
 __weak_alias(strtold_l, _strtold_l)
 #endif

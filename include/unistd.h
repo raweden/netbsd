@@ -89,7 +89,12 @@ int	 access(const char *, int);
 unsigned int alarm(unsigned int);
 int	 chdir(const char *);
 #if defined(_POSIX_C_SOURCE) || defined(_XOPEN_SOURCE)
+#ifdef __WASM
+#define chown __posix_chown
+int	chown(const char *, uid_t, gid_t);
+#else
 int	chown(const char *, uid_t, gid_t) __RENAME(__posix_chown);
+#endif
 #else
 int	chown(const char *, uid_t, gid_t);
 #endif /* defined(_POSIX_C_SOURCE) || defined(_XOPEN_SOURCE) */
@@ -260,7 +265,12 @@ typedef __intptr_t      intptr_t;
 int	 brk(void *);
 int	 fchdir(int);
 #if defined(_XOPEN_SOURCE)
+#ifdef __WASM
+#define fchown __posix_fchown
+int	 fchown(int, uid_t, gid_t);
+#else
 int	 fchown(int, uid_t, gid_t) __RENAME(__posix_fchown);
+#endif
 #else
 int	 fchown(int, uid_t, gid_t);
 #endif
@@ -271,7 +281,12 @@ __pure int
 	 getpagesize(void);		/* legacy */
 pid_t	 getpgid(pid_t);
 #if defined(_XOPEN_SOURCE)
+#ifdef __WASM
+#define lchown __posix_lchown
+int	 lchown(const char *, uid_t, gid_t);
+#else
 int	 lchown(const char *, uid_t, gid_t) __RENAME(__posix_lchown);
+#endif
 #else
 int	 lchown(const char *, uid_t, gid_t);
 #endif
@@ -287,7 +302,12 @@ void	 sync(void);
 useconds_t ualarm(useconds_t, useconds_t);
 int	 usleep(useconds_t);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define vfork __vfork14
+pid_t	 vfork(void);
+#else
 pid_t	 vfork(void) __RENAME(__vfork14) __returns_twice;
+#endif
 #endif
 
 #ifndef __AUDIT__
@@ -408,7 +428,12 @@ int	 iruserok_sa(const void *, int, int, const char *, const char *);
 #ifndef __SYS_SIGLIST_DECLARED
 #define __SYS_SIGLIST_DECLARED
 /* also in signal.h */
+#ifdef __WASM
+#define sys_siglist __sys_siglist14
+extern const char *const *sys_siglist;
+#else
 extern const char *const *sys_siglist __RENAME(__sys_siglist14);
+#endif
 #endif /* __SYS_SIGLIST_DECLARED */
 extern	 int optreset;		/* getopt(3) external variable */
 extern	 char *suboptarg;	/* getsubopt(3) external variable */

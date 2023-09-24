@@ -41,7 +41,7 @@ __RCSID("$NetBSD: mkstemp.c,v 1.12 2014/06/18 17:47:58 christos Exp $");
 #endif
 #endif /* LIBC_SCCS and not lint */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(mkstemp,_mkstemp)
 #endif
 

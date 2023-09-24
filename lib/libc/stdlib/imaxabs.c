@@ -38,7 +38,7 @@ __RCSID("$NetBSD: imaxabs.c,v 1.1 2008/08/04 21:29:27 matt Exp $");
 
 #include <inttypes.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(imaxabs, _imaxabs)
 #endif
 

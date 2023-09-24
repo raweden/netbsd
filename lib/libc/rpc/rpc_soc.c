@@ -80,7 +80,7 @@ __RCSID("$NetBSD: rpc_soc.c,v 1.23 2015/11/13 15:23:17 christos Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(clntudp_bufcreate,_clntudp_bufcreate)
 __weak_alias(clntudp_create,_clntudp_create)
 __weak_alias(clnttcp_create,_clnttcp_create)

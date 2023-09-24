@@ -48,7 +48,7 @@ __RCSID("$NetBSD: setenv.c,v 1.45 2021/08/12 20:53:18 andvar Exp $");
 #include "env.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(setenv,_setenv)
 #endif
 

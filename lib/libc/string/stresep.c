@@ -43,7 +43,7 @@ __RCSID("$NetBSD: stresep.c,v 1.4 2017/08/23 10:27:41 christos Exp $");
 #include <assert.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(stresep,_stresep)
 #endif
 

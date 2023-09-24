@@ -48,7 +48,9 @@ __RCSID("$NetBSD: strcoll.c,v 1.12 2013/05/17 12:55:57 joerg Exp $");
 #include <string.h>
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strcoll_l, _strcoll_l)
+#endif
 
 /*
  * Compare strings according to LC_COLLATE category of current locale.

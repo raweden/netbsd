@@ -45,7 +45,7 @@ __RCSID("$NetBSD: compat_putenv.c,v 1.3 2015/01/20 18:31:24 christos Exp $");
 #include "env.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(putenv,_putenv)
 #endif
 

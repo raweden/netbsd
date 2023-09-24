@@ -53,7 +53,7 @@ __RCSID("$NetBSD: getnetpath.c,v 1.18 2022/01/04 22:10:08 andvar Exp $");
 #include <string.h>
 #include <syslog.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getnetpath,_getnetpath)
 __weak_alias(setnetpath,_setnetpath)
 __weak_alias(endnetpath,_endnetpath)

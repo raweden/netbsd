@@ -45,7 +45,7 @@ __RCSID("$NetBSD: fgetwln.c,v 1.8 2016/08/27 13:15:48 christos Exp $");
 #include "reentrant.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fgetwln,_fgetwln)
 #endif
 

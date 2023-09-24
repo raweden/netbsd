@@ -28,7 +28,7 @@ __RCSID("$NetBSD: asctime.c,v 1.28 2022/08/16 10:56:21 christos Exp $");
 #include "private.h"
 #include <stdio.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(asctime_r,_asctime_r)
 #endif
 

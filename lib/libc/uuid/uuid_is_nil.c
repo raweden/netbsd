@@ -39,7 +39,7 @@ __RCSID("$NetBSD: uuid_is_nil.c,v 1.4 2008/04/23 07:52:32 plunky Exp $");
 #include <string.h>
 #include <uuid.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(uuid_is_nil,_uuid_is_nil)
 #endif
 

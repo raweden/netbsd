@@ -47,7 +47,7 @@ __RCSID("$NetBSD: ip6opt.c,v 1.15 2014/02/07 02:36:06 christos Exp $");
 #include <string.h>
 #include <stdio.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet6_option_alloc,_inet6_option_alloc)
 __weak_alias(inet6_option_append,_inet6_option_append)
 __weak_alias(inet6_option_find,_inet6_option_find)

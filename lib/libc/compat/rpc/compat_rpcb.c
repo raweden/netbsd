@@ -55,7 +55,7 @@ __warn_references(rpcb_rmtcall,
 __warn_references(rpcb_gettime,
     "warning: reference to compatibility rpcb_gettime(); include <rpc/rpcb_clnt.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(rpcb_rmtcall, _rpcb_rmtcall)
 __weak_alias(rpcb_gettime, _rpcb_gettime)
 #endif

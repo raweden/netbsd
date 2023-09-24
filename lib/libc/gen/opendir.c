@@ -58,7 +58,9 @@ __RCSID("$NetBSD: opendir.c,v 1.39 2014/11/26 16:48:43 christos Exp $");
 
 static DIR	*__opendir_common(int, const char *, int);
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fdopendir,_fdopendir)
+#endif
 
 /*
  * Open a directory.

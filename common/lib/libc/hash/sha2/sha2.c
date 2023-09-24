@@ -242,7 +242,7 @@ static const uint64_t sha512_initial_hash_value[8] = {
 };
 
 #if !defined(_KERNEL) && !defined(_STANDALONE)
-#if defined(__weak_alias)
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(SHA224_Init,_SHA224_Init) 
 __weak_alias(SHA224_Update,_SHA224_Update)
 __weak_alias(SHA224_Final,_SHA224_Final)

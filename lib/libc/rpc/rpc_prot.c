@@ -62,7 +62,7 @@ __RCSID("$NetBSD: rpc_prot.c,v 1.21 2013/03/11 20:19:29 tron Exp $");
 
 #include <rpc/rpc.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_accepted_reply,_xdr_accepted_reply)
 __weak_alias(xdr_callhdr,_xdr_callhdr)
 __weak_alias(xdr_des_block,_xdr_des_block)

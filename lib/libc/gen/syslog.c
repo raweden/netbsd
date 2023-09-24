@@ -62,7 +62,7 @@ __RCSID("$NetBSD: syslog.c,v 1.58 2017/01/12 18:16:52 christos Exp $");
 #include "reentrant.h"
 #include "extern.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(syslog,_syslog)
 __weak_alias(vsyslog,_vsyslog)
 __weak_alias(syslogp,_syslogp)

@@ -47,7 +47,7 @@ __RCSID("$NetBSD: ttyslot.c,v 1.13 2009/01/11 02:46:27 christos Exp $");
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ttyslot,_ttyslot)
 #endif
 

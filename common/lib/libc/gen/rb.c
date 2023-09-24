@@ -56,17 +56,17 @@ __KERNEL_RCSID(0, "$NetBSD: rb.c,v 1.16 2021/09/16 21:29:41 andvar Exp $");
 #endif
 #endif
 
-#ifdef _LIBC
-__weak_alias(rb_tree_init, _rb_tree_init)
-__weak_alias(rb_tree_find_node, _rb_tree_find_node)
-__weak_alias(rb_tree_find_node_geq, _rb_tree_find_node_geq)
-__weak_alias(rb_tree_find_node_leq, _rb_tree_find_node_leq)
-__weak_alias(rb_tree_insert_node, _rb_tree_insert_node)
-__weak_alias(rb_tree_remove_node, _rb_tree_remove_node)
-__weak_alias(rb_tree_iterate, _rb_tree_iterate)
+#if defined(_LIBC) && !defined(__WASM)
+void rb_tree_init(struct rb_tree *, const rb_tree_ops_t *) __attribute__((weak, alias("_rb_tree_init")))
+void *rb_tree_find_node(struct rb_tree *, const void *) __attribute__((weak, alias("_rb_tree_find_node")))
+void *rb_tree_find_node_geq(struct rb_tree *, const void *) __attribute__((weak, alias("_rb_tree_find_node_geq")))
+void *rb_tree_find_node_leq(struct rb_tree *, const void *) __attribute__((weak, alias("_rb_tree_find_node_leq")))
+void *rb_tree_insert_node(struct rb_tree *, void *) __attribute__((weak, alias("_rb_tree_insert_node")))
+void rb_tree_remove_node(struct rb_tree *, void *) __attribute__((weak, alias("_rb_tree_remove_node")))
+void *rb_tree_iterate(struct rb_tree *, void *, const unsigned int) __attribute__((weak, alias("_rb_tree_iterate")))
 #ifdef RBDEBUG
-__weak_alias(rb_tree_check, _rb_tree_check)
-__weak_alias(rb_tree_depths, _rb_tree_depths)
+void rb_tree_check(const struct rb_tree *, bool) __attribute__((weak, alias("_rb_tree_check")))
+void rb_tree_depths(const struct rb_tree *, size_t *) __attribute__((weak, alias("_rb_tree_depths")))
 #endif
 
 #include "namespace.h"

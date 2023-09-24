@@ -43,7 +43,7 @@
 #include <compat/include/time.h>
 #include <compat/sys/time.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(difftime,_difftime)
 #endif
 

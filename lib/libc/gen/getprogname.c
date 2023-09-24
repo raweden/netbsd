@@ -44,7 +44,7 @@ __RCSID("$NetBSD: getprogname.c,v 1.5 2021/04/20 21:42:32 christos Exp $");
 #include <stdlib.h>
 #include "csu-common.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getprogname,_getprogname)
 #endif
 

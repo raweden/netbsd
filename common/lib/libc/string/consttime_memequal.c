@@ -8,9 +8,8 @@
 #if !defined(_KERNEL) && !defined(_STANDALONE)
 #include "namespace.h"
 #include <string.h>
-#ifdef __weak_alias
-__weak_alias(consttime_memequal,_consttime_memequal)
-#endif
+int consttime_memequal(const void *, const void *, size_t);
+int _consttime_memequal(const void *, const void *, size_t) __attribute__((weak, alias("consttime_memequal")));
 #else
 #include <lib/libkern/libkern.h>
 #endif

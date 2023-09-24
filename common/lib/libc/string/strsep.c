@@ -44,8 +44,8 @@ __RCSID("$NetBSD: strsep.c,v 1.3 2007/06/04 18:19:28 christos Exp $");
 #include <assert.h>
 #include <string.h>
 
-#ifdef __weak_alias
-__weak_alias(strsep,_strsep)
+#if defined(__weak_alias) && !defined (__WASM)
+char *strsep(char **, const char *) __attribute__((weak, alias("_strsep")));
 #endif
 
 #else

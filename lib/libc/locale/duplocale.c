@@ -37,7 +37,9 @@ __RCSID("$NetBSD: duplocale.c,v 1.1 2013/04/30 00:45:05 joerg Exp $");
 
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(duplocale, _duplocale)
+#endif
 
 locale_t
 duplocale(locale_t src)

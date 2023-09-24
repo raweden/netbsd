@@ -53,7 +53,7 @@ __RCSID("$NetBSD: fnmatch.c,v 1.26 2014/10/12 22:32:33 christos Exp $");
 #include <fnmatch.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fnmatch,_fnmatch)
 #endif
 

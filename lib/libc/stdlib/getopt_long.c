@@ -54,7 +54,7 @@ __RCSID("$NetBSD: getopt_long.c,v 1.27 2015/09/01 19:39:57 kamil Exp $");
 #endif
 
 #ifdef REPLACE_GETOPT
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getopt,_getopt)
 #endif
 int	opterr = 1;		/* if error message should be printed */
@@ -66,7 +66,7 @@ char    *optarg;		/* argument associated with option */
 static int optreset;
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getopt_long,_getopt_long)
 #endif
 

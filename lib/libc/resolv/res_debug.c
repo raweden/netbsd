@@ -130,7 +130,7 @@ extern const char *_res_opcodes[];
 extern const char *_res_sectioncodes[];
 
 #if 0
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(res_pquery,__res_pquery)
 __weak_alias(res_nametoclass,__res_nametoclass)
 __weak_alias(res_nametotype,__res_nametotype)

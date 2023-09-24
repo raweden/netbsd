@@ -87,7 +87,7 @@ int	h_nerr = { sizeof h_errlist / sizeof h_errlist[0] };
 int	h_errno;
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(herror,_herror)
 #endif
 

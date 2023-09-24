@@ -60,7 +60,7 @@ __RCSID("$NetBSD: getgroupmembership.c,v 1.4 2008/04/28 20:22:59 martin Exp $");
 
 #include "gr_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getgroupmembership,_getgroupmembership)
 #endif
 

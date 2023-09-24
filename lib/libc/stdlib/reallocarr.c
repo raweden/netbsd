@@ -45,7 +45,7 @@ __RCSID("$NetBSD: reallocarr.c,v 1.5 2015/08/20 22:27:49 kamil Exp $");
 #include <string.h>
 
 #ifdef _LIBC
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(reallocarr, _reallocarr)
 #endif
 #endif

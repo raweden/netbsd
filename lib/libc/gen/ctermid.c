@@ -43,7 +43,7 @@ __RCSID("$NetBSD: ctermid.c,v 1.11 2012/06/25 22:32:43 abs Exp $");
 #include <string.h>
 #include <paths.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ctermid,_ctermid)
 #endif
 

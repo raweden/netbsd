@@ -49,7 +49,7 @@ struct __res_state _nres
 res_state __res_get_state_nothread(void);
 void __res_put_state_nothread(res_state);
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(__res_get_state, __res_get_state_nothread)
 __weak_alias(__res_put_state, __res_put_state_nothread)
 /* Source compatibility; only for single threaded programs */

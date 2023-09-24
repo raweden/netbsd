@@ -62,7 +62,7 @@ __RCSID("$NetBSD: rpcb_prot.c,v 1.12 2017/05/03 21:39:27 christos Exp $");
 
 #include <assert.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_rpcb,_xdr_rpcb)
 __weak_alias(xdr_rpcblist_ptr,_xdr_rpcblist_ptr)
 __weak_alias(xdr_rpcblist,_xdr_rpcblist)

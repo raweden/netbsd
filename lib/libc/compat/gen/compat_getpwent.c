@@ -67,7 +67,7 @@ __warn_references(getpwent_r,
 __warn_references(pwcache_userdb,
     "warning: reference to compatibility pwcache_userdb(); include <pwd.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getpwent, _getpwent)
 __weak_alias(getpwent_r, _getpwent_r)
 __weak_alias(getpwuid, _getpwuid)

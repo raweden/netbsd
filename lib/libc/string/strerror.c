@@ -47,7 +47,9 @@ __RCSID("$NetBSD: strerror.c,v 1.18 2020/03/25 16:10:17 kre Exp $");
 #endif
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strerror_l, _strerror_l)
+#endif
 
 __aconst char *
 strerror(int num)

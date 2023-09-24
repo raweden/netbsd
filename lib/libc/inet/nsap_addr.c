@@ -44,7 +44,7 @@ __RCSID("$NetBSD: nsap_addr.c,v 1.6 2009/04/12 17:07:17 christos Exp $");
 
 #include "port_after.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_nsap_addr,_inet_nsap_addr)
 __weak_alias(inet_nsap_ntoa,_inet_nsap_ntoa)
 #endif

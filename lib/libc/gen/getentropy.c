@@ -41,7 +41,7 @@ __RCSID("$NetBSD: getentropy.c,v 1.3 2022/05/31 13:42:59 riastradh Exp $");
 #include <limits.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getentropy,_getentropy)
 #endif
 

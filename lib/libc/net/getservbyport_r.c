@@ -46,7 +46,7 @@ __RCSID("$NetBSD: getservbyport_r.c,v 1.9 2012/03/13 21:13:41 christos Exp $");
 
 #include "servent.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getservbyport_r,_getservbyport_r)
 #endif
 

@@ -52,7 +52,7 @@ __warn_references(select,
 __warn_references(pselect,
     "warning: reference to compatibility pselect(); include <sys/select.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(select, _select)
 __weak_alias(_sys_select, _select)
 __weak_alias(pselect, _pselect)

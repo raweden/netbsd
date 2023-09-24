@@ -38,8 +38,10 @@ __RCSID("$NetBSD: asysctl.c,v 1.2 2017/01/10 17:45:58 christos Exp $");
 #include <limits.h>
 #include <stdlib.h>
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(asysctl,_asysctl)
 __weak_alias(asysctlbyname,_asysctlbyname)
+#endif
 
 void *
 asysctl(const int *oids, size_t oidlen, size_t *len)

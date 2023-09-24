@@ -24,7 +24,7 @@ __RCSID("$NetBSD: lcong48.c,v 1.8 2005/06/12 05:21:28 lukem Exp $");
 
 #include "rand48.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(lcong48,_lcong48)
 #endif
 

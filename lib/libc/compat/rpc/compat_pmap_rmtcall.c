@@ -53,7 +53,7 @@ __RCSID("$NetBSD: compat_pmap_rmtcall.c,v 1.2 2009/01/11 03:41:28 christos Exp $
 __warn_references(pmap_rmtcall,
     "warning: reference to compatibility pmap_rmtcall(); include <rpc/pmap_clnt.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pmap_rmtcall, _pmap_rmtcall)
 #endif
 

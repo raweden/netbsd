@@ -44,7 +44,7 @@ __RCSID("$NetBSD: stringlist.c,v 1.15 2022/03/12 17:31:39 christos Exp $");
 #include <string.h>
 #include <stringlist.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sl_add,_sl_add)
 __weak_alias(sl_find,_sl_find)
 __weak_alias(sl_free,_sl_free)

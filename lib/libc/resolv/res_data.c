@@ -51,7 +51,7 @@ __RCSID("$NetBSD: res_data.c,v 1.14 2009/10/24 05:35:37 christos Exp $");
 
 #include "res_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(res_init,_res_init)
 __weak_alias(res_mkquery,_res_mkquery)
 __weak_alias(res_query,_res_query)

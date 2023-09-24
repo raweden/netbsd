@@ -49,7 +49,7 @@ __RCSID("$NetBSD: atoll.c,v 1.6 2012/06/25 22:32:45 abs Exp $");
 #include <stdlib.h>
 
 #ifdef _LIBC
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(atoll, _atoll)
 #endif
 #endif

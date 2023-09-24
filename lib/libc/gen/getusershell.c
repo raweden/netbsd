@@ -93,7 +93,7 @@ __RCSID("$NetBSD: getusershell.c,v 1.29 2012/03/13 21:13:36 christos Exp $");
 #include <rpcsvc/yp_prot.h>
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endusershell,_endusershell)
 __weak_alias(getusershell,_getusershell)
 __weak_alias(setusershell,_setusershell)

@@ -51,7 +51,7 @@ __RCSID("$NetBSD: mpool.c,v 1.23 2016/09/24 21:31:25 christos Exp $");
 #define	__MPOOLINTERFACE_PRIVATE
 #include <mpool.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(mpool_close,_mpool_close)
 __weak_alias(mpool_filter,_mpool_filter)
 __weak_alias(mpool_get,_mpool_get)

@@ -49,7 +49,7 @@ __RCSID("$NetBSD: getsubopt.c,v 1.10 2018/08/30 12:06:06 christos Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getsubopt,_getsubopt)
 #endif
 

@@ -57,7 +57,7 @@ __RCSID("$NetBSD: getnetent.c,v 1.22 2020/06/05 11:16:15 nia Exp $");
 #include <stdio.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(endnetent,_endnetent)
 __weak_alias(getnetent,_getnetent)
 __weak_alias(setnetent,_setnetent)

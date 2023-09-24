@@ -164,7 +164,9 @@ static const uint16_t langinfo_offset[] = {
     [ ALT_DIGITS ] = 0,
 };
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(nl_langinfo_l, _nl_langinfo_l)
+#endif
 
 char *
 nl_langinfo(nl_item item)

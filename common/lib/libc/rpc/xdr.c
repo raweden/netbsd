@@ -72,36 +72,34 @@ __RCSID("$NetBSD: xdr.c,v 1.3 2019/06/16 16:01:44 christos Exp $");
 #include <rpc/xdr.h>
 #include <rpc/rpc_com.h>
 
-#ifdef __weak_alias
-__weak_alias(xdr_bool,_xdr_bool)
-__weak_alias(xdr_bytes,_xdr_bytes)
-__weak_alias(xdr_char,_xdr_char)
-__weak_alias(xdr_enum,_xdr_enum)
-__weak_alias(xdr_free,_xdr_free)
-__weak_alias(xdr_hyper,_xdr_hyper)
-__weak_alias(xdr_int,_xdr_int)
-__weak_alias(xdr_int16_t,_xdr_int16_t)
-__weak_alias(xdr_int32_t,_xdr_int32_t)
-__weak_alias(xdr_int64_t,_xdr_int64_t)
-__weak_alias(xdr_long,_xdr_long)
-__weak_alias(xdr_longlong_t,_xdr_longlong_t)
-__weak_alias(xdr_netobj,_xdr_netobj)
-__weak_alias(xdr_opaque,_xdr_opaque)
-__weak_alias(xdr_short,_xdr_short)
-__weak_alias(xdr_string,_xdr_string)
-__weak_alias(xdr_u_char,_xdr_u_char)
-__weak_alias(xdr_u_hyper,_xdr_u_hyper)
-__weak_alias(xdr_u_int,_xdr_u_int)
-__weak_alias(xdr_u_int16_t,_xdr_u_int16_t)
-__weak_alias(xdr_u_int32_t,_xdr_u_int32_t)
-__weak_alias(xdr_u_int64_t,_xdr_u_int64_t)
-__weak_alias(xdr_u_long,_xdr_u_long)
-__weak_alias(xdr_u_longlong_t,_xdr_u_longlong_t)
-__weak_alias(xdr_u_short,_xdr_u_short)
-__weak_alias(xdr_union,_xdr_union)
-__weak_alias(xdr_void,_xdr_void)
-__weak_alias(xdr_wrapstring,_xdr_wrapstring)
-#endif
+bool_t _xdr_bool(XDR *xdrs, bool_t *bp) __attribute__((weak, alias("xdr_bool")));
+bool_t _xdr_bytes(XDR *xdrs, char **cpp, u_int *sizep, u_int maxsize) __attribute__((weak, alias("xdr_bytes")));
+bool_t _xdr_char(XDR *xdrs, char *cp) __attribute__((weak, alias("xdr_char")));
+bool_t _xdr_enum(XDR *xdrs, enum_t *ep) __attribute__((weak, alias("xdr_enum")));
+void _xdr_free(xdrproc_t proc, char *objp) __attribute__((weak, alias("xdr_free")));
+bool_t _xdr_hyper(XDR *xdrs, longlong_t *llp) __attribute__((weak, alias("xdr_hyper")));
+bool_t _xdr_int(XDR *xdrs, int *ip) __attribute__((weak, alias("xdr_int")));
+bool_t _xdr_int16_t(XDR *xdrs, int16_t *int16_p) __attribute__((weak, alias("xdr_int16_t")));
+bool_t _xdr_int32_t(XDR *xdrs, int32_t *int32_p) __attribute__((weak, alias("xdr_int32_t")));
+bool_t _xdr_int64_t(XDR *xdrs, int64_t *llp) __attribute__((weak, alias("xdr_int64_t")));
+bool_t _xdr_long(XDR *xdrs, long *lp) __attribute__((weak, alias("xdr_long")));
+bool_t _xdr_longlong_t(XDR *, longlong_t *) __attribute__((weak, alias("xdr_longlong_t")));
+bool_t _xdr_netobj(XDR *, struct netobj *) __attribute__((weak, alias("xdr_netobj")));
+bool_t _xdr_opaque(XDR *, char *, u_int) __attribute__((weak, alias("xdr_opaque")));
+bool_t _xdr_short(XDR *, short *) __attribute__((weak, alias("xdr_short")));
+bool_t _xdr_string(XDR *, char **, u_int) __attribute__((weak, alias("xdr_string")));
+bool_t _xdr_u_char(XDR *, u_char *) __attribute__((weak, alias("xdr_u_char")));
+bool_t _xdr_u_hyper(XDR *, u_longlong_t *) __attribute__((weak, alias("xdr_u_hyper")));
+bool_t _xdr_u_int(XDR *, u_int *) __attribute__((weak, alias("xdr_u_int")));
+bool_t _xdr_u_int16_t(XDR *, u_int16_t *) __attribute__((weak, alias("xdr_u_int16_t")));
+bool_t _xdr_u_int32_t(XDR *, u_int32_t *) __attribute__((weak, alias("xdr_u_int32_t")));
+bool_t _xdr_u_int64_t(XDR *, u_int64_t *) __attribute__((weak, alias("xdr_u_int64_t")));
+bool_t _xdr_u_long(XDR *, u_long *) __attribute__((weak, alias("xdr_u_long")));
+bool_t _xdr_u_longlong_t(XDR *, u_longlong_t *) __attribute__((weak, alias("xdr_u_longlong_t")));
+bool_t _xdr_u_short(XDR *, u_short *) __attribute__((weak, alias("xdr_u_short")));
+bool_t _xdr_union(XDR *, enum_t *, char *, const struct xdr_discrim *, xdrproc_t) __attribute__((weak, alias("xdr_union")));
+bool_t _xdr_void(void) __attribute__((weak, alias("xdr_void")));
+bool_t _xdr_wrapstring(XDR *, char **) __attribute__((weak, alias("xdr_wrapstring")));
 
 #endif /* _KERNEL || _STANDALONE */
 

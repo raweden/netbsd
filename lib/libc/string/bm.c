@@ -50,7 +50,7 @@ __RCSID("$NetBSD: bm.c,v 1.13 2014/06/23 10:43:25 shm Exp $");
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(bm_comp,_bm_comp)
 __weak_alias(bm_exec,_bm_exec)
 __weak_alias(bm_free,_bm_free)

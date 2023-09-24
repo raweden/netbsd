@@ -49,7 +49,7 @@ __RCSID("$NetBSD: fseeko.c,v 1.14 2017/01/10 17:44:28 christos Exp $");
 #include "reentrant.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(fseeko, _fseeko)
 #endif
 

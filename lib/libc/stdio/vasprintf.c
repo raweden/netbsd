@@ -44,10 +44,12 @@ __RCSID("$NetBSD: vasprintf.c,v 1.17 2013/05/19 21:45:00 christos Exp $");
 #include "setlocale_local.h"
 #include "local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(asprintf, _asprintf)
 __weak_alias(asprintf_l, _asprintf_l)
 __weak_alias(vasprintf, _vasprintf)
 __weak_alias(vasprintf_l, _vasprintf_l)
+#endif
 
 int
 vasprintf_l(char **str, locale_t loc, const char *fmt, va_list ap)

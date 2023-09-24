@@ -48,7 +48,7 @@ __RCSID("$NetBSD: getifaddrs.c,v 1.16 2016/09/21 10:53:24 roy Exp $");
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__weak_alias) && !defined(RUMP_ACTION)
+#if defined(__weak_alias) && !defined(RUMP_ACTION) && !defined (__WASM)
 __weak_alias(getifaddrs,_getifaddrs)
 __weak_alias(freeifaddrs,_freeifaddrs)
 #endif

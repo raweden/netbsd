@@ -63,7 +63,7 @@ __RCSID("$NetBSD: sha3.c,v 1.3 2021/07/31 14:36:33 andvar Exp $");
 
 /* XXX Disabled for now -- these will be libc-private.  */
 #if 0 && !defined(_KERNEL) && !defined(_STANDALONE)
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(SHA3_224_Init,_SHA3_224_Init)
 __weak_alias(SHA3_224_Update,_SHA3_224_Update)
 __weak_alias(SHA3_224_Final,_SHA3_224_Final)

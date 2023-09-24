@@ -38,7 +38,9 @@ __RCSID("$NetBSD: newlocale.c,v 1.4 2023/04/16 20:37:59 mlelstv Exp $");
 
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(newlocale, _newlocale)
+#endif
 
 locale_t
 newlocale(int mask, const char *name, locale_t src)

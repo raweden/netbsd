@@ -46,7 +46,7 @@ __RCSID("$NetBSD: tcflow.c,v 1.9 2012/06/25 22:32:46 abs Exp $");
 #include <termios.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(tcflow,_tcflow)
 #endif
 

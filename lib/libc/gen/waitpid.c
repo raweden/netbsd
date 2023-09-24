@@ -44,7 +44,7 @@ __RCSID("$NetBSD: waitpid.c,v 1.9 2003/08/07 16:43:01 agc Exp $");
 #include <sys/wait.h>
 #include <sys/resource.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(waitpid,_waitpid)
 #endif
 

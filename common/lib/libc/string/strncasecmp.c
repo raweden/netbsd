@@ -47,9 +47,9 @@ __RCSID("$NetBSD: strncasecmp.c,v 1.3 2018/08/16 12:03:10 christos Exp $");
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
-#ifdef __weak_alias
-__weak_alias(strcasecmp,_strcasecmp)
-__weak_alias(strncasecmp,_strncasecmp)
+#if defined(__weak_alias) && !defined(__WASM)
+int _strcasecmp(const char *s1, const char *s2) __attribute__((weak, alias("strcasecmp")));
+int _strncasecmp(const char *s1, const char *s2, size_t n) __attribute__((weak, alias("strncasecmp")));
 #endif
 #else
 #include <lib/libkern/libkern.h>

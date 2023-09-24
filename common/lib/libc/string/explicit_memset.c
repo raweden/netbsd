@@ -8,9 +8,7 @@
 #if !defined(_KERNEL) && !defined(_STANDALONE)
 #include "namespace.h"
 #include <string.h>
-#ifdef __weak_alias
-__weak_alias(explicit_memset,_explicit_memset)
-#endif
+void *_explicit_memset(void *, int, size_t) __attribute__((weak, alias("explicit_memset")));
 #define explicit_memset_impl __explicit_memset_impl
 #else
 #include <lib/libkern/libkern.h>

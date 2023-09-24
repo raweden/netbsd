@@ -50,7 +50,7 @@ __warn_references(clock_settime,
 __warn_references(clock_getres,
     "warning: reference to compatibility clock_getres(); include <time.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(clock_settime, _clock_settime)
 __weak_alias(__clock_settime, _clock_settime)
 __weak_alias(clock_gettime, _clock_gettime)

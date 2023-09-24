@@ -75,7 +75,7 @@ __RCSID("$NetBSD: getlogin.c,v 1.16 2019/10/05 19:19:51 uwe Exp $");
 #include "reentrant.h"
 #include "extern.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getlogin,_getlogin)
 __weak_alias(getlogin_r,_getlogin_r)
 __weak_alias(setlogin,_setlogin)

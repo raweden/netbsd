@@ -39,7 +39,7 @@ __RCSID("$NetBSD: pwrite.c,v 1.9 2007/11/22 21:11:32 dsl Exp $");
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pwrite,_sys_pwrite)
 __weak_alias(_pwrite,_sys_pwrite)
 #endif

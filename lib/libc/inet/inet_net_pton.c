@@ -43,7 +43,7 @@ __RCSID("$NetBSD: inet_net_pton.c,v 1.5 2018/12/13 08:44:11 maya Exp $");
 
 #include "port_after.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_net_pton,_inet_net_pton)
 #endif
 

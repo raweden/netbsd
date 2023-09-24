@@ -28,7 +28,7 @@
 
 #include <sys/cdefs.h>
 __RCSID("$NetBSD: cxa_thread_atexit.c,v 1.1 2017/07/11 15:21:35 joerg Exp $");
-
+#ifndef __WASM
 #include <sys/queue.h>
 #include <dlfcn.h>
 #include <stdlib.h>
@@ -65,7 +65,9 @@ __cxa_thread_run_atexit(void)
  * This dance is necessary since libstdc++ includes
  * __cxa_thread_atexit unconditionally.
  */
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(__cxa_thread_atexit, __cxa_thread_atexit_impl)
+#endif
 int	__cxa_thread_atexit_impl(void (*)(void *), void *, void *);
 
 int
@@ -86,3 +88,6 @@ __cxa_thread_atexit_impl(void (*dtor)(void *), void *obj, void *dso_symbol)
 	SLIST_INSERT_HEAD(&cxa_dtors, entry, link);
 	return 0;
 }
+
+
+#endif

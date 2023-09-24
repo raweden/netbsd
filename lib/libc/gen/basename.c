@@ -41,7 +41,7 @@ __RCSID("$NetBSD: basename.c,v 1.12 2023/01/18 08:07:22 simonb Exp $");
 #include <limits.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(basename,_basename)
 #endif
 

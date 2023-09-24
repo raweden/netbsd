@@ -1109,7 +1109,7 @@ strtod(CONST char *s, char **sp)
 	return _int_strtod_l(s, sp, _current_locale());
 }
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strtod_l, _strtod_l)
 #endif
 

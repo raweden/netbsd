@@ -40,7 +40,7 @@ __RCSID("$NetBSD: if_nameindex.c,v 1.7 2012/03/13 21:13:41 christos Exp $");
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(if_nameindex,_if_nameindex)
 __weak_alias(if_freenameindex,_if_freenameindex)
 #endif

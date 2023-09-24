@@ -78,7 +78,7 @@ __RCSID("$NetBSD: rpcb_clnt.c,v 1.31 2015/03/26 11:31:57 justin Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(rpcb_set,_rpcb_set)
 __weak_alias(rpcb_unset,_rpcb_unset)
 __weak_alias(rpcb_getmaps,_rpcb_getmaps)

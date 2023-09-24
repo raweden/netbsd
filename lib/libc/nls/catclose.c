@@ -43,9 +43,7 @@ __RCSID("$NetBSD: catclose.c,v 1.14 2012/06/25 22:32:45 abs Exp $");
 #include <stdlib.h>
 #include <nl_types.h>
 
-#ifdef __weak_alias
-__weak_alias(catclose, _catclose)
-#endif
+int catclose(nl_catd catd) __attribute__((weak, alias("_catclose")));
 
 int
 _catclose(nl_catd catd)

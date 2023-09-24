@@ -52,7 +52,7 @@ __RCSID("$NetBSD: vdprintf.c,v 1.6 2020/08/28 22:02:24 christos Exp $");
 #include "setlocale_local.h"
 #include "local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vdprintf,_vdprintf)
 __weak_alias(vdprintf_l,_vdprintf_l)
 #endif

@@ -41,8 +41,10 @@ __RCSID("$NetBSD: wcstold.c,v 1.5 2017/12/09 22:48:00 christos Exp $");
 #include <wchar.h>
 #include <wctype.h>
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(wcstold,_wcstold)
 __weak_alias(wcstold_l,_wcstold_l)
+#endif
 
 #define _FUNCNAME	wcstold
 #define _RETURN_TYPE	long double

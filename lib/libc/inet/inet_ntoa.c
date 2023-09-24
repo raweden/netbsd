@@ -46,7 +46,7 @@ __RCSID("$NetBSD: inet_ntoa.c,v 1.2 2012/03/13 21:13:38 christos Exp $");
 #include <stdio.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(inet_ntoa,_inet_ntoa)
 #endif
 

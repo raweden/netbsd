@@ -49,7 +49,7 @@ __RCSID("$NetBSD: setproctitle.c,v 1.23 2021/04/20 21:42:32 christos Exp $");
 #include <string.h>
 #include "csu-common.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(setproctitle,_setproctitle)
 #endif
 

@@ -63,7 +63,7 @@ __RCSID("$NetBSD: merge.c,v 1.16 2018/05/23 21:21:27 joerg Exp $");
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(mergesort,_mergesort)
 #endif
 

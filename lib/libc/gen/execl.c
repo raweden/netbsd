@@ -45,7 +45,7 @@ __RCSID("$NetBSD: execl.c,v 1.17 2011/06/30 19:46:07 joerg Exp $");
 #include <unistd.h>
 #include "reentrant.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(execl,_execl)
 #endif
 

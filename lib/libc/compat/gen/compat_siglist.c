@@ -38,7 +38,7 @@ __RCSID("$NetBSD: compat_siglist.c,v 1.1 2005/09/13 01:44:09 christos Exp $");
 #endif
 #endif /* LIBC_SCCS and not lint */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sys_siglist, _sys_siglist)
 __weak_alias(__sys_siglist, _sys_siglist)
 #endif

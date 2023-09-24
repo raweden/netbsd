@@ -62,7 +62,7 @@ __RCSID("$NetBSD: pmap_getport.c,v 1.19 2013/03/11 20:19:29 tron Exp $");
 #include <rpc/pmap_prot.h>
 #include <rpc/pmap_clnt.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pmap_getport,_pmap_getport)
 #endif
 

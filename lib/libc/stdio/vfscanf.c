@@ -65,7 +65,7 @@ __RCSID("$NetBSD: vfscanf.c,v 1.47 2022/05/24 06:27:59 andvar Exp $");
  * namespace.h method; stdio routines explicitly use the internal name
  * __svfscanf.
  */
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vfscanf,__svfscanf)
 __weak_alias(vfscanf_l,__svfscanf_l)
 #endif

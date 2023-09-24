@@ -133,7 +133,7 @@ __RCSID("$NetBSD: res_send.c,v 1.30 2015/02/24 17:56:20 christos Exp $");
 #include "port_after.h"
 
 #if 0
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(res_ourserver_p,__res_ourserver_p)
 __weak_alias(res_nameinquery,__res_nameinquery)
 __weak_alias(res_queriesmatch,__res_queriesmatch)

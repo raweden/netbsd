@@ -72,13 +72,11 @@ __RCSID("$NetBSD: cdbr.c,v 1.2 2017/01/10 23:06:06 christos Exp $");
 #endif
 
 #if !defined(_KERNEL) && !defined(_STANDALONE)
-#ifdef __weak_alias
-__weak_alias(cdbr_close,_cdbr_close)
-__weak_alias(cdbr_find,_cdbr_find)
-__weak_alias(cdbr_get,_cdbr_get)
-__weak_alias(cdbr_open,_cdbr_open)
-__weak_alias(cdbr_open_mem,_cdbr_open_mem)
-#endif
+void _cdbr_close(struct cdbr *) __attribute__((weak, alias("cdbr_close")));
+int _cdbr_find(struct cdbr *, const void *, size_t, const void **, size_t *) __attribute__((weak, alias("cdbr_find")));
+int _cdbr_get(struct cdbr *, uint32_t, const void **, size_t *) __attribute__((weak, alias("cdbr_get")));
+struct cdbr *_cdbr_open(const char *, int) __attribute__((weak, alias("cdbr_open")));
+struct cdbr *_cdbr_open_mem(void *, size_t, int, void (*)(void *, void *, size_t), void *) __attribute__((weak, alias("cdbr_open_mem")));
 #endif
 
 #if HAVE_NBTOOL_CONFIG_H

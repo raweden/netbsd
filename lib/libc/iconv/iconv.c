@@ -39,7 +39,7 @@ __RCSID("$NetBSD: iconv.c,v 1.14 2019/10/24 18:17:59 kamil Exp $");
 
 #include <iconv.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(iconv, _iconv)
 __weak_alias(iconv_open, _iconv_open)
 __weak_alias(iconv_close, _iconv_close)

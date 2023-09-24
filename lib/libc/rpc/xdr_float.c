@@ -62,7 +62,7 @@ __RCSID("$NetBSD: xdr_float.c,v 1.41 2016/02/15 11:07:48 martin Exp $");
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_double,_xdr_double)
 __weak_alias(xdr_float,_xdr_float)
 #endif

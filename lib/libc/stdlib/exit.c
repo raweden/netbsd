@@ -54,7 +54,7 @@ void
 exit(int status)
 {
 
-#ifdef _LIBC
+#if defined(_LIBC) && !defined (__WASM)
 	if (__cxa_thread_atexit_used)
 		__cxa_thread_run_atexit();
 	__cxa_finalize(NULL);

@@ -46,7 +46,9 @@ __RCSID("$NetBSD: dprintf.c,v 1.2 2013/04/19 15:22:25 joerg Exp $");
 #include "reentrant.h"
 #include "local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(dprintf_l, _dprintf_l)
+#endif
 
 int
 dprintf(int fd, const char * __restrict fmt, ...)

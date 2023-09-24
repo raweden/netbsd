@@ -97,7 +97,7 @@ __RCSID("$NetBSD: pwcache.c,v 1.34 2022/04/19 20:32:15 rillig Exp $");
 #define	user_from_uid	__nbcompat_user_from_uid
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(user_from_uid,_user_from_uid)
 __weak_alias(group_from_gid,_group_from_gid)
 __weak_alias(pwcache_groupdb,_pwcache_groupdb)

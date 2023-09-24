@@ -62,7 +62,7 @@ __RCSID("$NetBSD: pmap_clnt.c,v 1.19 2013/03/11 20:19:29 tron Exp $");
 
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pmap_set,_pmap_set)
 __weak_alias(pmap_unset,_pmap_unset)
 #endif

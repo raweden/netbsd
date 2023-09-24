@@ -38,7 +38,9 @@ __RCSID("$NetBSD: freelocale.c,v 1.2 2013/05/17 12:55:57 joerg Exp $");
 
 #include "setlocale_local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(freelocale, _freelocale)
+#endif
 
 void
 freelocale(locale_t locale)

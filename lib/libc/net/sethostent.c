@@ -54,7 +54,7 @@ __RCSID("$NetBSD: sethostent.c,v 1.20 2014/03/17 13:24:23 christos Exp $");
 
 #include "hostent.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sethostent,_sethostent)
 __weak_alias(endhostent,_endhostent)
 #endif

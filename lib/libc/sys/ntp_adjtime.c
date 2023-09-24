@@ -51,7 +51,7 @@ __RCSID("$NetBSD: ntp_adjtime.c,v 1.13 2012/03/20 16:26:12 matt Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(ntp_adjtime,_ntp_adjtime)
 #endif
 

@@ -32,6 +32,7 @@
 #include <sys/cdefs.h>
 #include <ssp/ssp.h>
 
+#ifndef __WASM
 #define aio_suspend	_aio_suspend
 #define brk		_brk
 #define catclose	_catclose
@@ -94,6 +95,7 @@
 #define warn		_warn
 #define warnc		_warnc
 #define warnx		_warnx
+#endif
 
 /*
  * namespace protection for libc functions that are used internally
@@ -107,7 +109,7 @@
  * See src/lib/libc/README for more details.
  */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 #define MD2Data			_MD2Data
 #define MD2End			_MD2End
 #define MD2FileChunk		_MD2FileChunk

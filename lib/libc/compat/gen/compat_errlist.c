@@ -42,7 +42,7 @@ __RCSID("$NetBSD: compat_errlist.c,v 1.2 2006/10/31 00:38:07 cbiere Exp $");
 
 #define __LIBC12_SOURCE__
 #include <errno.h>
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sys_errlist, _sys_errlist)
 __weak_alias(__sys_errlist, _sys_errlist)
 __weak_alias(sys_nerr, _sys_nerr)

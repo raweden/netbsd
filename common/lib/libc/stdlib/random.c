@@ -46,11 +46,11 @@ __RCSID("$NetBSD: random.c,v 1.7 2021/12/12 22:20:52 andvar Exp $");
 #include <stdlib.h>
 #include "reentrant.h"
 
-#ifdef __weak_alias
-__weak_alias(initstate,_initstate)
-__weak_alias(random,_random)
-__weak_alias(setstate,_setstate)
-__weak_alias(srandom,_srandom)
+#if defined(__weak_alias) && !defined(__WASM)
+char *_initstate(unsigned int, char *, size_t) __attribute__((weak, alias("initstate")));
+long _random(void) __attribute__((weak, alias("random")));
+char *_setstate(char *arg_state) __attribute__((weak, alias("setstate")));
+void _srandom(unsigned int x) __attribute__((weak, alias("srandom")));
 #endif
 
 

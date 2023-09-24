@@ -61,7 +61,7 @@ __RCSID("$NetBSD: svc_raw.c,v 1.25 2015/11/06 19:32:08 christos Exp $");
 #include <assert.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(svc_raw_create,_svc_raw_create)
 #endif
 

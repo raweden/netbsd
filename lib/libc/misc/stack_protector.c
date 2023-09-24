@@ -53,7 +53,10 @@ static void __fail(const char *) __attribute__((__noreturn__));
 __dead void __stack_chk_fail_local(void);
 void __guard_setup(void);
 
-void __section(".text.startup")
+void 
+#ifndef __WASM
+__section(".text.startup")
+#endif
 __guard_setup(void)
 {
 	static const int mib[2] = { CTL_KERN, KERN_ARND };

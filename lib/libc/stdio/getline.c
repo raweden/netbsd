@@ -34,7 +34,7 @@ __RCSID("$NetBSD: getline.c,v 1.3 2009/12/02 08:46:33 roy Exp $");
 
 #include <stdio.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getline, _getline)
 #endif
 

@@ -48,7 +48,7 @@ __RCSID("$NetBSD: compat_settimeofday.c,v 1.2 2009/01/11 02:46:26 christos Exp $
 __warn_references(settimeofday,
     "warning: reference to compatibility settimeofday(); include <time.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(settimeofday, _settimeofday)
 __weak_alias(__settimeofday, _settimeofday)
 #endif

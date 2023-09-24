@@ -68,7 +68,7 @@ __RCSID("$NetBSD: svc_generic.c,v 1.17 2014/05/29 12:35:45 christos Exp $");
 #include "svc_fdset.h"
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(svc_create,_svc_create)
 __weak_alias(svc_tp_create,_svc_tp_create)
 __weak_alias(svc_tli_create,_svc_tli_create)

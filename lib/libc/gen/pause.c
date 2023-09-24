@@ -42,7 +42,7 @@ __RCSID("$NetBSD: pause.c,v 1.11 2012/06/24 15:26:03 christos Exp $");
 #include <signal.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pause,_pause)
 #endif
 

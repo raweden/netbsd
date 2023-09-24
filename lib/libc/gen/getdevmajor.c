@@ -47,7 +47,7 @@ __RCSID("$NetBSD: getdevmajor.c,v 1.6 2012/03/13 21:13:35 christos Exp $");
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getdevmajor,_getdevmajor)
 #endif
 

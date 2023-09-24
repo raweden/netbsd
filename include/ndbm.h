@@ -78,11 +78,24 @@ int	 dbm_clearerr(DBM *);
 int	 dbm_dirfno(DBM *);
 #endif
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define dbm_delete __dbm_delete13
+#define dbm_fetch __dbm_fetch13
+#define dbm_firstkey __dbm_firstkey13
+#define dbm_nextkey __dbm_nextkey13
+#define dbm_store __dbm_store13
+int	 dbm_delete(DBM *, datum);
+datum	 dbm_fetch(DBM *, datum);
+datum	 dbm_firstkey(DBM *);
+datum	 dbm_nextkey(DBM *);
+int	 dbm_store(DBM *, datum, datum, int);
+#else
 int	 dbm_delete(DBM *, datum)		__RENAME(__dbm_delete13);
 datum	 dbm_fetch(DBM *, datum)		__RENAME(__dbm_fetch13);
 datum	 dbm_firstkey(DBM *)			__RENAME(__dbm_firstkey13);
 datum	 dbm_nextkey(DBM *)			__RENAME(__dbm_nextkey13);
 int	 dbm_store(DBM *, datum, datum, int)	__RENAME(__dbm_store13);
+#endif
 #endif
 __END_DECLS
 

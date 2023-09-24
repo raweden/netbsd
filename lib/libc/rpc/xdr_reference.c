@@ -60,7 +60,7 @@ __RCSID("$NetBSD: xdr_reference.c,v 1.19 2022/02/13 22:20:08 andvar Exp $");
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(xdr_pointer,_xdr_pointer)
 __weak_alias(xdr_reference,_xdr_reference)
 #endif

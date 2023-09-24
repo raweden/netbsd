@@ -45,7 +45,7 @@ __RCSID("$NetBSD: strptime.c,v 1.63 2020/09/21 15:31:54 ginsbach Exp $");
 #include "private.h"
 #include "setlocale_local.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strptime,_strptime)
 __weak_alias(strptime_l, _strptime_l)
 #endif

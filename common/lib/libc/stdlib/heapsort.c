@@ -67,9 +67,8 @@ __RCSID("$NetBSD: heapsort.c,v 1.3 2008/11/17 10:21:30 jnemeth Exp $");
 #define heapsort	__nbcompat_heapsort
 #endif
 
-#ifdef __weak_alias
-__weak_alias(heapsort,_heapsort)
-#endif
+
+int _heapsort(void *, size_t, size_t, int (*)(const void *, const void *)) __attribute__((weak, alias("heapsort")));
 #endif	/* _KERNEL || _STANDALONE */
 
 /*

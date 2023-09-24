@@ -39,7 +39,7 @@ __RCSID("$NetBSD: pread.c,v 1.9 2007/11/22 21:11:31 dsl Exp $");
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(pread,_sys_pread)
 __weak_alias(_pread,_sys_pread)
 #endif

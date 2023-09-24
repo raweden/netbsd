@@ -45,7 +45,7 @@ __RCSID("$NetBSD: devname.c,v 1.23 2019/02/18 20:27:20 christos Exp $");
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(devname_r,_devname_r)
 #endif
 

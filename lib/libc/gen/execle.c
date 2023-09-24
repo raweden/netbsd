@@ -43,7 +43,7 @@ __RCSID("$NetBSD: execle.c,v 1.12 2011/06/30 19:46:07 joerg Exp $");
 #include <stdlib.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(execle,_execle)
 #endif
 

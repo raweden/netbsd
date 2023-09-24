@@ -6,7 +6,7 @@
 #include <dirent.h>
 #include <compat/include/dirent.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(scandir,_scandir)
 #endif
 

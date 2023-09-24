@@ -47,7 +47,9 @@ __RCSID("$NetBSD: printf.c,v 1.13 2013/04/19 15:22:25 joerg Exp $");
 #include <stdarg.h>
 #include <stdio.h>
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(printf_l, _printf_l)
+#endif
 
 int
 printf(char const *fmt, ...)

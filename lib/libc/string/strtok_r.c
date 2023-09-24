@@ -43,7 +43,7 @@ __RCSID("$NetBSD: strtok_r.c,v 1.10 2012/06/25 22:32:46 abs Exp $");
 #include <assert.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(strtok_r,_strtok_r)
 #endif
 

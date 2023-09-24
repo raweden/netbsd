@@ -54,7 +54,7 @@ __RCSID("$NetBSD: compat_utime.c,v 1.2 2009/01/11 02:46:25 christos Exp $");
 __warn_references(utime,
     "warning: reference to compatibility utime(); include <utime.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(utime, _utime)
 #endif
 

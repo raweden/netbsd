@@ -75,7 +75,7 @@ __RCSID("$NetBSD: getnameinfo.c,v 1.59 2015/09/22 16:15:08 christos Exp $");
 #include "hostent.h"
 
 #ifndef RUMP_ACTION
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getnameinfo,_getnameinfo)
 #endif
 #endif

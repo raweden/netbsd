@@ -44,7 +44,7 @@ __RCSID("$NetBSD: lldiv.c,v 1.4 2012/06/25 22:32:45 abs Exp $");
 #include "namespace.h"
 #include <stdlib.h>		/* lldiv_t */
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(lldiv, _lldiv)
 #endif
 

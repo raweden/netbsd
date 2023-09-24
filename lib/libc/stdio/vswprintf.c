@@ -48,7 +48,9 @@ __RCSID("$NetBSD: vswprintf.c,v 1.6 2013/05/19 21:45:00 christos Exp $");
 #include "setlocale_local.h"
 #include "local.h"
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vswprintf_l, _vswprintf_l)
+#endif
 
 int
 vswprintf_l(wchar_t * __restrict s, size_t n, locale_t loc,

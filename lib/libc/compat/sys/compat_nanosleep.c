@@ -48,7 +48,7 @@ __RCSID("$NetBSD: compat_nanosleep.c,v 1.2 2009/01/11 02:46:26 christos Exp $");
 __warn_references(nanosleep,
     "warning: reference to compatibility nanosleep(); include <time.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(nanosleep, _nanosleep)
 __weak_alias(_sys_nanosleep, _nanosleep)
 #endif

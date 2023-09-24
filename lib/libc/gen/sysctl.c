@@ -51,7 +51,7 @@ __RCSID("$NetBSD: sysctl.c,v 1.38 2021/03/30 15:31:51 rillig Exp $");
 #include <unistd.h>
 #include "extern.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sysctl,_sysctl)
 #endif
 

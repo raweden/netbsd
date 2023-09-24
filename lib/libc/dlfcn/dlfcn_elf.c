@@ -58,7 +58,7 @@ __RCSID("$NetBSD: dlfcn_elf.c,v 1.17 2023/07/04 19:24:25 riastradh Exp $");
 #define ELFSIZE ARCH_ELFSIZE
 #include "rtld.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(dlopen,___dlopen)
 __weak_alias(dlclose,___dlclose)
 __weak_alias(dlsym,___dlsym)

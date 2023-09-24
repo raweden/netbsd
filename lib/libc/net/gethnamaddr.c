@@ -97,7 +97,7 @@ __RCSID("$NetBSD: gethnamaddr.c,v 1.94 2022/04/19 20:32:15 rillig Exp $");
 
 #include "hostent.h"
 
-#if defined(_LIBC) && defined(__weak_alias)
+#if defined(_LIBC) && defined(__weak_alias) && !defined (__WASM)
 __weak_alias(gethostbyaddr,_gethostbyaddr)
 __weak_alias(gethostbyname,_gethostbyname)
 __weak_alias(gethostent,_gethostent)
@@ -126,9 +126,6 @@ __weak_alias(gethostent,_gethostent)
 		goto nospc;				\
 } while (0)
 
-
-static const char AskedForGot[] =
-    "gethostby*.getanswer: asked for \"%s\", got \"%s\"";
 
 
 #ifdef YP
@@ -370,7 +367,7 @@ getanswer(const querybuf *answer, int anslen, const char *qname, int qtype,
 		case T_PTR:
 			if (strcasecmp(tname, bp) != 0) {
 				syslog(LOG_NOTICE|LOG_AUTH,
-				       AskedForGot, qname, bp);
+				       "gethostby*.getanswer: asked for \"%s\", got \"%s\"", qname, bp);
 				cp += n;
 				continue;	/* XXX - had_error++ ? */
 			}
@@ -413,7 +410,7 @@ getanswer(const querybuf *answer, int anslen, const char *qname, int qtype,
 		case T_AAAA:
 			if (strcasecmp(hent->h_name, bp) != 0) {
 				syslog(LOG_NOTICE|LOG_AUTH,
-				       AskedForGot, hent->h_name, bp);
+				       "gethostby*.getanswer: asked for \"%s\", got \"%s\"", hent->h_name, bp);
 				cp += n;
 				continue;	/* XXX - had_error++ ? */
 			}

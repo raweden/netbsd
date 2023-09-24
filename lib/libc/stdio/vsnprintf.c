@@ -62,7 +62,7 @@ int      vsnprintf(char * __restrict, size_t, const char * __restrict,
     __va_list) __printflike(3, 0);
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(vsnprintf,_vsnprintf)
 __weak_alias(vsnprintf_l,_vsnprintf_l)
 __weak_alias(snprintf,_snprintf)

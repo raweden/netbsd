@@ -51,7 +51,7 @@ __RCSID("$NetBSD: compat_devname.c,v 1.2 2009/01/11 02:46:25 christos Exp $");
 __warn_references(devname,
     "warning: reference to compatibility devname(); include <stdlib.h> to generate correct reference")
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(devname, _devname)
 #endif
 

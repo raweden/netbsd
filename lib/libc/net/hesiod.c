@@ -71,7 +71,7 @@ __RCSID("$NetBSD: hesiod.c,v 1.30 2017/03/10 18:02:32 maya Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(hesiod_init,_hesiod_init)
 __weak_alias(hesiod_end,_hesiod_end)
 __weak_alias(hesiod_to_bind,_hesiod_to_bind)

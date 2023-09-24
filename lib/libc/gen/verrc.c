@@ -49,7 +49,7 @@ __RCSID("$NetBSD: verrc.c,v 1.3 2014/06/06 11:38:41 joerg Exp $");
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(verrc, _verrc)
 #endif
 

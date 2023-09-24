@@ -40,7 +40,7 @@ __RCSID("$NetBSD: waitid.c,v 1.4 2016/04/06 04:09:10 christos Exp $");
 #include <string.h>
 #include <signal.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(waitid,_waitid)
 #endif
 

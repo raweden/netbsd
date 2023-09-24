@@ -61,6 +61,6 @@ __RCSID("$NetBSD: strtoull.c,v 1.6 2013/04/16 21:44:06 joerg Exp $");
 #include "_strtoul.h"
 
 #ifdef _LIBC
-__weak_alias(strtoull, _strtoull)
-__weak_alias(strtoull_l, _strtoull_l)
+unsigned long long _strtoull(const char *, char **, int) __attribute__((weak, alias("strtoull")));
+void _strtoull_l(void) __attribute__((weak, alias("strtoull_l")));
 #endif

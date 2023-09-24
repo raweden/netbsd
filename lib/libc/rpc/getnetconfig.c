@@ -56,7 +56,7 @@ __RCSID("$NetBSD: getnetconfig.c,v 1.25 2017/06/30 10:03:34 christos Exp $");
 #include <rpc/rpc.h>
 #include "rpc_internal.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(getnetconfig,_getnetconfig)
 __weak_alias(setnetconfig,_setnetconfig)
 __weak_alias(endnetconfig,_endnetconfig)

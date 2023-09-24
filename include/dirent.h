@@ -95,10 +95,20 @@ __BEGIN_DECLS
 int closedir(DIR *);
 void rewinddir(DIR *);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define opendir __opendir30
+#define readdir __readdir30
+#define readdir_r __readdir_r30
+DIR *opendir(const char *);
+struct dirent *readdir(DIR *);
+int readdir_r(DIR * __restrict, struct dirent * __restrict,
+    struct dirent ** __restrict);
+#else
 DIR *opendir(const char *) __RENAME(__opendir30);
 struct dirent *readdir(DIR *) __RENAME(__readdir30);
 int readdir_r(DIR * __restrict, struct dirent * __restrict,
     struct dirent ** __restrict) __RENAME(__readdir_r30);
+#endif
 #endif
 #if defined(_XOPEN_SOURCE) || defined(_NETBSD_SOURCE)
 void seekdir(DIR *, long);
@@ -108,6 +118,14 @@ long telldir(DIR *);
     defined(_NETBSD_SOURCE)
 #ifndef __LIBC12_SOURCE__
 DIR *fdopendir(int);
+#ifdef __WASM
+#define scandir __scandir30
+#define alphasort __alphasort30
+int scandir(const char *, struct dirent ***,
+    int (*)(const struct dirent *), int (*)(const struct dirent **,
+    const struct dirent **));
+int alphasort(const struct dirent **, const struct dirent **);
+#else
 int scandir(const char *, struct dirent ***,
     int (*)(const struct dirent *), int (*)(const struct dirent **,
     const struct dirent **))
@@ -116,10 +134,18 @@ int alphasort(const struct dirent **, const struct dirent **)
     __RENAME(__alphasort30);
 #endif
 #endif
+#endif
 #if defined(_NETBSD_SOURCE)
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define __opendir2 __opendir230
+#define getdents __getdents30
+DIR *__opendir2(const char *, int);
+int getdents(int, char *, size_t);
+#else
 DIR *__opendir2(const char *, int) __RENAME(__opendir230);
 int getdents(int, char *, size_t) __RENAME(__getdents30);
+#endif
 #endif
 #endif /* defined(_NETBSD_SOURCE) */
 __END_DECLS

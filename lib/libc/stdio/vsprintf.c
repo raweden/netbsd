@@ -57,8 +57,10 @@ __RCSID("$NetBSD: vsprintf.c,v 1.19 2013/05/17 12:55:57 joerg Exp $");
 #undef sprintf
 #endif
 
+#if defined(__weak_alias) && !defined(__WASM)
 __weak_alias(sprintf_l, _sprintf_l)
 __weak_alias(vsprintf_l, _vsprintf_l)
+#endif
 
 int
 vsprintf_l(char *str, locale_t loc, const char *fmt, va_list ap)
