@@ -408,12 +408,19 @@
 #if __GNUC_PREREQ__(4, 0) || defined(__lint__)
 #  define __dso_public	__attribute__((__visibility__("default")))
 #  define __dso_hidden	__attribute__((__visibility__("hidden")))
+#ifndef __WASM
 #  define __BEGIN_PUBLIC_DECLS	\
 	_Pragma("GCC visibility push(default)") __BEGIN_EXTERN_C
 #  define __END_PUBLIC_DECLS	__END_EXTERN_C _Pragma("GCC visibility pop")
 #  define __BEGIN_HIDDEN_DECLS	\
 	_Pragma("GCC visibility push(hidden)") __BEGIN_EXTERN_C
 #  define __END_HIDDEN_DECLS	__END_EXTERN_C _Pragma("GCC visibility pop")
+#else
+#define __BEGIN_PUBLIC_DECLS
+#define __END_PUBLIC_DECLS
+#define __BEGIN_HIDDEN_DECLS
+#define __END_HIDDEN_DECLS
+#endif
 #else
 #  define __dso_public
 #  define __dso_hidden
@@ -499,6 +506,10 @@
 #if !defined(_STANDALONE) && !defined(_KERNEL)
 #if defined(__GNUC__) || defined(__PCC__)
 #define	__RENAME(x)	___RENAME(x)
+#ifdef __WASM
+#undef	__RENAME
+#define	__RENAME(x)
+#endif
 #elif defined(__lint__)
 #define	__RENAME(x)	__symbolrename(x)
 #else
@@ -513,10 +524,12 @@
  * register values. This is gcc specific, the version is more or less
  * arbitrary, might work with older compilers.
  */
+#ifndef __WASM
 #if __GNUC_PREREQ__(2, 95) || defined(__lint__)
 #define	__insn_barrier()	__asm __volatile("":::"memory")
 #else
 #define	__insn_barrier()	/* */
+#endif
 #endif
 
 /*

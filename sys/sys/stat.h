@@ -244,20 +244,37 @@ int	chmod(const char *, mode_t);
 int	mkdir(const char *, mode_t);
 int	mkfifo(const char *, mode_t);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+//#define stat __stat50
+#define fstat __fstat50
+int stat(const char *, struct stat *);
+int	fstat(int, struct stat *);
+#else
 int	stat(const char *, struct stat *) __RENAME(__stat50);
 int	fstat(int, struct stat *) __RENAME(__fstat50);
+#endif
 #endif
 mode_t	umask(mode_t);
 #if (_POSIX_C_SOURCE - 0) >= 200112L || defined(_XOPEN_SOURCE) || \
     defined(_NETBSD_SOURCE)
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define lstat __lstat50
+int lstat(const char *, struct stat *);
+#else
 int	lstat(const char *, struct stat *) __RENAME(__lstat50);
+#endif
 #endif
 #endif /* _POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE || _NETBSD_SOURCE */
 #if defined(_XOPEN_SOURCE) || defined(_NETBSD_SOURCE)
 int	fchmod(int, mode_t);
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define mknod __mknod50
+int mknod(const char *, mode_t, dev_t);
+#else
 int	mknod(const char *, mode_t, dev_t) __RENAME(__mknod50);
+#endif
 #endif
 #endif /* defined(_XOPEN_SOURCE) || defined(_NETBSD_SOURCE) */
 

@@ -326,20 +326,43 @@ __BEGIN_DECLS
 #ifndef __LIBC12_SOURCE__
 #if (_POSIX_C_SOURCE - 0) >= 200112L || \
     defined(_XOPEN_SOURCE) || defined(_NETBSD_SOURCE)
+#ifdef __WASM
+#define getitimer __getitimer50
+#define gettimeofday __gettimeofday50
+#define setitimer __setitimer50
+#define utimes __utimes50
+int	getitimer(int, struct itimerval *);
+int	gettimeofday(struct timeval * __restrict, void *__restrict);
+int	setitimer(int, const struct itimerval * __restrict,
+	    struct itimerval * __restrict);
+int	utimes(const char *, const struct timeval [2]);
+#else
 int	getitimer(int, struct itimerval *) __RENAME(__getitimer50);
 int	gettimeofday(struct timeval * __restrict, void *__restrict)
     __RENAME(__gettimeofday50);
 int	setitimer(int, const struct itimerval * __restrict,
 	    struct itimerval * __restrict) __RENAME(__setitimer50);
 int	utimes(const char *, const struct timeval [2]) __RENAME(__utimes50);
+#endif
 #endif /* _POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE || _NETBSD_SOURCE */
 
 #if defined(_NETBSD_SOURCE) || defined(HAVE_NBTOOL_CONFIG_H)
+#ifdef __WASM
+#define adjtime __adjtime50
+#define futimes __futimes50
+#define lutimes __lutimes50
+#define settimeofday __settimeofday50
+int	adjtime(const struct timeval *, struct timeval *);
+int	futimes(int, const struct timeval [2]);
+int	lutimes(const char *, const struct timeval [2]);
+int	settimeofday(const struct timeval * __restrict, const void *__restrict);
+#else
 int	adjtime(const struct timeval *, struct timeval *) __RENAME(__adjtime50);
 int	futimes(int, const struct timeval [2]) __RENAME(__futimes50);
 int	lutimes(const char *, const struct timeval [2]) __RENAME(__lutimes50);
 int	settimeofday(const struct timeval * __restrict,
 	    const void *__restrict) __RENAME(__settimeofday50);
+#endif
 #endif /* _NETBSD_SOURCE */
 #endif /* __LIBC12_SOURCE__ */
 __END_DECLS

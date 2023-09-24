@@ -66,11 +66,21 @@ void	seldestroy(struct selinfo *);
 
 __BEGIN_DECLS
 #ifndef __LIBC12_SOURCE__
+#ifdef __WASM
+#define pselect __pselect50
+#define select __select50
+int	pselect(int, fd_set * __restrict, fd_set * __restrict,
+    fd_set * __restrict, const struct timespec * __restrict,
+    const sigset_t * __restrict);
+int	select(int, fd_set * __restrict, fd_set * __restrict,
+    fd_set * __restrict, struct timeval * __restrict);
+#else
 int	pselect(int, fd_set * __restrict, fd_set * __restrict,
     fd_set * __restrict, const struct timespec * __restrict,
     const sigset_t * __restrict) __RENAME(__pselect50);
 int	select(int, fd_set * __restrict, fd_set * __restrict,
     fd_set * __restrict, struct timeval * __restrict) __RENAME(__select50);
+#endif
 #endif /* __LIBC12_SOURCE__ */
 __END_DECLS
 #endif /* _KERNEL */
