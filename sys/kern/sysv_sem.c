@@ -105,7 +105,7 @@ int
 seminit(void)
 {
 	int i, sz;
-	vaddr_t v;
+	void *v;
 
 	mutex_init(&semlock, MUTEX_DEFAULT, IPL_NONE);
 	cv_init(&sem_realloc_cv, "semrealc");
@@ -119,7 +119,7 @@ seminit(void)
 	    ALIGN(seminfo.semmni * sizeof(kcondvar_t)) +
 	    ALIGN(seminfo.semmnu * seminfo.semusz);
 	sz = round_page(sz);
-	v = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	v = kmem_zalloc(sz, 0);
 	if (v == 0) {
 		printf("sysv_sem: cannot allocate memory");
 		return ENOMEM;
@@ -160,7 +160,7 @@ int
 semfini(void)
 {
 	int i, sz;
-	vaddr_t v = (vaddr_t)sema;
+	void *v = (void *)sema;
 
 	/* Don't allow module unload if we're busy */
 	mutex_enter(&semlock);
@@ -184,7 +184,7 @@ semfini(void)
 	    ALIGN(seminfo.semmni * sizeof(kcondvar_t)) +
 	    ALIGN(seminfo.semmnu * seminfo.semusz);
 	sz = round_page(sz);
-	uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+	kmem_free(v, sz);
 
 	/* Destroy the last cv and mutex */
 	cv_destroy(&sem_realloc_cv);

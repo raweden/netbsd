@@ -97,7 +97,7 @@ int
 msginit(void)
 {
 	int i, sz;
-	vaddr_t v;
+	void *v;
 
 	/*
 	 * msginfo.msgssz should be a power of two for efficiency reasons.
@@ -125,7 +125,7 @@ msginit(void)
 	    ALIGN(msginfo.msgtql * sizeof(struct __msg)) +
 	    ALIGN(msginfo.msgmni * sizeof(kmsq_t));
 	sz = round_page(sz);
-	v = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	v = kmem_zalloc(sz, 0);
 	if (v == 0) {
 		printf("sysv_msg: cannot allocate memory");
 		return ENOMEM;
@@ -174,7 +174,7 @@ int
 msgfini(void)
 {
 	int i, sz;
-	vaddr_t v = (vaddr_t)msgpool;
+	void *v = (void *)msgpool;
 
 	mutex_enter(&msgmutex);
 	for (i = 0; i < msginfo.msgmni; i++) {
@@ -194,7 +194,7 @@ msgfini(void)
 	    ALIGN(msginfo.msgtql * sizeof(struct __msg)) +
 	    ALIGN(msginfo.msgmni * sizeof(kmsq_t));
 	sz = round_page(sz);
-	uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+	kmem_free(v, sz);
 
 	cv_destroy(&msg_realloc_cv);
 	mutex_exit(&msgmutex);

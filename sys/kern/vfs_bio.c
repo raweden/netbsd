@@ -285,17 +285,24 @@ static void *
 bufpool_page_alloc(struct pool *pp, int flags)
 {
 
+#ifndef __WASM
 	return (void *)uvm_km_alloc(buf_map,
 	    MAXBSIZE, MAXBSIZE,
 	    ((flags & PR_WAITOK) ? 0 : UVM_KMF_NOWAIT|UVM_KMF_TRYLOCK)
 	    | UVM_KMF_WIRED);
+#else
+	return kmem_alloc(pp->pr_reqsize, 0);
+#endif
 }
 
 static void
 bufpool_page_free(struct pool *pp, void *v)
 {
-
+#ifndef __WASM
 	uvm_km_free(buf_map, (vaddr_t)v, MAXBSIZE, UVM_KMF_WIRED);
+#else
+	kmem_free(v, pp->pr_reqsize);
+#endif
 }
 
 static struct pool_allocator bufmempool_allocator = {
@@ -474,6 +481,7 @@ bufinit(void)
 		vaddr_t minaddr = 0, maxaddr;
 		buf_map = uvm_km_suballoc(kernel_map, &minaddr, &maxaddr,
 					  bufmem_valimit, 0, false, 0);
+		printf("%s minaddr = %lu maxaddr = %lu", __func__, minaddr, maxaddr);
 		if (buf_map == NULL)
 			panic("bufinit: cannot allocate submap");
 	} else
@@ -495,6 +503,8 @@ bufinit(void)
 #ifdef PMAP_MAP_POOLPAGE
 	use_std = 1;
 #endif
+
+	printf("%s NMEMPOOLS = %d", __func__, NMEMPOOLS);
 
 	buf_cache = pool_cache_init(sizeof(buf_t), 0, 0, 0,
 	    "bufpl", NULL, IPL_SOFTBIO, NULL, NULL, NULL);
@@ -518,6 +528,7 @@ bufinit(void)
 		pool_init(pp, size, DEV_BSIZE, 0, 0, name, pa, IPL_NONE);
 		pool_setlowat(pp, 1);
 		pool_sethiwat(pp, 1);
+		printf("%s pool-index = %d size = %d", __func__, i, size);
 	}
 
 	/* Initialize the buffer queues */
@@ -643,6 +654,8 @@ buf_alloc(size_t size)
 {
 	u_int n = buf_mempoolidx(size);
 	void *addr;
+
+	printf("%s buf_mempoolidx = %d", __func__, n);
 
 	while (1) {
 		addr = pool_get(&bmempools[n], PR_NOWAIT);

@@ -940,7 +940,7 @@ shmrealloc(int newshmni)
 int
 shminit(void)
 {
-	vaddr_t v;
+	void *v;
 	size_t sz;
 	int i;
 
@@ -951,7 +951,7 @@ shminit(void)
 	sz = ALIGN(shminfo.shmmni * sizeof(struct shmid_ds)) +
 	    ALIGN(shminfo.shmmni * sizeof(kcondvar_t));
 	sz = round_page(sz);
-	v = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	v = kmem_zalloc(sz, 0);
 	if (v == 0) {
 		printf("sysv_shm: cannot allocate memory");
 		return ENOMEM;
@@ -991,7 +991,7 @@ shmfini(void)
 {
 	size_t sz;
 	int i;
-	vaddr_t v = (vaddr_t)shmsegs;
+	void *v = (void *)shmsegs;
 
 	mutex_enter(&shm_lock);
 	if (shm_nused) {
@@ -1012,7 +1012,7 @@ shmfini(void)
 	sz = ALIGN(shminfo.shmmni * sizeof(struct shmid_ds)) +
 	    ALIGN(shminfo.shmmni * sizeof(kcondvar_t));
 	sz = round_page(sz);
-	uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+	kmem_free(v, sz);
 
 	/* Release and destroy our mutex */
 	mutex_exit(&shm_lock);
