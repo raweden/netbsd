@@ -827,6 +827,8 @@ single_user(void)
 static state_func_t
 runetcrc(int trychroot)
 {
+	// TODO: WASM FIXME
+#ifndef __WASM
 	pid_t pid, wpid;
 	int status;
 	const char *argv[4];
@@ -912,7 +914,7 @@ runetcrc(int trychroot)
 
 	if (WEXITSTATUS(status))
 		return (state_func_t)single_user;
-
+#endif
 	return (state_func_t)read_ttys;
 }
 
