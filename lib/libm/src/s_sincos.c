@@ -29,7 +29,7 @@ __FBSDID("$FreeBSD: head/lib/msun/src/s_sincos.c 319047 2017-05-28 06:13:38Z mme
 // #include "e_rem_pio2.c"
 #include "k_sincos.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(sincos,_sincos)
 #endif
 

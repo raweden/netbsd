@@ -34,7 +34,7 @@ __FBSDID("$FreeBSD: head/lib/msun/src/s_truncl.c 176280 2008-02-14 15:10:34Z bde
 
 #ifdef __HAVE_LONG_DOUBLE
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(truncl, _truncl)
 #endif
 

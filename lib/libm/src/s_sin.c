@@ -51,7 +51,7 @@ __RCSID("$NetBSD: s_sin.c,v 1.11 2007/08/20 16:01:39 drochner Exp $");
 #include "math_private.h"
 
 #if 0 /* notyet */
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(sin, _sin)
 #endif
 #endif

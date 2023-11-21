@@ -35,7 +35,7 @@ __FBSDID("$FreeBSD: head/lib/msun/src/s_roundl.c 153017 2005-12-02 13:45:06Z bde
 
 #ifdef __HAVE_LONG_DOUBLE
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(roundl, _roundl)
 #endif
 

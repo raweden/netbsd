@@ -26,7 +26,7 @@ __RCSID("$NetBSD: w_asinf.c,v 1.7 2007/08/20 16:01:39 drochner Exp $");
 #include "math.h"
 #include "math_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(asinf, _asinf)
 #endif
 

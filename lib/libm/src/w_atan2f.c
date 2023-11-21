@@ -26,7 +26,7 @@ __RCSID("$NetBSD: w_atan2f.c,v 1.7 2007/08/10 21:20:36 drochner Exp $");
 #include "math.h"
 #include "math_private.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(atan2f, _atan2f)
 #endif
 

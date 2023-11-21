@@ -23,7 +23,7 @@ __RCSID("$NetBSD: s_sinf.c,v 1.8 2007/08/20 16:01:39 drochner Exp $");
 #include "math_private.h"
 
 #if 0 /* notyet */
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(sinf, _sinf)
 #endif
 #endif

@@ -23,7 +23,7 @@ __RCSID("$NetBSD: w_fmodl.c,v 1.4 2013/11/21 13:41:10 martin Exp $");
 
 #ifdef __HAVE_LONG_DOUBLE
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(fmodl, _fmodl)
 #endif
 

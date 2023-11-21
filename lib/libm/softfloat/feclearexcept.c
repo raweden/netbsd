@@ -37,7 +37,7 @@ __RCSID("$NetBSD: feclearexcept.c,v 1.1 2017/03/22 23:11:09 chs Exp $");
 #include <fenv.h>
 #include <ieeefp.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(feclearexcept,_feclearexcept)
 #endif
 

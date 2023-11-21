@@ -45,12 +45,13 @@ ic(L, 4503599627370496.0E0, 52, 1.0)			  /* 2**52 */
 #define	L	vccast(L)
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(ceill, ceil);
 __weak_alias(floorl, floor);
 __weak_alias(truncl, trunc);
 #endif
 
+#ifndef __WASM
 /*
  * floor(x) := the largest integer no larger than x;
  * ceil(x) := -floor(-x), for all real x.
@@ -109,6 +110,7 @@ ceilf(float x)
 {
 	return ceil((double)x);
 }
+#endif
 
 #ifndef ns32000			/* rint() is in ./NATIONAL/support.s */
 /*
@@ -223,6 +225,7 @@ llrintf(float x)
 	return (t - s);
 }
 
+#ifndef __WASM
 double
 trunc(double x)
 {
@@ -234,3 +237,4 @@ truncf(float x)
 {
 	return x < 0 ? ceilf(x) : floorf(x);
 }
+#endif

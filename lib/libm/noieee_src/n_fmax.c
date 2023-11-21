@@ -31,7 +31,7 @@ __RCSID("$NetBSD: n_fmax.c,v 1.2 2014/02/03 21:22:21 martin Exp $");
 
 #include <math.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(fmaxl, fmax);
 #endif
 

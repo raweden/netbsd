@@ -38,10 +38,8 @@
 __RCSID("$NetBSD: catrigl.c,v 1.3 2022/04/19 20:32:16 rillig Exp $");
 
 #include "namespace.h"
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(casinl, _casinl)
-#endif
-#ifdef __weak_alias
 __weak_alias(catanl, _catanl)
 #endif
 

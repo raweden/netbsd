@@ -55,7 +55,7 @@ __RCSID("$NetBSD: s_sincosl.c,v 1.2 2022/08/27 17:15:52 christos Exp $");
 #error "Unsupported long double format"
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(sincosl,_sincosl)
 #endif
 

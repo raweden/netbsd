@@ -68,7 +68,7 @@ extern int isnan(),finite();
 
 #if DBL_MANT_DIG == LDBL_MANT_DIG && DBL_MIN_EXP == LDBL_MIN_EXP \
 	 && DBL_MIN_EXP == LDBL_MIN_EXP
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(fmodl, fmod);
 __weak_alias(modfl, fmod);
 #endif

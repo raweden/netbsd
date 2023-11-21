@@ -38,7 +38,7 @@ __weak_alias(scalblnl, _scalblnl)
 __weak_alias(ldexpl, _scalblnl)
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(scalbn, _scalbn)
 __weak_alias(scalbln, _scalbln)
 __weak_alias(ldexp, _scalbn)

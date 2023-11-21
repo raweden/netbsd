@@ -91,10 +91,8 @@ static char sccsid[] = "@(#)asincos.c	8.1 (Berkeley) 6/4/93";
 #include "namespace.h"
 #include "mathimpl.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(asinf, _asinf)
-#endif
-#ifdef __weak_alias
 __weak_alias(asin, _asin)
 #endif
 

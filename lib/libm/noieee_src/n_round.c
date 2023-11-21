@@ -34,7 +34,7 @@ __FBSDID("$FreeBSD: src/lib/msun/src/s_round.c,v 1.1 2004/06/07 08:05:36 das Exp
 
 #include <math.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(roundl, round);
 #endif
 

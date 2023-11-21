@@ -33,7 +33,7 @@ __RCSID("$NetBSD: n_sincos1.c,v 1.1 2022/08/27 09:56:21 christos Exp $");
 
 #include <math.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(_sincosl, sincos)
 #endif
 

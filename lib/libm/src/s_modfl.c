@@ -47,7 +47,7 @@ __RCSID("$NetBSD: s_modfl.c,v 1.1 2014/06/16 12:54:43 joerg Exp $");
 
 #ifdef __HAVE_LONG_DOUBLE
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(modfl, _modfl)
 #endif
 

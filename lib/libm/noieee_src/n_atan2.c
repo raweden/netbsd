@@ -170,7 +170,7 @@ ic(a11,    1.6438029044759730479E-2  ,  -6,  1.0D52174A1BB54)
 #define	a12	vccast(a12)
 #endif
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(_atan2l, atan2);
 #endif
 

@@ -41,7 +41,7 @@ static char sccsid[] = "@(#)log.c	8.2 (Berkeley) 11/30/93";
 
 #include "mathimpl.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(log, _log);
 __weak_alias(_logl, _log);
 __weak_alias(logf, _logf);

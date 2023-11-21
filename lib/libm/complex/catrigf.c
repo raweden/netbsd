@@ -46,10 +46,8 @@ __FBSDID("$FreeBSD: head/lib/msun/src/catrigf.c 275819 2014-12-16 09:21:56Z ed $
 __RCSID("$NetBSD: catrigf.c,v 1.2 2022/04/19 20:32:16 rillig Exp $");
 
 #include "namespace.h"
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(casinf, _casinf)
-#endif
-#ifdef __weak_alias
 __weak_alias(catanf, _catanf)
 #endif
 

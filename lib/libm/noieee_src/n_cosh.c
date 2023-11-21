@@ -85,7 +85,7 @@ static char sccsid[] = "@(#)cosh.c	8.1 (Berkeley) 6/4/93";
 #include "../src/namespace.h"
 #include "mathimpl.h"
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(cosh, _cosh);
 __weak_alias(_coshl, _cosh);
 __weak_alias(coshf, _coshf);

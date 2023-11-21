@@ -122,7 +122,7 @@ static const double zero=0.0, one=1.0, two=2.0, negone= -1.0;
 
 static double pow_P (double, double);
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(_powf, powf);
 __weak_alias(_pow, pow);
 __weak_alias(_powl, pow);

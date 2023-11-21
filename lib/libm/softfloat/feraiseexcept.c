@@ -40,7 +40,7 @@ __RCSID("$NetBSD: feraiseexcept.c,v 1.1 2017/03/22 23:11:09 chs Exp $");
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __weak_alias
+#if defined(__weak_alias) && !defined (__WASM)
 __weak_alias(feraiseexcept,_feraiseexcept)
 #endif
 
