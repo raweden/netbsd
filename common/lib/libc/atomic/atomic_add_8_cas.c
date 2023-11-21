@@ -33,10 +33,9 @@
 
 #include <sys/atomic.h>
 
-uint8_t fetch_and_add_1(volatile uint8_t *, uint8_t, ...)
-    asm("__sync_fetch_and_add_1");
-uint8_t add_and_fetch_1(volatile uint8_t *, uint8_t, ...)
-    asm("__sync_add_and_fetch_1");
+uint8_t __sync_fetch_and_add_1(volatile uint8_t *, uint8_t, ...) __attribute__((alias("fetch_and_add_1")));
+uint8_t __sync_add_and_fetch_1(volatile uint8_t *, uint8_t, ...) __attribute__((alias("add_and_fetch_1")));
+uint8_t __atomic_fetch_add_1(volatile uint8_t *addr, uint8_t val, ...) __attribute__((alias("fetch_and_add_1")));
 
 uint8_t
 fetch_and_add_1(volatile uint8_t *addr, uint8_t val, ...)
@@ -61,5 +60,3 @@ add_and_fetch_1(volatile uint8_t *addr, uint8_t val, ...)
 	} while (atomic_cas_8(addr, old, new) != old);
 	return new;
 }
-
-__strong_alias(__atomic_fetch_add_1,__sync_fetch_and_add_1)

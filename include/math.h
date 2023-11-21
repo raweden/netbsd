@@ -218,6 +218,12 @@ struct exception {
 
 #endif /* _NETBSD_SOURCE */
 
+#ifdef __WASM
+#define __WASM_BUILTIN(symbol) __attribute__((import_module("__builtin"), import_name(#symbol)))
+#else
+__WASM_BUILTIN(x)
+#endif
+
 __BEGIN_DECLS
 /*
  * ANSI/POSIX
@@ -246,9 +252,9 @@ double	modf(double, double *);
 double	pow(double, double);
 double	sqrt(double);
 
-double	ceil(double);
-double	fabs(double);
-double	floor(double);
+double	ceil(double) __WASM_BUILTIN(f64_ceil);
+double	fabs(double) __WASM_BUILTIN(f64_abs);
+double	floor(double) __WASM_BUILTIN(f64_floor);
 double	fmod(double, double);
 
 #if defined(__MATH_C99_FEATURES) || defined(_XOPEN_SOURCE)
@@ -374,7 +380,7 @@ long double	scalblnl(long double, long);
 /* 7.12.7 power / absolute */
 
 float	cbrtf(float);
-float	fabsf(float);
+float	fabsf(float) __WASM_BUILTIN(f32_abs);
 float	hypotf(float, float);
 float	powf(float, float);
 float	sqrtf(float);
@@ -405,11 +411,11 @@ long int	lround(double);
 /* LONGLONG */
 long long int	llround(double);
 long int	lrint(double);
-double	round(double);
-double	trunc(double);
+double	round(double) __WASM_BUILTIN(f64_nearest);
+double	trunc(double) __WASM_BUILTIN(f64_trunc);
 
-float	ceilf(float);
-float	floorf(float);
+float	ceilf(float) __WASM_BUILTIN(f32_ceil);
+float	floorf(float) __WASM_BUILTIN(f32_floor);
 /* LONGLONG */
 long long int	llrintf(float);
 long int	lroundf(float);
@@ -417,7 +423,7 @@ long int	lroundf(float);
 long long int	llroundf(float);
 long int	lrintf(float);
 float	rintf(float);
-float	roundf(float);
+float	roundf(float) __WASM_BUILTIN(f32_nearest);
 float	truncf(float);
 long double	ceill(long double);
 long double	floorl(long double);
@@ -445,7 +451,7 @@ long double	remquol(long double, long double, int *);
 
 /* 7.12.11 manipulation */
 
-double	copysign(double, double);
+double	copysign(double, double) __WASM_BUILTIN(f64_copysign);
 double	nan(const char *);
 double	nearbyint(double);
 double	nexttoward(double, long double);
@@ -471,12 +477,12 @@ long double	nexttowardl(long double, long double);
 				 ((x) > (y) || (y) > (x)))
 double	fdim(double, double);
 double	fma(double, double, double);
-double	fmax(double, double);
-double	fmin(double, double);
+double	fmax(double, double) __WASM_BUILTIN(f64_max);
+double	fmin(double, double) __WASM_BUILTIN(f64_min);
 float	fdimf(float, float);
 float	fmaf(float, float, float);
-float	fmaxf(float, float);
-float	fminf(float, float);
+float	fmaxf(float, float) __WASM_BUILTIN(f32_max);
+float	fminf(float, float) __WASM_BUILTIN(f32_min);
 long double fdiml(long double, long double);
 long double fmal(long double, long double, long double);
 long double fmaxl(long double, long double);
@@ -592,5 +598,137 @@ int	__signbitl(long double);
 #endif
 
 __END_DECLS
+
+#if defined(__WASM) && !defined(_KERNEL)
+
+#if __has_builtin(__builtin_acos)
+#define acos __builtin_acos
+#else
+#error "no __builtin_acos"
+#endif
+
+#if __has_builtin(__builtin_asin)
+#define asin __builtin_asin
+#else 
+#error "no __builtin_asin"
+#endif
+
+#if __has_builtin(__builtin_atan)
+#define atan __builtin_atan
+#else
+#error "no __builtin_atan"
+#endif
+
+#if __has_builtin(__builtin_atan2)
+#define atan2 __builtin_atan2
+#else
+#error "no __builtin_atan2"
+#endif
+
+#if __has_builtin(__builtin_cos)
+#define cos __builtin_cos
+#else
+#error "no __builtin_cos"
+#endif
+
+#if __has_builtin(__builtin_sin)
+#define sin __builtin_sin
+#else 
+#error "no __builtin_sin"
+#endif
+
+#if __has_builtin(__builtin_tan)
+#define tan __builtin_tan
+#else
+#error "no __builtin_tan"
+#endif
+
+#if __has_builtin(__builtin_cosh)
+#define cosh __builtin_cosh
+#else
+#error "no __builtin_hcos"
+#endif
+
+#if __has_builtin(__builtin_sinh)
+#define sinh __builtin_sinh
+#else 
+#error "no __builtin_sinh"
+#endif
+
+#if __has_builtin(__builtin_tanh)
+#define tanh __builtin_tanh
+#else
+#error "no __builtin_tanh"
+#endif
+
+#if __has_builtin(__builtin_log)
+#define log __builtin_log
+#else
+#error "no __builtin_log"
+#endif
+
+#if __has_builtin(__builtin_log2)
+#define log2 __builtin_log2
+#else
+#error "no __builtin_log2"
+#endif
+
+#if __has_builtin(__builtin_log10)
+#define log10 __builtin_log10
+#else
+#error "no __builtin_log10"
+#endif
+
+#if __has_builtin(__builtin_pow)
+#define pow __builtin_pow
+#else
+#error "no __builtin_pow"
+#endif
+
+#if __has_builtin(__builtin_sqrt)
+#define sqrt __builtin_sqrt
+#else
+#error "no __builtin_sqrt"
+#endif
+
+#if __has_builtin(__builtin_rint)
+#define rint __builtin_rint
+#else
+#error "no __builtin_rint"
+#endif
+
+#if __has_builtin(__builtin_exp)
+#define exp __builtin_exp
+#else
+#error "no __builtin_exp"
+#endif
+
+#if __has_builtin(__builtin_exp2)
+#define exp2 __builtin_exp2
+#else
+#error "no __builtin_exp2"
+#endif
+
+
+#if __has_builtin(__builtin_fmod)
+#define fmod __builtin_fmod
+#else
+#error "no __builtin_fmod"
+#endif
+
+#endif
+
+#if 0
+
+double	frexp(double, int *);
+double	ldexp(double, int);
+double	modf(double, double *);
+
+
+double	ceil(double) __WASM_BUILTIN(f64_ceil);
+double	fabs(double) __WASM_BUILTIN(f64_abs);
+double	floor(double) __WASM_BUILTIN(f64_floor);
+double	fmod(double, double);
+#endif
 
 #endif /* _MATH_H_ */

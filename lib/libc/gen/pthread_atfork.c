@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "types.h"
 #include <sys/cdefs.h>
 #if defined(LIBC_SCCS) && !defined(lint)
 __RCSID("$NetBSD: pthread_atfork.c,v 1.17 2022/09/13 10:18:47 riastradh Exp $");
@@ -49,7 +50,8 @@ __weak_alias(fork, _fork)
 #endif /* __weak_alias */
 
 pid_t	__fork(void);	/* XXX */
-pid_t	__locked_fork(int *) __attribute__((weak, alias("fork"))); /* XXX */
+pid_t __sys_fork(void);
+//pid_t	__locked_fork(int *) __attribute__((weak, alias("__fork"))); /* XXX */
 
 struct atfork_callback {
 	SIMPLEQ_ENTRY(atfork_callback) next;
@@ -167,7 +169,7 @@ fork(void)
 		(*iter->fn)();
 	_malloc_prefork();
 
-	ret = __locked_fork(&errno);
+	ret = __sys_fork();
 
 	if (ret != 0) {
 		/*

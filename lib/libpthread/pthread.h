@@ -32,7 +32,12 @@
 #ifndef _LIB_PTHREAD_H
 #define _LIB_PTHREAD_H
 
+#include <sys/null.h>
 #include <sys/cdefs.h>
+
+#ifndef	NULL
+#define NULL 0
+#endif
 
 #include <time.h>	/* For timespec */
 #include <sched.h>

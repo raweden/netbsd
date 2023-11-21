@@ -41,7 +41,7 @@ __RCSID("$NetBSD: thread-stub-init.c,v 1.2 2013/08/19 22:14:37 matt Exp $");
 
 /* libpthread init */
 
-__weak_alias(__libc_thr_init,__libc_thr_init_stub)
+void __libc_thr_init(void) __attribute__((weak, alias("__libc_thr_init_stub")));
 
 void __section(".text.startup")
 __libc_thr_init_stub(void)
@@ -52,7 +52,8 @@ __libc_thr_init_stub(void)
 
 #define DIE()   (void)raise(SIGABRT)
 
-__weak_alias(__libc_thr_errno,__libc_thr_errno_stub)
+int *__libc_thr_errno(void) __attribute__((weak, alias("__libc_thr_errno_stub")));
+
 int *
 __libc_thr_errno_stub(void)
 {

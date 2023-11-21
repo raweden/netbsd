@@ -43,8 +43,6 @@ __RCSID("$NetBSD: thread-stub.c,v 1.32 2022/04/19 20:32:16 rillig Exp $");
 
 #define	__LIBC_THREAD_STUBS
 
-#define pthread_join	__libc_pthread_join
-#define pthread_detach	__libc_pthread_detach
 #include "namespace.h"
 #include "reentrant.h"
 #include "tsd.h"
@@ -70,8 +68,8 @@ do {					\
 #define	CHECK_NOT_THREADED()	/* nothing */
 #endif
 
-__weak_alias(pthread_join, __libc_pthread_join)
-__weak_alias(pthread_detach, __libc_pthread_detach)
+int __libc_pthread_join(pthread_t thread, void **valptr) __attribute__((weak, alias("pthread_join")));
+int __libc_pthread_detach(pthread_t thread) __attribute__((weak, alias("pthread_detach")));
 
 int
 pthread_join(pthread_t thread, void **valptr)
@@ -95,25 +93,25 @@ pthread_detach(pthread_t thread)
 
 int __libc_mutex_catchall_stub(mutex_t *);
 
-__weak_alias(__libc_mutex_init,__libc_mutex_init_stub)
-__weak_alias(__libc_mutex_lock,__libc_mutex_catchall_stub)
-__weak_alias(__libc_mutex_trylock,__libc_mutex_catchall_stub)
-__weak_alias(__libc_mutex_unlock,__libc_mutex_catchall_stub)
-__weak_alias(__libc_mutex_destroy,__libc_mutex_catchall_stub)
+int __libc_mutex_init(mutex_t *m, const mutexattr_t *a) __attribute__((weak, alias("__libc_mutex_init_stub")));
+int __libc_mutex_lock(mutex_t *) __attribute__((weak, alias("__libc_mutex_catchall_stub")));
+int __libc_mutex_trylock(mutex_t *) __attribute__((weak, alias("__libc_mutex_catchall_stub")));
+int __libc_mutex_unlock(mutex_t *) __attribute__((weak, alias("__libc_mutex_catchall_stub")));
+int __libc_mutex_destroy(mutex_t *) __attribute__((weak, alias("__libc_mutex_catchall_stub")));
 
-__strong_alias(__libc_mutex_lock_stub,__libc_mutex_catchall_stub)
-__strong_alias(__libc_mutex_trylock_stub,__libc_mutex_catchall_stub)
-__strong_alias(__libc_mutex_unlock_stub,__libc_mutex_catchall_stub)
-__strong_alias(__libc_mutex_destroy_stub,__libc_mutex_catchall_stub)
+int __libc_mutex_lock_stub(mutex_t *) __attribute__((alias("__libc_mutex_catchall_stub")));
+int __libc_mutex_trylock_stub(mutex_t *) __attribute__((alias("__libc_mutex_catchall_stub")));
+int __libc_mutex_unlock_stub(mutex_t *) __attribute__((alias("__libc_mutex_catchall_stub")));
+int __libc_mutex_destroy_stub(mutex_t *) __attribute__((alias("__libc_mutex_catchall_stub")));
 
 int __libc_mutexattr_catchall_stub(mutexattr_t *);
 
-__weak_alias(__libc_mutexattr_init,__libc_mutexattr_catchall_stub)
-__weak_alias(__libc_mutexattr_destroy,__libc_mutexattr_catchall_stub)
-__weak_alias(__libc_mutexattr_settype,__libc_mutexattr_settype_stub)
+int __libc_mutexattr_init(mutexattr_t *) __attribute__((weak, alias("__libc_mutexattr_catchall_stub")));
+int __libc_mutexattr_destroy(mutexattr_t *) __attribute__((weak, alias("__libc_mutexattr_catchall_stub")));
+int __libc_mutexattr_settype(mutexattr_t *ma, int type) __attribute__((weak, alias("__libc_mutexattr_settype_stub")));
 
-__strong_alias(__libc_mutexattr_init_stub,__libc_mutexattr_catchall_stub)
-__strong_alias(__libc_mutexattr_destroy_stub,__libc_mutexattr_catchall_stub)
+int __libc_mutexattr_init_stub(mutexattr_t *) __attribute__((alias("__libc_mutexattr_catchall_stub")));
+int __libc_mutexattr_destroy_stub(mutexattr_t *) __attribute__((alias("__libc_mutexattr_catchall_stub")));
 
 int
 __libc_mutex_init_stub(mutex_t *m, const mutexattr_t *a)
@@ -167,16 +165,16 @@ __libc_mutexattr_catchall_stub(mutexattr_t *ma)
 
 int __libc_cond_catchall_stub(cond_t *);
 
-__weak_alias(__libc_cond_init,__libc_cond_init_stub)
-__weak_alias(__libc_cond_signal,__libc_cond_catchall_stub)
-__weak_alias(__libc_cond_broadcast,__libc_cond_catchall_stub)
-__weak_alias(__libc_cond_wait,__libc_cond_catchall_stub)
-__weak_alias(__libc_cond_timedwait,__libc_cond_timedwait_stub)
-__weak_alias(__libc_cond_destroy,__libc_cond_catchall_stub)
+int __libc_cond_init(cond_t *c, const condattr_t *ad) __attribute__((weak, alias("__libc_cond_init_stub")));
+int __libc_cond_signal(cond_t *) __attribute__((weak, alias("__libc_cond_catchall_stub")));
+int __libc_cond_broadcast(cond_t *d) __attribute__((weak, alias("__libc_cond_catchall_stub")));
+//int __libc_cond_wait(cond_t *, mutex_t *) __attribute__((weak, alias("__libc_cond_catchall_stub")));
+int __libc_cond_timedwait(cond_t *c, mutex_t *m, const struct timespec *t) __attribute__((weak, alias("__libc_cond_timedwait_stub")));
+int __libc_cond_destroy(cond_t *) __attribute__((weak, alias("__libc_cond_catchall_stub")));
 
-__strong_alias(__libc_cond_signal_stub,__libc_cond_catchall_stub)
-__strong_alias(__libc_cond_broadcast_stub,__libc_cond_catchall_stub)
-__strong_alias(__libc_cond_destroy_stub,__libc_cond_catchall_stub)
+int __libc_cond_signal_stub(cond_t *) __attribute__((alias("__libc_cond_catchall_stub")));
+int __libc_cond_broadcast_stub(cond_t *) __attribute__((alias("__libc_cond_catchall_stub")));
+int __libc_cond_destroy_stub(cond_t *) __attribute__((alias("__libc_cond_catchall_stub")));
 
 int
 __libc_cond_init_stub(cond_t *c, const condattr_t *a)
@@ -193,6 +191,19 @@ __libc_cond_init_stub(cond_t *c, const condattr_t *a)
 
 int
 __libc_cond_wait_stub(cond_t *c, mutex_t *m)
+{
+	/* LINTED deliberate lack of effect */
+	(void)c;
+	/* LINTED deliberate lack of effect */
+	(void)m;
+
+	CHECK_NOT_THREADED();
+
+	return (0);
+}
+
+int
+__libc_cond_wait(cond_t *c, mutex_t *m)
 {
 	/* LINTED deliberate lack of effect */
 	(void)c;
@@ -235,21 +246,20 @@ __libc_cond_catchall_stub(cond_t *c)
 
 int __libc_rwlock_catchall_stub(rwlock_t *);
 
-__weak_alias(__libc_rwlock_init,__libc_rwlock_init_stub)
-__weak_alias(__libc_rwlock_rdlock,__libc_rwlock_catchall_stub)
-__weak_alias(__libc_rwlock_wrlock,__libc_rwlock_catchall_stub)
-__weak_alias(__libc_rwlock_tryrdlock,__libc_rwlock_catchall_stub)
-__weak_alias(__libc_rwlock_trywrlock,__libc_rwlock_catchall_stub)
-__weak_alias(__libc_rwlock_unlock,__libc_rwlock_catchall_stub)
-__weak_alias(__libc_rwlock_destroy,__libc_rwlock_catchall_stub)
+int __libc_rwlock_init(rwlock_t *, const rwlockattr_t *) __attribute__((weak, alias("__libc_rwlock_init_stub")));
+int __libc_rwlock_rdlock(rwlock_t *) __attribute__((weak, alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_wrlock(rwlock_t *) __attribute__((weak, alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_tryrdlock(rwlock_t *) __attribute__((weak, alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_trywrlock(rwlock_t *) __attribute__((weak, alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_unlock(rwlock_t *) __attribute__((weak, alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_destroy(rwlock_t *) __attribute__((weak, alias("__libc_rwlock_catchall_stub")));
 
-__strong_alias(__libc_rwlock_rdlock_stub,__libc_rwlock_catchall_stub)
-__strong_alias(__libc_rwlock_wrlock_stub,__libc_rwlock_catchall_stub)
-__strong_alias(__libc_rwlock_tryrdlock_stub,__libc_rwlock_catchall_stub)
-__strong_alias(__libc_rwlock_trywrlock_stub,__libc_rwlock_catchall_stub)
-__strong_alias(__libc_rwlock_unlock_stub,__libc_rwlock_catchall_stub)
-__strong_alias(__libc_rwlock_destroy_stub,__libc_rwlock_catchall_stub)
-
+int __libc_rwlock_rdlock_stub(rwlock_t *) __attribute__((alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_wrlock_stub(rwlock_t *) __attribute__((alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_tryrdlock_stub(rwlock_t *) __attribute__((alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_trywrlock_stub(rwlock_t *) __attribute__((alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_unlock_stub(rwlock_t *) __attribute__((alias("__libc_rwlock_catchall_stub")));
+int __libc_rwlock_destroy_stub(rwlock_t *) __attribute__((alias("__libc_rwlock_catchall_stub")));
 
 int
 __libc_rwlock_init_stub(rwlock_t *l, const rwlockattr_t *a)
@@ -284,10 +294,10 @@ __libc_rwlock_catchall_stub(rwlock_t *l)
 struct __libc_tsd __libc_tsd[TSD_KEYS_MAX];
 static int __libc_tsd_nextkey;
 
-__weak_alias(__libc_thr_keycreate,__libc_thr_keycreate_stub)
-__weak_alias(__libc_thr_setspecific,__libc_thr_setspecific_stub)
-__weak_alias(__libc_thr_getspecific,__libc_thr_getspecific_stub)
-__weak_alias(__libc_thr_keydelete,__libc_thr_keydelete_stub)
+int __libc_thr_keycreate(thread_key_t *k, void (*d)(void *)) __attribute__((weak, alias("__libc_thr_keycreate_stub")));
+int __libc_thr_setspecific(thread_key_t k, const void *v) __attribute__((weak, alias("__libc_thr_setspecific_stub")));
+void *__libc_thr_getspecific(thread_key_t k) __attribute__((weak, alias("__libc_thr_getspecific_stub")));
+int __libc_thr_keydelete(thread_key_t k) __attribute__((weak, alias("__libc_thr_keydelete_stub")));
 
 int
 __libc_thr_keycreate_stub(thread_key_t *k, void (*d)(void *))
@@ -351,16 +361,16 @@ __libc_thr_keydelete_stub(thread_key_t k)
 
 /* misc. */
 
-__weak_alias(__libc_thr_once,__libc_thr_once_stub)
-__weak_alias(__libc_thr_sigsetmask,__libc_thr_sigsetmask_stub)
-__weak_alias(__libc_thr_self,__libc_thr_self_stub)
-__weak_alias(__libc_thr_yield,__libc_thr_yield_stub)
-__weak_alias(__libc_thr_create,__libc_thr_create_stub)
-__weak_alias(__libc_thr_exit,__libc_thr_exit_stub)
-__weak_alias(__libc_thr_setcancelstate,__libc_thr_setcancelstate_stub)
-__weak_alias(__libc_thr_equal,__libc_thr_equal_stub)
-__weak_alias(__libc_thr_curcpu,__libc_thr_curcpu_stub)
-
+int __libc_thr_once(once_t *o, void (*r)(void))__attribute__((weak, alias("__libc_thr_once_stub")));
+int __libc_thr_sigsetmask(int h, const sigset_t *s, sigset_t *o) __attribute__((weak, alias("__libc_thr_sigsetmask_stub")));
+thr_t __libc_thr_self(void) __attribute__((weak, alias("__libc_thr_self_stub")));
+int __libc_thr_yield(void) __attribute__((weak, alias("__libc_thr_yield_stub")));
+int __libc_thr_create(thr_t *tp, const thrattr_t *ta,
+    void *(*f)(void *), void *a) __attribute__((weak, alias("__libc_thr_create_stub")));
+__dead void __libc_thr_exit(void *v) __attribute__((weak, alias("__libc_thr_exit_stub")));
+int __libc_thr_setcancelstate(int new, int *old) __attribute__((weak, alias("__libc_thr_setcancelstate_stub")));
+int __libc_thr_equal(pthread_t t1, pthread_t t2) __attribute__((weak, alias("__libc_thr_equal_stub")));
+unsigned int __libc_thr_curcpu(void) __attribute__((weak, alias("__libc_thr_curcpu_stub")));
 
 int
 __libc_thr_once_stub(once_t *o, void (*r)(void))
@@ -395,12 +405,12 @@ __libc_thr_self_stub(void)
 }
 
 /* This is the strong symbol generated for sched_yield(2) via WSYSCALL() */
-int _sys_sched_yield(void);
+int __sys_sched_yield(void);
 
 int
 __libc_thr_yield_stub(void)
 {
-	return _sys_sched_yield();
+	return __sys_sched_yield();
 }
 
 int

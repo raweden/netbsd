@@ -31,6 +31,10 @@ __weak_alias(strtold, _strtold)
 __weak_alias(strtold_l, _strtold_l)
 #endif
 
+#ifdef __WASM
+// long double strtold_l(CONST char *s, char **sp, locale_t loc);
+#endif
+
 #ifndef __HAVE_LONG_DOUBLE
 #error no extended-precision long double type
 #endif

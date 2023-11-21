@@ -104,6 +104,15 @@
 #  define xutrace(a, b)		utrace((a), (b))
 #endif	/* __NetBSD__ */
 
+#ifdef __WASM
+#define __WASM_BUILTIN(symbol) __attribute__((import_module("__builtin"), import_name(#symbol)))
+#ifndef WASM_PAGE_SIZE
+#define WASM_PAGE_SIZE 65536
+#endif
+int wasm_memory_grow(int pgcnt) __WASM_BUILTIN(memory_grow);
+int wasm_memory_size(void) __WASM_BUILTIN(memory_size);
+#endif
+
 /*
  * MALLOC_PRODUCTION disables assertions and statistics gathering.  It also
  * defaults the A and J runtime options to off.  These settings are appropriate

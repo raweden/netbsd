@@ -127,6 +127,10 @@ done:
 
 }
 
+#if defined(__WASM) && defined (_LIBC)
+int pw_scan(char *, struct passwd *, int *) __attribute__((weak, alias("__pw_scan")));
+#endif
+
 int
 #ifdef _LIBC
 __pw_scan(char *bp, struct passwd *pw, int *flags)

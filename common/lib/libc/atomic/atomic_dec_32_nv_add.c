@@ -30,7 +30,9 @@
  */
 
 #include "atomic_op_namespace.h"
+#include "types.h"
 
+#include <stdint.h>
 #include <sys/atomic.h>
 
 uint32_t
@@ -41,15 +43,15 @@ atomic_dec_32_nv(volatile uint32_t *addr)
 }
 
 #undef atomic_dec_32_nv
-atomic_op_alias(atomic_dec_32_nv,_atomic_dec_32_nv)
+uint32_t _atomic_dec_32_nv(volatile uint32_t *addr) __attribute__((alias("atomic_dec_32_nv")));
 #undef atomic_dec_uint_nv
-atomic_op_alias(atomic_dec_uint_nv,_atomic_dec_32_nv)
-__strong_alias(_atomic_dec_uint_nv,_atomic_dec_32_nv)
+uint32_t atomic_dec_uint_nv(volatile uint32_t *addr) __attribute__((alias("atomic_dec_32_nv")));
+uint32_t _atomic_dec_uint_nv(volatile uint32_t *addr) __attribute__((alias("atomic_dec_32_nv")));
 #if !defined(_LP64)
 #undef atomic_dec_ulong_nv
-atomic_op_alias(atomic_dec_ulong_nv,_atomic_dec_32_nv)
-__strong_alias(_atomic_dec_ulong_nv,_atomic_dec_32_nv)
+u_long atomic_dec_ulong_nv(volatile u_long *addr) __attribute__((alias("atomic_dec_32_nv")));
+u_long _atomic_dec_ulong_nv(volatile u_long *addr) __attribute__((alias("atomic_dec_32_nv")));
 #undef atomic_dec_ptr_nv
-atomic_op_alias(atomic_dec_ptr_nv,_atomic_dec_32_nv)
-__strong_alias(_atomic_dec_ptr_nv,_atomic_dec_32_nv)
+uintptr_t atomic_dec_ptr_nv(volatile uintptr_t *addr) __attribute__((alias("atomic_dec_32_nv")));
+uintptr_t _atomic_dec_ptr_nv(volatile uintptr_t *addr) __attribute__((alias("atomic_dec_32_nv")));
 #endif /* _LP64 */

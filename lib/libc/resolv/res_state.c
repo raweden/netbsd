@@ -56,6 +56,10 @@ __weak_alias(__res_put_state, __res_put_state_nothread)
 __weak_alias(__res_state, __res_get_state_nothread)
 #endif
 
+res_state __res_get_state(void) __attribute__((weak, alias("__res_get_state_nothread")));
+void __res_put_state(res_state) __attribute__((weak, alias("__res_put_state_nothread")));
+res_state __res_state(void) __attribute__((weak, alias("__res_get_state_nothread")));
+
 res_state
 __res_get_state_nothread(void)
 {

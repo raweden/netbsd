@@ -89,13 +89,19 @@ typedef struct {
 
 #define	RAND_MAX	0x7fffffff
 
+#ifdef __WASM
+#define __WASM_BUILTIN(symbol) __attribute__((import_module("__builtin"), import_name(#symbol)))
+#else
+__WASM_BUILTIN(x)
+#endif
+
 extern size_t __mb_cur_max;
 #define	MB_CUR_MAX	__mb_cur_max
 
 __BEGIN_DECLS
 __dead	 void _Exit(int);
 __dead	 void abort(void);
-__constfunc	int abs(int);
+__constfunc	int abs(int); __WASM_BUILTIN(i32_abs);
 int	 atexit(void (*)(void));
 double	 atof(const char *);
 int	 atoi(const char *);
@@ -296,7 +302,11 @@ int	 getsubopt(char **, char * const *, char **);
 #if defined(__PCC__) && !defined(__GNUC__)
 #define alloca(size) __builtin_alloca(size)
 #else
-void	*alloca(size_t);
+#if __WASM
+void *alloca(size_t) __attribute__((import_module("__builtin"), import_name("alloca")));
+#else
+void *alloca(size_t);
+#endif
 #endif /* __GNUC__ */
 
 uint32_t arc4random(void);

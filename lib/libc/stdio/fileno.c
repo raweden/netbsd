@@ -54,9 +54,7 @@ __RCSID("$NetBSD: fileno.c,v 1.13 2012/03/15 18:22:30 christos Exp $");
 #undef fileno
 int _fileno(FILE *);	/* XXX */
 
-#if defined(__weak_alias) && !defined(__WASM)
-__weak_alias(fileno,_fileno)
-#endif
+int fileno(FILE *fp) __attribute__((weak, alias("_fileno")));
 
 int
 _fileno(FILE *fp)
