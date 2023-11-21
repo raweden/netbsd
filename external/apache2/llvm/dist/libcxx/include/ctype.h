@@ -35,7 +35,11 @@ int toupper(int c);
 #pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <ctype.h>
+#else
+#include "../../../../../../include/ctype.h"
+#endif
 
 #ifdef __cplusplus
 

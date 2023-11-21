@@ -17,6 +17,10 @@
 #include <errno.h>
 #include <limits>
 
+#ifndef NULL
+#define NULL 0
+#endif
+
 #ifdef __MVS__
 # include <__support/ibm/nanosleep.h>
 #endif

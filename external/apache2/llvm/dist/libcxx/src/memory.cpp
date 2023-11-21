@@ -16,6 +16,10 @@
 #endif
 #include "include/atomic_support.h"
 
+#ifndef NULL
+#define NULL 0
+#endif
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 const allocator_arg_t allocator_arg = allocator_arg_t();

@@ -13,7 +13,11 @@
 #pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <stdlib.h>
+#else
+#include "../../../../../../include/stdlib.h"
+#endif
 
 #elif !defined(_LIBCPP_STDLIB_H)
 #define _LIBCPP_STDLIB_H
@@ -90,7 +94,11 @@ void *aligned_alloc(size_t alignment, size_t size);                       // C11
 #pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <stdlib.h>
+#else
+#include "../../../../../../include/stdlib.h"
+#endif
 
 #ifdef __cplusplus
 extern "C++" {

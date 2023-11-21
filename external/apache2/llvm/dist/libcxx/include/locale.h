@@ -43,6 +43,10 @@ Functions:
 #   pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <locale.h>
+#else
+#include "../../../../../../include/locale.h"
+#endif
 
 #endif // _LIBCPP_LOCALE_H

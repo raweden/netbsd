@@ -28,7 +28,11 @@ Macros:
 #pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <errno.h>
+#else
+#include "../../../../../../include/errno.h"
+#endif
 
 #ifdef __cplusplus
 

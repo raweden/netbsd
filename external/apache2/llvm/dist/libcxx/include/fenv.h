@@ -56,7 +56,11 @@ int feupdateenv(const fenv_t* envp);
 #pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <fenv.h>
+#else
+#include "../../../../../../include/fenv.h"
+#endif
 
 #ifdef __cplusplus
 

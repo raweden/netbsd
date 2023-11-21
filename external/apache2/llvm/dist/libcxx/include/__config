@@ -222,7 +222,7 @@
 #endif
 
 // Need to detect which libc we're using if we're on Linux.
-#if defined(__linux__)
+#if defined(__linux__) && !defined(__WASM)
 #  include <features.h>
 #  if defined(__GLIBC_PREREQ)
 #    define _LIBCPP_GLIBC_PREREQ(a, b) __GLIBC_PREREQ(a, b)
@@ -1144,6 +1144,8 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
       defined(__MVS__) || \
       defined(_AIX) || \
       (defined(__MINGW32__) && __has_include(<pthread.h>))
+#    define _LIBCPP_HAS_THREAD_API_PTHREAD
+#  elif defined(__WASM) && defined(__NetBSD__)
 #    define _LIBCPP_HAS_THREAD_API_PTHREAD
 #  elif defined(__Fuchsia__)
      // TODO(44575): Switch to C11 thread API when possible.

@@ -297,7 +297,11 @@ long double    truncl(long double x);
 #pragma GCC system_header
 #endif
 
+#ifndef __WASM
 #include_next <math.h>
+#else
+#include "../../../../../../include/math.h"
+#endif
 
 #ifdef __cplusplus
 

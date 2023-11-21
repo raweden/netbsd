@@ -248,7 +248,11 @@ uintmax_t wcstoumax(const wchar_t* restrict nptr, wchar_t** restrict endptr, int
 #   define __STDC_FORMAT_MACROS
 #endif
 
+#ifndef __WASM
 #include_next <inttypes.h>
+#else
+#include "../../../../../../include/inttypes.h"
+#endif
 
 #ifdef __cplusplus
 

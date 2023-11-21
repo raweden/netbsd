@@ -24,6 +24,9 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __LIBCPP_LIBCXXRT_TYPEINFO
+#define __LIBCPP_LIBCXXRT_TYPEINFO
+
 #include <stddef.h>
 #include "abi_namespace.h"
 
@@ -311,3 +314,5 @@ namespace ABI_NAMESPACE
 	};
 
 }
+
+#endif /* __LIBCPP_LIBCXXRT_TYPEINFO */
