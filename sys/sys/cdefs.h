@@ -416,10 +416,10 @@
 	_Pragma("GCC visibility push(hidden)") __BEGIN_EXTERN_C
 #  define __END_HIDDEN_DECLS	__END_EXTERN_C _Pragma("GCC visibility pop")
 #else
-#define __BEGIN_PUBLIC_DECLS
-#define __END_PUBLIC_DECLS
-#define __BEGIN_HIDDEN_DECLS
-#define __END_HIDDEN_DECLS
+#define __BEGIN_PUBLIC_DECLS __BEGIN_EXTERN_C
+#define __END_PUBLIC_DECLS __END_EXTERN_C
+#define __BEGIN_HIDDEN_DECLS __BEGIN_EXTERN_C
+#define __END_HIDDEN_DECLS __END_EXTERN_C
 #endif
 #else
 #  define __dso_public

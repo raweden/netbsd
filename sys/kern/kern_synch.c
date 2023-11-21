@@ -108,6 +108,13 @@ dtrace_vtime_switch_func_t      dtrace_vtime_switch_func;
 #include <ddb/ddb.h>
 #endif
 
+#ifdef __WASM
+#include <machine/wasm_module.h>
+
+void __wasm_lwp_spawn(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize) __WASM_IMPORT(kern, __lwp_spawn);
+
+#endif
+
 static void	sched_unsleep(struct lwp *, bool);
 static void	sched_changepri(struct lwp *, pri_t);
 static void	sched_lendpri(struct lwp *, pri_t);
@@ -894,6 +901,14 @@ setrunnable(struct lwp *l)
 	KASSERT(mutex_owned(p->p_lock));
 	KASSERT(lwp_locked(l, NULL));
 	KASSERT(l->l_mutex != l->l_cpu->ci_schedstate.spc_mutex);
+
+#ifdef __WASM
+	if ((l->l_pflag & LP_WASM_NEED_BACKING_WORKER) != 0) {
+		struct pcb *pcb = lwp_getpcb(l);
+		l->l_pflag = l->l_pflag & ~LP_WASM_NEED_BACKING_WORKER;
+		__wasm_lwp_spawn(NULL, l, (void *)pcb->pcb_esp0, USPACE);
+	}
+#endif
 
 	switch (l->l_stat) {
 	case LSSTOP:

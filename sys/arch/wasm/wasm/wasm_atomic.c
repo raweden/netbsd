@@ -231,6 +231,9 @@ uint32_t __noinline atomic_xchg32(volatile uint32_t *valp, uint32_t val)
     return tmp;
 }
 
+/**
+ * @return Returns the value that was stored before modification, compare with expected argument to check if the value was modified.
+ */
 uint32_t __noinline atomic_cmpxchg32(volatile uint32_t *valp, uint32_t expected, uint32_t replacement)
 {
     uint32_t tmp = *valp;

@@ -179,10 +179,10 @@
 #define	VM_NFREELIST		1
 #else
 #define	VM_PHYSSEG_MAX		32	/* 1 "hole" + 31 free lists */
-#define	VM_NFREELIST		4
-#define	VM_FREELIST_FIRST16	3
-#define	VM_FREELIST_FIRST1G	2
-#define	VM_FREELIST_FIRST4G	1
+#define	VM_NFREELIST		1
+#define	VM_FREELIST_FIRST16	0
+#define	VM_FREELIST_FIRST1G	0
+#define	VM_FREELIST_FIRST4G	0
 #endif /* XENPV */
 #define	VM_FREELIST_DEFAULT	0
 

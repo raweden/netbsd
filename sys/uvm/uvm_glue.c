@@ -89,6 +89,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_glue.c,v 1.181 2020/06/14 21:41:42 ad Exp $");
 #include <uvm/uvm_pdpolicy.h>
 #include <uvm/uvm_pgflcache.h>
 
+#ifdef __WASM
+#include <sys/kmem.h>
+#endif
+
 /*
  * uvm_kernacc: test if kernel can access a memory region.
  *
@@ -246,7 +250,7 @@ uarea_poolpage_alloc(struct pool *pp, int flags)
 {
 
 	KASSERT((flags & PR_WAITOK) != 0);
-
+#ifndef __WASM
 #if defined(PMAP_MAP_POOLPAGE)
 	while (USPACE == PAGE_SIZE &&
 	    (USPACE_ALIGN == 0 || USPACE_ALIGN == PAGE_SIZE)) {
@@ -273,11 +277,15 @@ uarea_poolpage_alloc(struct pool *pp, int flags)
 #endif
 	return (void *)uvm_km_alloc(kernel_map, pp->pr_alloc->pa_pagesz,
 	    USPACE_ALIGN, UVM_KMF_WIRED | UVM_KMF_WAITVA);
+#else
+	return kmem_alloc(pp->pr_alloc->pa_pagesz, 0);
+#endif
 }
 
 static void
 uarea_poolpage_free(struct pool *pp, void *addr)
 {
+#ifndef __WASM
 #if defined(PMAP_MAP_POOLPAGE)
 	if (USPACE == PAGE_SIZE &&
 	    (USPACE_ALIGN == 0 || USPACE_ALIGN == PAGE_SIZE)) {
@@ -295,6 +303,9 @@ uarea_poolpage_free(struct pool *pp, void *addr)
 #endif
 	uvm_km_free(kernel_map, (vaddr_t)addr, pp->pr_alloc->pa_pagesz,
 	    UVM_KMF_WIRED);
+#else
+	kmem_free(addr, pp->pr_alloc->pa_pagesz);
+#endif
 }
 
 static struct pool_allocator uvm_uarea_allocator = {

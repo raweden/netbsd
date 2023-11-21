@@ -22,7 +22,7 @@ include	"arch/wasm/conf/std.wasm"
 #include	"arch/wasm/conf/files.generic"
 
 
-maxusers 	64		# estimated number of users
+maxusers 	16		# estimated number of users
 
 options 	FDT
 #options 	MULTIPROCESSOR
@@ -133,79 +133,189 @@ file-system EXT2FS
 # These options enable verbose messages for several subsystems.
 # Warning, these may compile large string tables into the kernel!
 
+# from i386 start
+
 # Kernel root file system and dump configuration.
-config 		netbsd	root on ? type ?
+config		netbsd	root on ? type ?
+
+#
+# wscons options
+#
+# builtin terminal emulations
+
+options 	WSEMUL_VT100		# VT100 / VT220 emulation
+# customization of console and kernel output - see dev/wscons/wsdisplayvar.h
+
+options 	WS_KERNEL_FG=WSCOL_GREEN
+
+# customization of console border color
+# compatibility to other console drivers
+options 	WSDISPLAY_COMPAT_PCVT		# emulate some ioctls
+options 	WSDISPLAY_COMPAT_SYSCONS	# emulate some ioctls
+options 	WSDISPLAY_COMPAT_USL		# wsconscfg VT handling
+options 	WSDISPLAY_COMPAT_RAWKBD		# can get raw scancodes
+# see dev/pckbport/wskbdmap_mfii.c for implemented layouts
+# allocate a number of virtual screens at autoconfiguration time
+
+# use a large software cursor that doesn't blink
+options 	PCDISPLAY_SOFTCURSOR
 
 #
 # Device configuration
 #
+# Basic Bus Support
 
-mainbus0 	at root
-simplebus* 	at fdt? pass 0
+# PCI bus support
+# PCI bridges
+					# SpeedStep support
 
-# CPUs
-cpus* 		at fdt? pass 0
-cpu* 		at fdt? pass 0
+# XXX 'puc's aren't really bridges, but there's no better place for them here
+# EISA bus support
 
-intc* 		at cpu? pass 1
+# ISA bus support
+isa0	at mainbus?
+# PCMCIA bus support
+pcmcia* at pcic? controller ? socket ?
 
-# Core-level Interrupt Control block
-#clint0		at fdt? pass 2
+# ISA PCMCIA controllers
+pcic0	at isa? port 0x3e0 iomem 0xd0000 iosiz 0x4000
+pcic1	at isa? port 0x3e2 iomem 0xd4000 iosiz 0x4000
 
-# Platform-Level Interrupt Controller
-plic* 		at fdt? pass 2
+# ISA Plug-and-Play bus support
+# ISA Plug-and-Play PCMCIA controllers
+# Console Devices
 
-# Clocks
-fclock* 	at fdt? pass 1
+# wscons
+pckbc0		at isa?			# PC keyboard controller
+pckbd*		at pckbc?		# PC keyboard
 
-# UART
-com* 		at fdt?			# UART
+vga0		at isa?
 
-# Firmware devices
-#qemufwcfg* 	at fdt?			# QEMU Firmware Configuration device
+pcdisplay0	at isa?			# CGA, MDA, EGA, HGA
+wsdisplay*	at vga? console ?
+wsdisplay*	at pcdisplay? console ?
+wskbd*		at pckbd? console ?
 
-# RTC devices
-#gfrtc* 		at fdt?			# Google Goldfish RTC
+# Serial Devices
 
-# USB
-#xhci* 		at fdt?			# XHCI
-#usb* 		at usbus?
-#include "dev/usb/usbdevices.config"
-#midi*		at midibus?
-#pseudo-device 	sequencer		# MIDI sequencer
+# PCI serial interfaces
 
+# ISA Plug-and-Play serial interfaces
+# PCMCIA serial interfaces
+com*	at pcmcia? function ?		# Modems and serial cards
 
-# Virtio devices
-virtio* 	at fdt?			# Virtio MMIO device
-#viomb* 	at virtio?		# Virtio memory balloon device
-ld* 		at virtio?		# Virtio disk device
-vioif* 		at virtio?		# Virtio network device
-viornd* 	at virtio?		# Virtio entropy device
-#vioscsi* 	at virtio?		# Virtio SCSI device
+# ISA serial interfaces
 
+com0	at isa? port 0x3f8 irq 4	# Standard PC serial ports
+com1	at isa? port 0x2f8 irq 3
+com2	at isa? port 0x3e8 irq 5
+# Parallel Printer Interfaces
+
+# PCI parallel printer interfaces
+# ISA parallel printer interfaces
+lpt0	at isa? port 0x378 irq 7	# standard PC parallel ports
+# SCSI Controllers and Devices
+
+# PCI SCSI controllers
+# EISA SCSI controllers
+# PCMCIA SCSI controllers
+# ISA Plug-and-Play SCSI controllers
+# ISA SCSI controllers
+# SCSI bus support
+# SCSI devices
+# IDE and related devices
+
+# ISA Plug-and-Play IDE controllers
+# PCMCIA IDE controllers
+wdc*	at pcmcia? function ?
+
+# ISA IDE controllers
+wdc0	at isa? port 0x1f0 irq 14	# ST506, ESDI, and IDE controllers
+wdc1	at isa? port 0x170 irq 15
+
+# ATA (IDE) bus support
+atabus* at ata?
+# IDE drives
+wd*	at atabus? drive ?			# the drives themselves
+
+# ATAPI bus support
+atapibus* at atapi?
+
+# ATAPI devices
+cd*	at atapibus? drive ?		# ATAPI CD-ROM drives
+sd*	at atapibus? drive ?		# ATAPI disk drives
+# Miscellaneous mass storage devices
+
+# ISA floppy
+fdc0	at isa? port 0x3f0 irq 6 drq 2	# standard PC floppy controllers
+
+fd*	at fdc? drive ?			# the drives themselves
+# some machines need you to do this instead of fd*
+# ISA CD-ROM devices
+# ISA tape devices
+# note: the wt driver conflicts unpleasantly with SMC boards at the
+# same I/O address. The probe reprograms their EEPROMs. Don't
+# uncomment it unless you are actually using it.
+
+# Network Interfaces
+
+# MII bus support
+# MII PHY network interfaces
+
+# USB Controller and Devices
+
+# PCI USB controllers
+
+# USB bus support
+
+# USB Hubs
+
+# USB Mice
+# USB Keyboards
+# USB Generic HID devices
+# USB Printer
+# USB Mass Storage
+# USB Ethernet adapters
+# USB Generic driver
+# Audio Devices
+
+# PCI audio devices
+# ISA Plug-and-Play audio devices
+# ISA audio devices
+# Audio support
+# The spkr driver provides a simple tone interface to the built in speaker.
+
+# Joysticks
+
+# ISA Plug-and-Play joysticks
+# ISA joysticks. Probe is a little strange; add only if you have one.
 # Pseudo-Devices
 
-# miscellaneous pseudo-devices
-pseudo-device 	clockctl		# user control of clock subsystem
-pseudo-device 	crypto			# /dev/crypto device
-pseudo-device 	lockstat		# lock profiling
-pseudo-device 	ksyms			# /dev/ksyms
-#pseudo-device 	pad			# pseudo audio device
-pseudo-device 	pty			# pseudo-terminals
-#options 	RND_COM
-pseudo-device 	swwdog			# software watchdog timer -- swwdog(4)
-
-
 # disk/mass storage pseudo-devices
-#pseudo-device 	md			# memory disk device (ramdisk)
-#options 	MEMORY_DISK_HOOKS	# enable root ramdisk
-#options 	MEMORY_DISK_DYNAMIC	# loaded via kernel module(7)
+
+pseudo-device	fss			# file system snapshot device
 
 pseudo-device	vnd			# disk-like interface to files
-options 	VND_COMPRESSION		# compressed vnd(4)
+# network pseudo-devices
+#pseudo-device	bpfilter		# Berkeley packet filter
+#pseudo-device	bridge			# simple inter-network bridging
 
-# userland interface to drivers, including autoconf and properties retrieval
-pseudo-device 	drvctl
+#pseudo-device	npf			# NPF packet filter
+#pseudo-device	loop			# network loopback
+#pseudo-device	ppp			# Point-to-Point Protocol
+#pseudo-device	pppoe			# PPP over Ethernet (RFC 2516)
+
+#pseudo-device	tun				# network tunneling over tty
+# miscellaneous pseudo-devices
+pseudo-device	pty				# pseudo-terminals
+
+pseudo-device	clockctl		# user control of clock subsystem
+
+# wscons pseudo-devices
+pseudo-device	wsmux			# mouse & keyboard multiplexor
+
+
+# from i386 end
 
 options 	PAX_MPROTECT=0		# PaX mprotect(2) restrictions
 options 	PAX_ASLR=0		# PaX Address Space Layout Randomization

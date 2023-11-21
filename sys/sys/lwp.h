@@ -90,7 +90,11 @@ struct lwp {
 	kmutex_t * volatile l_mutex;	/* l: ptr to mutex on sched state */
 	struct turnstile *l_ts;		/* l: current turnstile */
 	int		l_stat;		/* l: overall LWP status */
+#ifndef __WASM
 	int		l__reserved;	/*  : padding - reuse as needed */
+#else
+	int 	l_wa_wakesig;		/* 	: address used with the memory.atomic.wait32 and memory.atomic.notify instruction used for sleep & awake of thread. */
+#endif
 
 	/* Scheduling and overall state. */
 #define	l_startzero l_runq
@@ -290,6 +294,9 @@ extern int		maxlwp __read_mostly;	/* max number of lwps */
 #define	LP_SINGLESTEP	0x00000400 /* Single step thread in ptrace(2) */
 #define	LP_TIMEINTR	0x00010000 /* Time this soft interrupt */
 #define	LP_PREEMPTING	0x00020000 /* mi_switch called involuntarily */
+#ifdef __WASM
+#define LP_WASM_NEED_BACKING_WORKER 0x00040000	// no backing Worker spawned for the thread yet.
+#endif
 #define	LP_RUNNING	0x20000000 /* Active on a CPU */
 #define	LP_TELEPORT	0x40000000 /* Teleport to new CPU on preempt() */
 #define	LP_BOUND	0x80000000 /* Bound to a CPU */

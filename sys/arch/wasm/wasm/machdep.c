@@ -48,8 +48,8 @@ __KERNEL_RCSID(0, "$NetBSD: machdep.c,v 1.840 2023/07/16 19:55:43 riastradh Exp 
 #include "opt_realmem.h"
 #include "opt_user_ldt.h"
 #include "opt_xen.h"
-//#include "isa.h"
-//#include "pci.h"
+#include "isa.h"
+#include "pci.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -384,7 +384,9 @@ cpu_startup(void)
 
 	pmap_update(pmap_kernel());
 
+#ifndef __WASM // TODO: wasm; fixme
 	initmsgbuf((void *)msgbuf_vaddr, sz);
+#endif
 
 #ifdef MULTIBOOT
 	multiboot1_print_info();
@@ -412,10 +414,14 @@ cpu_startup(void)
 	x86_bus_space_mallocok();
 #endif
 
+#ifndef __WASM
 	gdt_init();
+#endif
 	i386_proc0_pcb_ldt_init();
 
+#ifndef __WASM
 	cpu_init_tss(&cpu_info_primary);
+#endif
 #ifndef XENPV
 	ltr(cpu_info_primary.ci_tss_sel);
 #endif
@@ -432,7 +438,11 @@ i386_proc0_pcb_ldt_init(void)
 	struct lwp *l = &lwp0;
 	struct pcb *pcb = lwp_getpcb(l);
 
+#ifndef __WASM
 	pcb->pcb_cr0 = rcr0() & ~CR0_TS;
+#else
+	pcb->pcb_cr0 = 0;
+#endif
 	pcb->pcb_esp0 = uvm_lwp_getuarea(l) + USPACE - 16;
 	pcb->pcb_iopl = IOPL_KPL;
 	l->l_md.md_regs = (struct trapframe *)pcb->pcb_esp0 - 1;
@@ -1185,6 +1195,8 @@ init_earlycons(void)
 	v_flush = wasm_cnflush;
 }
 
+void wasm_fixup_physseg(void);
+
 void
 init_wasm32(paddr_t first_avail)
 {
@@ -1265,7 +1277,6 @@ init_wasm32(paddr_t first_avail)
 
 	avail_start = first_avail;
 
-#ifndef XENPV
 	/*
 	 * Low memory reservations:
 	 * Page 0:	BIOS data
@@ -1275,38 +1286,13 @@ init_wasm32(paddr_t first_avail)
 	 * Page 4:	Temporary page table for 0MB-4MB
 	 * Page 5:	Temporary page directory
 	 */
-	lowmem_rsvd = 6 * PAGE_SIZE;
-#else /* !XENPV */
-	/* Parse Xen command line (replace bootinfo) */
-	xen_parse_cmdline(XEN_PARSE_BOOTFLAGS, NULL);
-
-	/* Use the dummy page as a gdt */
-	extern vaddr_t xen_dummy_page;
-	gdtstore = (void *)xen_dummy_page;
-
-	/* Determine physical address space */
-	avail_end = ctob((paddr_t)xen_start_info.nr_pages);
-	pmap_pa_start = (KERNTEXTOFF - KERNBASE);
-	pmap_pa_end = pmap_pa_start + ctob((paddr_t)xen_start_info.nr_pages);
-	mem_clusters[0].start = avail_start;
-	mem_clusters[0].size = avail_end - avail_start;
-	mem_cluster_cnt++;
-	physmem += xen_start_info.nr_pages;
-	uvmexp.wired += atop(avail_start);
-
-	/*
-	 * initgdt() has to be done before consinit(), so that %fs is properly
-	 * initialised. initgdt() uses pmap_kenter_pa so it can't be called
-	 * before the above variables are set.
-	 */
-	initgdt(gdtstore);
-
-	mutex_init(&pte_lock, MUTEX_DEFAULT, IPL_VM);
-#endif /* XENPV */
+	//lowmem_rsvd = 6 * PAGE_SIZE;
+	lowmem_rsvd = 0;
 
 #if NISA > 0 || NPCI > 0
 	x86_bus_space_init();
 #endif
+
 
 	consinit();	/* XXX SHOULD NOT BE DONE HERE */
 
@@ -1329,30 +1315,23 @@ init_wasm32(paddr_t first_avail)
 	 */
 	pmap_bootstrap((vaddr_t)atdevbase + IOM_SIZE);
 
-#ifndef XENPV
+	printf("avail_start: %lu avail_end: %lu", avail_start, avail_end);
 	/* Initialize the memory clusters. */
 	init_x86_clusters();
 
+	printf("avail_start: %lu avail_end: %lu", avail_start, avail_end);
+
 	/* Internalize the physical pages into the VM system. */
 	init_x86_vm(avail_start);
-#else /* !XENPV */
-	uvm_page_physload(atop(avail_start), atop(avail_end),
-	    atop(avail_start), atop(avail_end),
-	    VM_FREELIST_DEFAULT);
+	printf("avail_start: %lu avail_end: %lu", avail_start, avail_end);
 
-	/* Reclaim the boot gdt page - see locore.s */
-	{
-		extern pt_entry_t xpmap_pg_nx;
-		pt_entry_t pte;
-
-		pte = pmap_pa2pte((vaddr_t)tmpgdt - KERNBASE);
-		pte |= PTE_W | xpmap_pg_nx | PTE_P;
-
-		if (HYPERVISOR_update_va_mapping((vaddr_t)tmpgdt, pte, UVMF_INVLPG) < 0) {
-			panic("tmpgdt page relaim RW update failed.\n");
-		}
+	wasm_fixup_physseg();
+	
+	// debug; how does the memory look before init_x86_msgbuf() call
+	uvm_physseg_t bank;
+	for (bank = uvm_physseg_get_first(); uvm_physseg_valid_p(bank); bank = uvm_physseg_get_next(bank)) {
+		printf("%s uvm_physseg (start: %lu end: %lu )", __func__, uvm_physseg_get_start(bank), uvm_physseg_get_end(bank));
 	}
-#endif /* !XENPV */
 
 	init_x86_msgbuf();
 

@@ -433,7 +433,9 @@ size_t	 strnlen(const char *, size_t);
 char	*strsep(char **, const char *);
 
 /* Functions for which we always use built-ins. */
-#ifdef __GNUC__
+#ifdef __WASM
+void *alloca(size_t) __attribute__((import_module("__builtin"), import_name("alloca")));
+#elif defined(__GNUC__)
 #define	alloca(s)		__builtin_alloca(s)
 #endif
 

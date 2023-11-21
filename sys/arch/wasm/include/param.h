@@ -101,6 +101,7 @@
 #define	SSIZE		1		/* initial stack size/NBPG */
 #define	SINCR		1		/* increment of stack/NBPG */
 
+// TODO: might want to change the USPACE size to 32 4kib pages (2 wasm pages).
 #ifndef UPAGES
 # ifdef DIAGNOSTIC
 #  define	UPAGES		3	/* 2 + 1 page for redzone */

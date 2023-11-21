@@ -981,6 +981,10 @@ lwp_create(lwp_t *l1, proc_t *p2, vaddr_t uaddr, int flags,
 
 	SYSCALL_TIME_LWP_INIT(l2);
 
+#ifdef __WASM
+	l2->l_pflag |= LP_WASM_NEED_BACKING_WORKER;
+#endif
+
 	if (p2->p_emul->e_lwp_fork)
 		(*p2->p_emul->e_lwp_fork)(l1, l2);
 

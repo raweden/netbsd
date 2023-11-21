@@ -572,7 +572,7 @@ out_err:
  * the genfs_node is locked on entry (it always is) but whether it was
  * locked on entry to genfs_getpages.
  */
-static int
+static int __noinline
 genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
     off_t startoffset, off_t diskeof,
     bool async, bool memwrite, bool blockalloc, bool glocked)
@@ -605,6 +605,10 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 	    UVMPAGER_MAPIN_READ | (async ? 0 : UVMPAGER_MAPIN_WAITOK));
 	if (kva == 0)
 		return EBUSY;
+
+#ifdef __WASM_KERN_DEBUG_PRINT
+	printf("%s page pa = %p", __func__, (void *)pgs[0]->phys_addr);
+#endif
 
 	mbp = getiobuf(vp, true);
 	mbp->b_bufsize = totalbytes;
@@ -757,6 +761,10 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 			bp = getiobuf(vp, true);
 			nestiobuf_setup(mbp, bp, offset - startoffset, iobytes);
 		}
+#ifdef __WASM
+		// TODO: WASM fixme
+		bp->b_data = (void *)pgs[pidx]->phys_addr;
+#endif
 		bp->b_lblkno = 0;
 
 		/* adjust physical blkno for partial blocks */

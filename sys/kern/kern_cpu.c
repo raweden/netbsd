@@ -169,7 +169,9 @@ mi_cpu_attach(struct cpu_info *ci)
 		ci->ci_onproc = ci->ci_data.cpu_idlelwp;
 
 	percpu_init_cpu(ci);
+#ifndef __WASM
 	softint_init(ci);
+#endif
 	callout_init_cpu(ci);
 	xc_init_cpu(ci);
 	pool_cache_cpu_init(ci);

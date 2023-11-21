@@ -233,6 +233,11 @@ extern void *_binary_splash_image_end;
 
 #include <sys/userconf.h>
 
+#ifdef __WASM
+#include <wasm/wasm_module.h>
+void *__kexec_ualloca(uint32_t sz) __WASM_IMPORT(kern, kexec_ualloca);
+#endif
+
 extern time_t rootfstime;
 
 #ifndef curlwp
@@ -555,8 +560,11 @@ main(void)
 	evcnt_attach_legacy_intrcnt();
 #endif
 
+	// WASM: hogs the CPU..
+#ifndef __WASM
 	/* Enable deferred processing of RNG samples */
 	rnd_init_softint();
+#endif
 
 	/* Once all CPUs are detected, initialize the per-CPU cprng_fast.  */
 	cprng_fast_init();
@@ -585,8 +593,10 @@ main(void)
 	/* Now timer is working.  Enable preemption. */
 	kpreempt_enable();
 
+#ifndef __WASM
 	/* Get the threads going and into any sleeps before continuing. */
 	yield();
+#endif
 
 	vmem_rehash_start();	/* must be before exec_init */
 
@@ -736,6 +746,8 @@ main(void)
 		ci->ci_schedstate.spc_lastmod = time_second;
 	}
 
+	// WASM: hogs the CPU..
+#ifndef __WASM
 	/* Create the pageout daemon kernel thread. */
 	uvm_swap_init();
 	if (kthread_create(PRI_PGDAEMON, KTHREAD_MPSAFE, NULL, uvm_pageout,
@@ -746,21 +758,30 @@ main(void)
 	if (kthread_create(PRI_IOFLUSH, KTHREAD_MPSAFE, NULL, sched_sync,
 	    NULL, NULL, "ioflush"))
 		panic("fork syncer");
+#endif
 
+#ifndef __WASM
 	/* Wait for final configure threads to complete. */
 	config_finalize_mountroot();
+#endif
 
 	/*
 	 * Okay, now we can let init(8) exec!  It's off to userland!
 	 */
 	mutex_enter(&proc_lock);
 	start_init_exec = 1;
+#ifdef __WASM
+	atomic_notify((uint32_t *)&start_init_exec, 1);
+#else
 	cv_broadcast(&lbolt);
+#endif
 	mutex_exit(&proc_lock);
 
+#ifndef __WASM
 	/* The scheduler is an infinite loop. */
 	uvm_scheduler();
 	/* NOTREACHED */
+#endif
 }
 
 /*
@@ -830,8 +851,10 @@ configure2(void)
 		uvm_cpu_attach(ci);
 	}
 
+#ifndef __WASM
 	/* Decide how to partition free memory. */
 	uvm_page_rebucket();
+#endif
 
 	mp_online = true;
 #if defined(MULTIPROCESSOR)
@@ -844,25 +867,30 @@ configure2(void)
 	 */
 	config_twiddle_fn(NULL);
 
+#ifndef __WASM
 	/*
 	 * Create threads to call back and finish configuration for
 	 * devices that want interrupts enabled.
 	 */
 	config_create_interruptthreads();
+#endif
 }
 
 static void
 configure3(void)
 {
 
+#ifndef __WASM
 	/*
 	 * Create threads to call back and finish configuration for
 	 * devices that want the mounted root file system.
 	 */
 	config_create_mountrootthreads();
 
+
 	/* Get the threads going and into any sleeps before continuing. */
 	yield();
+#endif
 }
 
 static void
@@ -995,10 +1023,14 @@ start_init(void *arg)
 	/*
 	 * Wait for main() to tell us that it's safe to exec.
 	 */
+#ifndef __WASM
 	mutex_enter(&proc_lock);
 	while (start_init_exec == 0)
 		cv_wait(&lbolt, &proc_lock);
 	mutex_exit(&proc_lock);
+#else
+	atomic_wait32((uint32_t *)&start_init_exec, 0, -1);
+#endif
 
 	/*
 	 * This is not the right way to do this.  We really should
@@ -1008,6 +1040,7 @@ start_init(void *arg)
 	 */
 	check_console(l);
 
+#ifndef __WASM
 	/*
 	 * Need just enough stack to hold the faked-up "execve()" arguments.
 	 */
@@ -1019,6 +1052,7 @@ start_init(void *arg)
 	    UVM_FLAG_FIXED|UVM_FLAG_OVERLAY|UVM_FLAG_COPYONW)) != 0)
 		panic("init: couldn't allocate argument space");
 	p->p_vmspace->vm_maxsaddr = (void *)STACK_MAX(addr, PAGE_SIZE);
+#endif
 
 	ipx = 0;
 	while (1) {
@@ -1058,7 +1092,13 @@ start_init(void *arg)
 			}
 		}
 
+#ifndef __WASM
 		ucp = (char *)USRSTACK;
+#else
+		ucp = __kexec_ualloca(PAGE_SIZE);
+#endif
+
+		// TODO: WASM; something goes wrong here.. we do not get any valid arguments in copy_args
 
 		/*
 		 * Construct the boot flag argument.

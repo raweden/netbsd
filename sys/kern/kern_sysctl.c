@@ -824,7 +824,9 @@ sysctl_create(SYSCTLFN_ARGS)
 	if (nsz == 0 || nsz == SYSCTL_NAMELEN)
 		return (EINVAL);
 
+#ifdef __WASM_KERN_DEBUG_PRINT
 	printf("%s create name: %s\n", __func__, nnode.sysctl_name);
+#endif
 
 	/*
 	 * various checks revolve around size vs type, etc

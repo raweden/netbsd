@@ -659,6 +659,10 @@ int			ubc_uiomove(struct uvm_object *, struct uio *, vsize_t,
 void			ubc_zerorange(struct uvm_object *, off_t, size_t, int);
 void			ubc_purge(struct uvm_object *);
 
+#ifdef __WASM
+int wasm_direct_uiomove(struct uvm_object *uobj, struct uio *uio, vsize_t todo, int advice, int flags);
+#endif
+
 /* uvm_fault.c */
 #define uvm_fault(m, a, p) uvm_fault_internal(m, a, p, 0)
 int		uvm_fault_internal(struct vm_map *, vaddr_t, vm_prot_t, int);

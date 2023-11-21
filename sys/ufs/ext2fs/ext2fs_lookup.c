@@ -422,7 +422,9 @@ ext2fs_lookup(void *v)
 
 searchloop:
 	while (results->ulr_offset < endsearch) {
+#ifndef __WASM
 		preempt_point();
+#endif
 
 		/*
 		 * If necessary, get the next directory block.

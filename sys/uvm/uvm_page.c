@@ -378,7 +378,9 @@ uvm_page_init(vaddr_t *kvm_startp, vaddr_t *kvm_endp)
 	     uvm_physseg_valid_p(bank) ;
 	     bank = uvm_physseg_get_next(bank)) {
 		freepages += (uvm_physseg_get_end(bank) - uvm_physseg_get_start(bank));
+#ifdef __WASM_KERN_DEBUG_PRINT
 		printf("%s freepages: %lu (start: %lu end: %lu )", __func__, freepages, uvm_physseg_get_start(bank), uvm_physseg_get_end(bank));
+#endif
 	}
 
 	/*
@@ -2079,7 +2081,7 @@ uvm_pagereadonly_p(struct vm_page *pg)
 	return UVM_OBJ_NEEDS_WRITEFAULT(uobj);
 }
 
-#ifdef PMAP_DIRECT
+#if defined(PMAP_DIRECT) || defined(UBC_USE_PMAP_DIRECT)
 /*
  * Call pmap to translate physical address into a virtual and to run a callback
  * for it. Used to avoid actually mapping the pages, pmap most likely uses direct map

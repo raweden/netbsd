@@ -9,7 +9,11 @@
 #define	_SYS_CDEFS_AOUT_H_
 
 #define	_C_LABEL(x)		__CONCAT(_,x)
+#ifndef __WASM
 #define	_C_LABEL_STRING(x)	"_"x
+#else
+#define _C_LABEL_STRING(x) x
+#endif
 
 #if __STDC__
 #define	___RENAME(x)	__asm(___STRING(_C_LABEL(x)))
@@ -151,6 +155,7 @@ extern struct {								\
 #undef	__link_set_add_rodata
 #undef	__link_set_add_data
 #undef	__link_set_add_bss
+#undef _C_LABEL_STRING
 
 #define __read_mostly
 #define __read_frequently
@@ -165,6 +170,7 @@ extern struct {								\
 #define	__weak_extern(sym)			,"no use of __weak_extern(x,y) in WASM"
 #define __KERNEL_RCSID(x, y)
 #define	__RCSID(x)
+#define	_C_LABEL_STRING(x) x
 
 #ifndef __CONCAT1
 #define	__CONCAT1(x,y)	x ## y

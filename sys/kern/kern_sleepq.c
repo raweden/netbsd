@@ -34,6 +34,7 @@
  * interfaces.
  */
 
+
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: kern_sleepq.c,v 1.74 2023/04/09 09:18:09 riastradh Exp $");
 
@@ -48,6 +49,11 @@ __KERNEL_RCSID(0, "$NetBSD: kern_sleepq.c,v 1.74 2023/04/09 09:18:09 riastradh E
 #include <sys/systm.h>
 #include <sys/sleepq.h>
 #include <sys/ktrace.h>
+
+#ifdef __WASM_KDEBUG
+#include <wasm/wasm_module.h>
+void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#endif
 
 /*
  * for sleepq_abort:
@@ -67,6 +73,11 @@ static int	sleepq_sigtoerror(lwp_t *, int);
 /* General purpose sleep table, used by mtsleep() and condition variables. */
 sleeptab_t	sleeptab __cacheline_aligned;
 sleepqlock_t	sleepq_locks[SLEEPTAB_HASH_SIZE] __cacheline_aligned;
+
+#ifdef __WASM
+int wasm_lwp_wait(lwp_t *l, int64_t timo);
+int wasm_lwp_awake(lwp_t *l);
+#endif
 
 /*
  * sleeptab_init:
@@ -168,7 +179,11 @@ sleepq_remove(sleepq_t *sq, lwp_t *l)
 	l->l_stat = LSRUN;
 	l->l_slptime = 0;
 	sched_enqueue(l);
+#ifndef __WASM
 	sched_resched_lwp(l, true);
+#else
+	wasm_lwp_awake(l);
+#endif
 	/* LWP & SPC now unlocked, but we still hold sleep queue lock. */
 }
 
@@ -192,6 +207,11 @@ sleepq_insert(sleepq_t *sq, lwp_t *l, syncobj_t *sobj)
 		const pri_t pri = lwp_eprio(l);
 
 		LIST_FOREACH(l2, sq, l_sleepchain) {
+#ifdef __WASM_KERN_DIAGNOSTIC
+			if (l_last == l2) {
+				__panic_abort();
+			}
+#endif
 			l_last = l2;
 			if (lwp_eprio(l2) < pri) {
 				LIST_INSERT_BEFORE(l2, l, l_sleepchain);
@@ -293,6 +313,7 @@ sleepq_uncatch(lwp_t *l)
 	l->l_flag = ~(LW_SINTR | LW_CATCHINTR);
 }
 
+
 /*
  * sleepq_block:
  *
@@ -310,6 +331,9 @@ sleepq_block(int timo, bool catch_p, struct syncobj *syncobj)
 	lwp_t *l = curlwp;
 	bool early = false;
 	int biglocks = l->l_biglocks;
+#ifdef __WASM
+	int64_t wa_timo;
+#endif
 
 	ktrcsw(1, 0, syncobj);
 
@@ -337,6 +361,7 @@ sleepq_block(int timo, bool catch_p, struct syncobj *syncobj)
 		/* lwp_unsleep() will release the lock */
 		lwp_unsleep(l, true);
 	} else {
+#ifndef __WASM
 		/*
 		 * The LWP may have already been awoken if the caller
 		 * dropped the sleep queue lock between sleepq_enqueue() and
@@ -349,6 +374,7 @@ sleepq_block(int timo, bool catch_p, struct syncobj *syncobj)
 			callout_schedule(&l->l_timeout_ch, timo);
 		}
 		spc_lock(l->l_cpu);
+
 		mi_switch(l);
 
 		/* The LWP and sleep queue are now unlocked. */
@@ -364,6 +390,20 @@ sleepq_block(int timo, bool catch_p, struct syncobj *syncobj)
 			(void)callout_halt(&l->l_timeout_ch, NULL);
 			error = (l->l_flag & LW_STIMO) ? EWOULDBLOCK : 0;
 		}
+#else
+		if (timo == 0) {
+			wa_timo = -1;
+		} else {
+#ifndef TICKS_TO_MSEC
+#define TICKS_TO_MSEC(x) (x)
+#endif
+			wa_timo = TICKS_TO_MSEC(timo) * 1000;
+		}
+		// WebAssembly TODO: convert timo into
+		// this one might need to be nested within it's own function in order to respond to
+		// certain changes..
+		wasm_lwp_wait(l, wa_timo);
+#endif
 	}
 
 	/*

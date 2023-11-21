@@ -118,6 +118,12 @@ __KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.518 2022/07/01 01:05:31 riastradh Ex
 
 #include <compat/common/compat_util.h>
 
+#ifdef __WASM
+#include <wasm/wasm_module.h>
+void wasm_exec_finish(void) __WASM_IMPORT(kern, exec_finish);
+void wasm_exec_prepare_trampoline(void);
+#endif
+
 #ifndef MD_TOPDOWN_INIT
 #ifdef __USE_TOPDOWN_VM
 #define	MD_TOPDOWN_INIT(epp)	(epp)->ep_flags |= EXEC_TOPDOWN_VM
@@ -475,6 +481,7 @@ check_exec(struct lwp *l, struct exec_package *epp, struct pathbuf *pb,
 
 		if (!newerror) {
 			/* Seems ok: check that entry point is not too high */
+#ifndef __WASM
 			if (epp->ep_entry >= epp->ep_vm_maxaddr) {
 #ifdef DIAGNOSTIC
 				printf("%s: rejecting %p due to "
@@ -496,6 +503,7 @@ check_exec(struct lwp *l, struct exec_package *epp, struct pathbuf *pb,
 				error = ENOEXEC;
 				break;
 			}
+#endif
 
 			/* check limits */
 #ifdef DIAGNOSTIC
@@ -853,7 +861,11 @@ execve_loadvm(struct lwp *l, bool has_path, const char *path, int fd,
 	}
 
 	/* allocate an argument buffer */
+#ifndef __WASM
 	data->ed_argp = pool_get(&exec_pool, PR_WAITOK);
+#else
+	data->ed_argp = kmem_alloc(PAGE_SIZE, 0);
+#endif
 	KASSERT(data->ed_argp != NULL);
 	dp = data->ed_argp;
 
@@ -905,7 +917,11 @@ execve_loadvm(struct lwp *l, bool has_path, const char *path, int fd,
 	vn_lock(epp->ep_vp, LK_EXCLUSIVE | LK_RETRY);
 	VOP_CLOSE(epp->ep_vp, FREAD, l->l_cred);
 	vput(epp->ep_vp);
+#ifndef __WASM
 	pool_put(&exec_pool, data->ed_argp);
+#else
+	kmem_free(data->ed_argp, PAGE_SIZE);
+#endif
 
  freehdr:
 	kmem_free(epp->ep_hdr, epp->ep_hdrlen);
@@ -1004,7 +1020,11 @@ execve_free_data(struct execve_data *data)
 	vn_lock(epp->ep_vp, LK_EXCLUSIVE | LK_RETRY);
 	VOP_CLOSE(epp->ep_vp, FREAD, curlwp->l_cred);
 	vput(epp->ep_vp);
+#ifndef __WASM
 	pool_put(&exec_pool, data->ed_argp);
+#else
+	kmem_free(data->ed_argp, PAGE_SIZE);
+#endif
 
 	kmem_free(epp->ep_hdr, epp->ep_hdrlen);
 	if (epp->ep_emul_root != NULL)
@@ -1236,6 +1256,7 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	/* Set the PaX flags. */
 	pax_set_flags(epp, p);
 
+#ifndef __WASM
 	/*
 	 * Do whatever is necessary to prepare the address space
 	 * for remapping.  Note that this might replace the current
@@ -1253,6 +1274,7 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 		uvmspace_exec(l, epp->ep_vm_minaddr,
 		    epp->ep_vm_maxaddr,
 		    epp->ep_flags & EXEC_TOPDOWN_VM);
+#endif
 	vm = p->p_vmspace;
 
 	vm->vm_taddr = (void *)epp->ep_taddr;
@@ -1328,7 +1350,9 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 
 		/* Give the parent its CPU back - find a new home. */
 		KASSERT(!is_spawn);
+#ifndef __WASM
 		sched_vforkexec(l, samecpu);
+#endif
 	}
 
 	/* Now map address space. */
@@ -1371,7 +1395,11 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 		goto exec_abort;
 	}
 
+#ifndef __WASM
 	pool_put(&exec_pool, data->ed_argp);
+#else
+	kmem_free(data->ed_argp, PAGE_SIZE);
+#endif
 
 	/*
 	 * Notify anyone who might care that we've exec'd.
@@ -1423,7 +1451,7 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 		mutex_exit(&proc_lock);
 		lwp_lock(l);
 		spc_lock(l->l_cpu);
-		mi_switch(l);
+		mi_switch(l);					// TODO: wasm
 		ksiginfo_queue_drain(&kq);
 	} else {
 		mutex_exit(&proc_lock);
@@ -1433,6 +1461,12 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 #ifdef TRACE_EXEC
 	DPRINTF(("%s finished\n", __func__));
 #endif
+#ifdef __WASM
+	wasm_exec_prepare_trampoline();
+	// WASM: this beaty does never return..
+	wasm_exec_finish();
+#endif
+
 	return EJUSTRETURN;
 
  exec_abort:
@@ -1454,7 +1488,11 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	}
 
 	exec_free_emul_arg(epp);
+#ifndef __WASM
 	pool_put(&exec_pool, data->ed_argp);
+#else
+	kmem_free(data->ed_argp, PAGE_SIZE);
+#endif
 	kmem_free(epp->ep_hdr, epp->ep_hdrlen);
 	if (epp->ep_emul_root != NULL)
 		vrele(epp->ep_emul_root);

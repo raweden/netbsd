@@ -79,6 +79,7 @@
  *	Utah $Hdr: vm_machdep.c 1.16.1.1 89/06/23$
  */
 
+
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: vm_machdep.c,v 1.45 2021/03/28 10:29:05 skrll Exp $");
 
@@ -92,6 +93,7 @@ __KERNEL_RCSID(0, "$NetBSD: vm_machdep.c,v 1.45 2021/03/28 10:29:05 skrll Exp $"
 #include <sys/core.h>
 #include <sys/exec.h>
 #include <sys/ptrace.h>
+#include <sys/lwp.h>
 
 #include <uvm/uvm.h>
 
@@ -107,6 +109,8 @@ __KERNEL_RCSID(0, "$NetBSD: vm_machdep.c,v 1.45 2021/03/28 10:29:05 skrll Exp $"
 #include <wasm/fpu.h>
 #include <wasm/dbregs.h>
 
+
+
 extern struct pool x86_dbregspl;
 
 void
@@ -115,6 +119,8 @@ cpu_proc_fork(struct proc *p1, struct proc *p2)
 
 	p2->p_md.md_flags = p1->p_md.md_flags;
 }
+
+
 
 /*
  * cpu_lwp_fork: finish a new LWP (l2) operation.
@@ -137,6 +143,9 @@ cpu_lwp_fork(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize,
 	vaddr_t uv;
 
 	KASSERT(l1 == curlwp || l1 == &lwp0);
+
+	printf("%s lwp0->l_addr %p\n", __func__, l1->l_addr);
+	printf("%s lwp1->l_addr %p\n", __func__, l2->l_addr);
 
 	pcb1 = lwp_getpcb(l1);
 	pcb2 = lwp_getpcb(l2);
@@ -181,6 +190,8 @@ cpu_lwp_fork(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize,
 	pcb2->pcb_esp0 = (uv + USPACE - 16);
 	tf = (struct trapframe *)pcb2->pcb_esp0 - 1;
 
+	printf("trapframe of lwp2 is %p", tf);
+
 	pcb2->pcb_iomap = NULL;
 #endif
 	l2->l_md.md_regs = tf;
@@ -215,6 +226,7 @@ cpu_lwp_fork(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize,
 	pcb2->pcb_rsp = (uint64_t)sf;
 	pcb2->pcb_rbp = (uint64_t)l2;
 #else
+	printf("switchframe of lwp2 is %p", sf);
 	/*
 	 * XXX Is there a reason sf->sf_edi isn't initialized here?
 	 * Could this leak potentially sensitive information to new

@@ -648,6 +648,26 @@ uvm_post_preload_check(void)
 	return NULL;
 }
 
+// temporary hack!
+static bool __wasm_fixup;
+
+void wasm_fixup_physseg(void)
+ {
+	if (__wasm_fixup)
+		return;
+	__wasm_fixup = 1;
+
+	struct uvm_physseg *seg;
+	int len = vm_nphysseg;
+	int dst = 0;
+	for (int i = 1; i < len; i++) {
+		vm_physmem[dst++] = vm_physmem[i];
+	}
+
+	vm_nphysseg--;
+
+ }
+
 /*
  * uvm_page_physunload: unload physical memory and return it to
  * caller.

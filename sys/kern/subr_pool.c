@@ -1451,6 +1451,9 @@ pool_grow(struct pool *pp, int flags)
 	 * may have just done it.
 	 */
 	cv_broadcast(&pp->pr_cv);
+#ifdef __WASM_KERN_DEBUG_PRINT
+	printf("pool_allocator_alloc() storage = %p ph = %p ph->ph_page %p", storage, ph, ph->ph_page);
+#endif
 	return 0;
 out:
 	if (flags & PR_WAITOK)

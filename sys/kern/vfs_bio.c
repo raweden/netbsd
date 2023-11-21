@@ -291,7 +291,13 @@ bufpool_page_alloc(struct pool *pp, int flags)
 	    ((flags & PR_WAITOK) ? 0 : UVM_KMF_NOWAIT|UVM_KMF_TRYLOCK)
 	    | UVM_KMF_WIRED);
 #else
-	return kmem_alloc(pp->pr_reqsize, 0);
+	const vm_flag_t vflags = (flags & PR_WAITOK) ? VM_SLEEP: VM_NOSLEEP;
+	vmem_addr_t va;
+	int ret;
+
+	ret = uvm_km_kmem_alloc(kmem_va_arena, pp->pr_reqsize, vflags | VM_INSTANTFIT, &va);
+
+	return ret ? NULL : (void *)va;
 #endif
 }
 
@@ -301,7 +307,7 @@ bufpool_page_free(struct pool *pp, void *v)
 #ifndef __WASM
 	uvm_km_free(buf_map, (vaddr_t)v, MAXBSIZE, UVM_KMF_WIRED);
 #else
-	kmem_free(v, pp->pr_reqsize);
+	uvm_km_kmem_free(kmem_va_arena, (vaddr_t)v, pp->pr_reqsize);
 #endif
 }
 
@@ -345,6 +351,9 @@ buf_setwm(void)
 		/* Ensure a reasonable minimum value */
 		bufmem_hiwater = BUFMEM_HIWMMIN;
 	bufmem_lowater = bufmem_hiwater >> BUFMEM_WMSHIFT;
+#if __WASM_KERN_DEBUG_PRINT
+	printf("%s %s bufmem_hiwater = %lu bufmem_lowater = %lu", __FILE__, __func__, bufmem_hiwater, bufmem_lowater);
+#endif
 }
 
 #ifdef DEBUG
@@ -477,6 +486,7 @@ bufinit(void)
 	mutex_init(&buffer_lock, MUTEX_DEFAULT, IPL_NONE);
 	cv_init(&needbuffer_cv, "needbuf");
 
+#if !defined(__WASM)
 	if (bufmem_valimit != 0) {
 		vaddr_t minaddr = 0, maxaddr;
 		buf_map = uvm_km_suballoc(kernel_map, &minaddr, &maxaddr,
@@ -485,6 +495,7 @@ bufinit(void)
 		if (buf_map == NULL)
 			panic("bufinit: cannot allocate submap");
 	} else
+#endif
 		buf_map = kernel_map;
 
 	/*
@@ -504,7 +515,9 @@ bufinit(void)
 	use_std = 1;
 #endif
 
+#ifdef __WASM_KERN_DEBUG_PRINT
 	printf("%s NMEMPOOLS = %d", __func__, NMEMPOOLS);
+#endif
 
 	buf_cache = pool_cache_init(sizeof(buf_t), 0, 0, 0,
 	    "bufpl", NULL, IPL_SOFTBIO, NULL, NULL, NULL);
@@ -528,7 +541,9 @@ bufinit(void)
 		pool_init(pp, size, DEV_BSIZE, 0, 0, name, pa, IPL_NONE);
 		pool_setlowat(pp, 1);
 		pool_sethiwat(pp, 1);
+#ifdef __WASM_KERN_DEBUG_PRINT
 		printf("%s pool-index = %d size = %d", __func__, i, size);
+#endif
 	}
 
 	/* Initialize the buffer queues */
@@ -1347,7 +1362,7 @@ allocbuf(buf_t *bp, int size, int preserve)
 	if (addr == NULL)
 		return ENOMEM;
 	if (preserve)
-		memcpy(addr, bp->b_data, MIN(oldsize,desired_size));
+		memcpy(addr, bp->b_data, MIN(oldsize, desired_size));
 	if (bp->b_data != NULL)
 		buf_mrelease(bp->b_data, oldsize);
 	bp->b_data = addr;

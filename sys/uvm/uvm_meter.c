@@ -308,7 +308,7 @@ SYSCTL_SETUP(sysctl_vm_setup, "sysctl vm subtree setup")
 /*
  * uvm_total: calculate the current state of the system.
  */
-static void
+static void __noinline
 uvm_total(struct vmtotal *totalp)
 {
 	struct lwp *l;

@@ -769,6 +769,7 @@ uvmpdpol_flush(void)
 void
 uvmpdpol_pagerealize(struct vm_page *pg)
 {
+#ifndef __WASM
 	struct uvm_cpu *ucpu;
 
 	/*
@@ -781,6 +782,7 @@ uvmpdpol_pagerealize(struct vm_page *pg)
 	}
 	ucpu->pdq[--(ucpu->pdqhead)] = pg;
 	kpreempt_enable();
+#endif
 }
 
 /*
