@@ -10,6 +10,7 @@ config("kern_config") {
         "__BSD_VISIBLE=1",
         "MAXCPU=1",
         "__WASM=32",
+        "__WASM_KDEBUG=1",
         "SFBUF_NOMD",
         "SFBUF",
         "DEVICE_POLLING",
@@ -20,7 +21,7 @@ config("kern_config") {
         #"_WANT_KEVENT32", # related to freebsd32 compat.
         #"WASM_OPT_MEMINST=1", # insert placeholder functions for memory.fill & memory.copy
         
-        "COMPAT_43=1", # needed for /sbin/init
+        "COMPAT_43=1",              # needed for /sbin/init
         "COMPAT_FREEBSD11=1",
 
         # Development Defines
@@ -30,7 +31,10 @@ config("kern_config") {
         #"LOCK_DEBUG=1",
         "KTRACE=1",
         "EXEC_WASM32=1",
-        "_KERNEL_OPT=1"
+        "_KERNEL_OPT=1",
+        "DEBUG_MEMLOAD=1",
+        "__WASM_KERN_DEBUG_PRINT=1",    # enables extra debug prints.
+        "__WASM_KERN_DIAGNOSTIC=1",     # enables extra assertion 
     ]
 
     include_dirs = [
@@ -136,6 +140,7 @@ common_src = [
     "../sys/arch/wasm/wasm/mpbios.c",
     "../sys/arch/wasm/wasm/lapic.c",
     "../sys/arch/wasm/wasm/consinit.c",
+    "../sys/arch/wasm/wasm/wasm_bio.c",
 
     # devices 
     "../sys/dev/cons.c",
@@ -157,6 +162,9 @@ common_src = [
     "../sys/dev/ata/ata.c",
     "../sys/dev/ata/ata_subr.c",
     "../sys/dev/ata/ata_recovery.c",
+
+    # opfs block device
+    "../sys/arch/wasm/dev/opfsblk/opfsblk.c",
 
     # isa 
     "../sys/dev/isa/fd.c",
@@ -292,7 +300,7 @@ common_src = [
     "../sys/uvm/uvm_amap.c",
     "../sys/uvm/uvm_anon.c",
     "../sys/uvm/uvm_aobj.c",
-    "../sys/uvm/uvm_bio.c",
+    #"../sys/uvm/uvm_bio.c",                        # replaced by wasm_bio.c
     "../sys/uvm/uvm_coredump.c",
     "../sys/uvm/uvm_device.c",
     "../sys/uvm/uvm_fault.c",
@@ -576,7 +584,8 @@ common_src = [
 
     "../sys/arch/wasm/conf/vers.c",
 
-    "../sys/arch/wasm/wasm/wasm_atomic.c",
+    #"../sys/arch/wasm/wasm/wasm_atomic.c",
+    "../sys/arch/wasm/wasm/wasm_asm.c",
     "../sys/arch/wasm/wasm/wasm_locore.c",    # kernel-bootstrap entry point
     "../sys/arch/wasm/wasm/lwp_machdep.c",
     "../sys/arch/wasm/wasm/dummy_x86.c",
@@ -592,6 +601,7 @@ common_src = [
     "../sys/arch/wasm/wasm/libkern/strncmp.c",
     "../sys/arch/wasm/wasm/libkern/strncpy.c",
     "../sys/arch/wasm/wasm/libkern/strlen.c",
+    "../sys/arch/wasm/wasm/builtin_iosurface.c",
     "../sys/lib/libkern/skpc.c",
     "../sys/lib/libkern/strnvisx.c",
 
