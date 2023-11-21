@@ -286,7 +286,7 @@ void
 openpipe(pv)
 	int *pv;
 {
-	if (pipe(pv) < 0)
+	if (pipe2(pv, 0) < 0)
 		errorf("can't create pipe - try again");
 	pv[0] = savefd(pv[0], 0);
 	pv[1] = savefd(pv[1], 0);

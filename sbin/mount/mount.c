@@ -472,7 +472,7 @@ mountfs(const char *vfstype, const char *spec, const char *name,
 	}
 
 	if (buf) {
-		if (pipe(pfd) == -1)
+		if (pipe2(pfd, 0) == -1)
 			warn("Cannot create pipe");
 	}
 

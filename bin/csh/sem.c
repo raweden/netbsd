@@ -621,7 +621,7 @@ doio(struct command *t, int *pipein, int *pipeout)
 void
 mypipe(int *pv)
 {
-    if (pipe(pv) < 0)
+    if (pipe2(pv, 0) < 0)
 	goto oops;
     pv[0] = dmove(pv[0], -1);
     pv[1] = dmove(pv[1], -1);
