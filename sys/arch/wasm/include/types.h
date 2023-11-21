@@ -41,7 +41,7 @@
 #include <sys/featuretest.h>
 #include <machine/int_types.h>
 
-typedef int			__register_t;
+typedef unsigned long long	__register_t;
 typedef unsigned long		__vaddr_t;	/* segments.h */
 typedef unsigned char		__cpu_simple_lock_nv_t;
 
