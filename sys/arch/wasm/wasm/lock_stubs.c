@@ -37,7 +37,6 @@
  */
 
 
-#include <stdint.h>
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: lock_stubs.S,v 1.38 2022/09/08 06:57:44 knakahara Exp $");
 
@@ -56,7 +55,15 @@ __KERNEL_RCSID(0, "$NetBSD: lock_stubs.S,v 1.38 2022/09/08 06:57:44 knakahara Ex
 #include <wasm/wasm_module.h>
 #include <wasm/wasm_inst.h>
 
+enum LOCK_ACTION {
+	CPU_LOCK_INIT,
+	CPU_LOCK_LOCK,
+	CPU_LOCK_UNLOCK,
+	CPU_LOCK_FAILED,
+};
+
 void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+void __lock_debug(void *ptr, int action) __WASM_IMPORT(kern, __lock_debug);
 
 void __cpu_simple_lock(__cpu_simple_lock_t *lockp);
 void __cpu_simple_unlock(__cpu_simple_lock_t *lockp);
@@ -146,6 +153,10 @@ mutex_exit(kmutex_t *mtx)
     __panic_abort();
 }
 
+void rw_vector_enter(krwlock_t *, const krw_t);
+void rw_vector_exit(krwlock_t *);
+int	rw_vector_tryenter(krwlock_t *, const krw_t);
+
 /*
  * void rw_enter(krwlock_t *rwl, krw_t op);
  *
@@ -154,6 +165,40 @@ mutex_exit(kmutex_t *mtx)
 void
 rw_enter(krwlock_t *rwl, krw_t op)
 {
+	// TODO: WASM once wat-parse.js is ready this might be better to impl. directly in wat
+	u_int32_t rw_owner, rw_val, rw_new;
+	if (op == RW_READER) {
+		// Reader
+		while (true) {
+			rw_owner = atomic_load32((uint32_t *)rwl);
+			if ((rw_owner & (RW_WRITE_LOCKED|RW_WRITE_WANTED)) != 0) {
+				rw_vector_enter(rwl, op);
+				return;
+			}
+			rw_val = (rw_owner >> 5);
+			rw_val++;
+			rw_new = (rw_val << 5) | (rw_owner & 0x1f); 	// masking out only first 5-bits in owner.
+			rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+			if (rw_val == rw_owner) {
+				break;
+			}
+			// else start over as its seams that the rw lock was modified before us.
+		}
+
+	} else {
+		// Writter
+		rw_new = (u_int32_t)curlwp;
+		if ((rw_new & 0x1f) != 0) {
+			// lwp pointer uses the 5 first bits for addressing (must be aligned to 32 bytes)
+			__panic_abort();
+		}
+		rw_new |= RW_WRITE_LOCKED;
+		rw_val = atomic_cmpxchg32((uint32_t *)rwl, 0, rw_new);
+		if (rw_val != 0) {
+			rw_vector_enter(rwl, op);
+		}
+	}
+
 	// TODO: wasm; implement real rw locking..
 
 #if 0 // TODO: wasm fixme
@@ -201,6 +246,39 @@ void
 rw_exit(krwlock_t *rwl)
 {
 	// TODO: wasm; implement real rw locking..
+	uint32_t rw_owner, rw_val, rw_new;
+
+	rw_owner = atomic_load32((uint32_t *)rwl);
+
+	if ((rw_owner & RW_WRITE_LOCKED) != 0) {
+		rw_new = (rw_owner & ~RW_WRITE_LOCKED) - (uint32_t)curlwp;
+		if (rw_new != 0) {
+			rw_vector_exit(rwl);
+			return;
+		}
+		rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+		if (rw_val != rw_owner) {
+			rw_vector_exit(rwl);
+		}
+		return;
+	}
+restart:
+
+	if ((rw_owner & RW_HAS_WAITERS) != 0) {
+		rw_vector_exit(rwl);
+		return;
+	}
+
+	rw_val = (rw_owner >> 5);
+	rw_val--;
+	rw_new = (rw_val << 5) | (rw_owner & 0x1f);
+
+	rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+	if (rw_val != rw_owner) {
+		rw_owner = rw_val;
+		goto restart;
+	}
+
 
 #if 0
 	uintptr_t owner;
@@ -266,7 +344,39 @@ rw_exit(krwlock_t *rwl)
 int
 rw_tryenter(krwlock_t *rwl, krw_t op)
 {
+	uint32_t rw_owner, rw_val, rw_new;
 	// TODO: wasm; implement real rw locking..
+	if (op != RW_READER) {
+		// Writter
+		rw_new = (u_int32_t)curlwp;
+		if ((rw_new & 0x1f) != 0) {
+			// lwp pointer uses the 5 first bits for addressing (must be aligned to 32 bytes)
+			__panic_abort();
+		}
+		rw_new |= RW_WRITE_LOCKED;
+		rw_val = atomic_cmpxchg32((uint32_t *)rwl, 0, rw_new);
+		if (rw_val == 0) {
+			return (1);
+		} else {
+			return (0);
+		}
+	}
+
+	rw_owner = atomic_load32((uint32_t *)rwl);
+restart:
+	if ((rw_owner & (RW_WRITE_LOCKED|RW_WRITE_WANTED)) != 0) {
+		return (0);
+	}
+	rw_val = (rw_owner >> 5);
+	rw_val++;
+	rw_new = (rw_val << 5) | (rw_owner & 0x1f);
+	rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+	if (rw_val == rw_owner) {
+		return (1);
+	} else {
+		rw_owner = rw_val;
+	}
+	goto restart;
 
 #if 0 // TODO: wasm fixme
 	movl	4(%esp), %edx
@@ -448,6 +558,7 @@ void
 __cpu_simple_lock_init(__cpu_simple_lock_t *lockp)
 {
 	*lockp = 0;
+	__lock_debug(lockp, CPU_LOCK_INIT);
 }
 
 void
@@ -463,10 +574,14 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 		wasm_inst_nop();
 		wasm_inst_nop();
 		old = atomic_cmpxchg8(lockp, 0, 1);
-		if (old == 0)
+		if (old == 0) {
+			__lock_debug(lockp, CPU_LOCK_LOCK);
 			return;
-		if (count > 0xf00000)
+		}
+		if (count > 0xf00000) {
+			__lock_debug(lockp, CPU_LOCK_FAILED);
 			__panic_abort();
+		}
 		count++;
 	}
 
@@ -493,6 +608,7 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 void
 __cpu_simple_unlock(__cpu_simple_lock_t *lockp)
 {
+	__lock_debug(lockp, CPU_LOCK_UNLOCK);
 	atomic_store8(lockp, 0);
 }
 
