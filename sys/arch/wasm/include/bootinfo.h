@@ -127,9 +127,11 @@ struct bi_memmap_entry {
 #define	BIM_Disabled	6	/* not enabled */
 #define	BIM_PMEM	7	/* Persistent memory */
 #define	BIM_PRAM	12	/* legacy NVDIMM (OEM defined) */
+#define	BIM_IOMEM	14	/* IOMEM */
 
 struct btinfo_memmap {
 	struct btinfo_common common;
+	int memory_max;
 	int num;
 	struct bi_memmap_entry entry[1]; /* var len */
 };

@@ -1196,6 +1196,7 @@ init_earlycons(void)
 }
 
 void wasm_fixup_physseg(void);
+void init_wasm_memory(void);
 
 void
 init_wasm32(paddr_t first_avail)
@@ -1229,6 +1230,8 @@ init_wasm32(paddr_t first_avail)
 
 	// initilize simple hocks to printing to console.
 	init_earlycons();
+
+	init_wasm_memory();
 
 	uvm_lwp_setuarea(&lwp0, lwp0uarea);
 
