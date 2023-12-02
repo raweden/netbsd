@@ -1,3 +1,5 @@
+// opfsblkd.js
+// sys/arch/wasm/bindings/opfsblkd.js
 
 // TODO:
 // - to optimize allocation, use a layer of indirection for mapping blocks in the image file
