@@ -1,7 +1,8 @@
-
+// lwp.js 
+// sys/arch/wasm/bindings/lwp.js
 
 // startup subrutine for a userland process/thread 
-// The core concept is memic a real kernel as close as possible, before process is exec the target *.wasm
+// The core concept is to memic a real kernel as close as possible, before process is exec the target *.wasm
 // the kernel clones itself into the worker, in theory this should not create that much of a overhead when
 // using shared memory and sharing the module (which according to spec is not cloned but shared) so it should
 // basically be state data and stack data which are the overhead.
@@ -26,6 +27,7 @@ const _kexp = {};
 	let kheap32;	// Int32Array
 	let kmem;		// DataView
 
+	let _uvm_spacep;
 	let umemory;
 	let uheapu8;	// Uint8Array
 	let umem;		// DataView
@@ -37,14 +39,28 @@ const _kexp = {};
 
 	// checks so that we are not holding onto a old ref to kernel memory,
 	// might happen if another thread calls memory.grow
-	function __checkmem() {
-		if (kmemory.buffer === kmembuf || uheapu8 == utmp)
+	function __check_kmem() {
+		if (kmemory.buffer.byteLength === kmembuf.byteLength)
 			return;
 
 		kmembuf = kmemory.buffer;
 		kheap32 = new Int32Array(kmembuf);
 		kheapu8 = new Uint8Array(kmembuf);
 		kmem = new DataView(kmembuf);
+	}
+
+	// detect and update after memory.grow for umemory
+	function __check_umem() {
+		if (umemory.buffer.byteLength === uheapu8.buffer.byteLength || uheapu8 === utmp)
+			return;
+
+		uheapu8 = new Uint8Array(umemory.buffer);
+		umem = new DataView(uheapu8.buffer);
+	}
+
+	function __check_mem() {
+		__check_kmem();
+		__check_umem();
 	}
 
 	function alignUp(x, multiple) {
@@ -159,7 +175,7 @@ const _kexp = {};
 
 	// i32 kern.__copyout(i32, i32, i32)
 	function kcopyout(kaddr, uaddr, len) {
-		__checkmem();
+		__check_mem();
 		u8_memcpy(kheapu8, kaddr, len, uheapu8, uaddr);
 		return 0;
 	}
@@ -170,7 +186,7 @@ const _kexp = {};
 	// copyoutstr(const void *kaddr, void *uaddr, size_t len, size_t *done)
 	// @see sys/arch/riscv/riscv/trap.c
 	function kcopyoutstr(kaddr, uaddr, len, lenptr) {
-		__checkmem();
+		__check_mem();
 		let cnt = 0;
 		let end = -1;
 
@@ -197,7 +213,7 @@ const _kexp = {};
 
 	// i32 kern.__copyin(i32, i32, i32)
 	function kcopyin(uaddr, kaddr, len) {
-		__checkmem();
+		__check_mem();
 		u8_memcpy(uheapu8, uaddr, len, kheapu8, kaddr);
 		return 0;
 	}
@@ -208,7 +224,7 @@ const _kexp = {};
 	// int copyinstr(const void *udaddr, void *kaddr, size_t len, size_t *done)
 	// @see sys/riscv/riscv/copyinout.S
 	function kcopyinstr(uaddr, kaddr, len, lenptr) {
-		__checkmem();
+		__check_mem();
 		let cnt = 0;
 		let end = -1;
 
@@ -238,7 +254,7 @@ const _kexp = {};
 	// int instrlen(const void *udaddr, size_t maxlen, size_t *done)
 	// @see sys/riscv/riscv/copyinout.S
 	function kern_instrlen(uaddr, maxlen, lenptr) {
-		__checkmem();
+		__check_mem();
 		let cnt = 0;
 		let end = -1;
 
@@ -263,14 +279,14 @@ const _kexp = {};
 
 	// i32 kern.__fetch_user_data(i32, i32, i32)
 	function kfetch_user_data(uaddr, kaddr, len) {
-		__checkmem();
+		__check_mem();
 		u8_memcpy(uheapu8, uaddr, len, kheapu8, kaddr);
 		return 0;
 	}
 
 	// i32 kern.__store_user_data(i32, i32, i32)
 	function kstore_user_data(uaddr, kaddr, len) {
-		__checkmem();
+		__check_mem();
 		u8_memcpy(kheapu8, kaddr, len, uheapu8, uaddr);
 		return 0;
 	}
@@ -323,7 +339,7 @@ const _kexp = {};
 	function kern_random_source(buf, bufsz) {
 		let tmp = new Uint8Array(bufsz);
 	    crypto.getRandomValues(tmp);
-	    __checkmem();
+	    __check_kmem();
 	    u8_memcpy(tmp, 0, bufsz, kheap32, buf);
 	    return bufsz;
 	}
@@ -339,7 +355,7 @@ const _kexp = {};
 
 	// i32 emscripten.memcpy_big(i32, i32, i32)
 	function emscripten_memcpy_big(dst, src, len) {
-		__checkmem();
+		__check_kmem();
 		kheapu8.copyWithin(dst, src, src + len);
 	}
 
@@ -390,7 +406,7 @@ const _kexp = {};
 	function usr_random_source(buf, bufsz) {
 		let tmp = new Uint8Array(bufsz);
 	    crypto.getRandomValues(tmp);
-	    __checkmem();
+	    __check_umem();
 	    u8_memcpy(tmp, 0, bufsz, uheapu8, buf);
 	    return bufsz;
 	}
@@ -456,6 +472,17 @@ const _kexp = {};
 	let _forkframe;
 	let _meminfo;
 
+	function post_mmblkd_attach(memory, vm_space_ptr) {
+		if (vm_space_ptr === 0)
+			throw new RangeError("mmblkd_attach is NULL");
+		
+		self.postMessage({
+			cmd: "mmblkd_attach",
+			memory: memory, 		// special role = "kmemory" key, normal memory = "memory" key
+			meminfo_ptr: vm_space_ptr
+		});
+	}
+
 	function wasm_thread_alloc(td) {
 		/*try {
 			throw new Error("FAKE_ERROR");
@@ -478,7 +505,7 @@ const _kexp = {};
 		let fork_args = _forkframe.fork_args;
 		let wqidx = Math.min(__stack_pointer.value / 4) - 1;
 		Atomics.store(kheap32, wqidx, 0);
-		self.postMessage({cmd: "wasm_sched_add", args: [td, flags], wqidx: wqidx, user_memory: umemory, user_module: _execmod, in_fork: in_fork, fork_frame: fork_args});
+		self.postMessage({cmd: "wasm_sched_add", args: [td, flags], wqidx: wqidx, user_memory: umemory, _uvm_spacep: _uvm_spacep, user_module: _execmod, in_fork: in_fork, fork_frame: fork_args});
 		Atomics.wait(kheap32, wqidx, 0);
 	}
 	function wasm_sched_fork(td, childtd) {
@@ -528,6 +555,12 @@ const _kexp = {};
 			console.error("Invalid state; no execbuf");
 			return;
 		}
+
+		if (_uvm_spacep) {
+			_exports.deref_uvmspace(_uvm_spacep);
+			_uvm_spacep = undefined;
+		}
+
 		_execmod = new WebAssembly.Module(_execbuf);
 		_execbuf = undefined; // lose the buffer
 		console.log(_execmod);
@@ -605,6 +638,11 @@ const _kexp = {};
 	    	umem = new DataView(umemory.buffer);
 	    	uheapu8 = new Uint8Array(umemory.buffer);
 
+			if (shared) {
+				_uvm_spacep = _exports.new_uvmspace();
+				post_mmblkd_attach(umemory, vm_space_ptr);
+			}
+
 			importObject[m][n] = umemory;
 		}
 
@@ -619,6 +657,11 @@ const _kexp = {};
 			umemory = _exports[memoryExport.name];
 	    	umem = new DataView(umemory.buffer);
 	    	uheapu8 = new Uint8Array(umemory.buffer);
+
+			if (umemory.buffer instanceof SharedArrayBuffer) {
+				_uvm_spacep = _exports.new_uvmspace();
+				post_mmblkd_attach(umemory, _uvm_spacep);
+			}
 		}
 	}
 
@@ -830,6 +873,9 @@ const _kexp = {};
 		if (opts.user_module) {
 			_execmod = opts.user_module;
 			let user_memory = opts.user_memory;
+			if (opts._uvm_spacep) {
+				_uvm_spacep = opts._uvm_spacep;
+			}
 
 			// getting information on either imported or exported memory 
 			let imports = WebAssembly.Module.imports(_execmod);
@@ -897,6 +943,11 @@ const _kexp = {};
 					let shared = memoryImport.type.shared
 
 					umemory = new WebAssembly.Memory({initial: initial, maximum: maximum, shared: shared});
+
+					if (shared) {
+						_uvm_spacep = _exports.new_uvmspace();
+						post_mmblkd_attach(umemory, _uvm_spacep);
+					}
 				} else {
 					umemory = user_memory;
 				}
@@ -917,6 +968,10 @@ const _kexp = {};
 				umemory = uexports[memoryExport.name];
 		    	umem = new DataView(umemory.buffer);
 		    	uheapu8 = new Uint8Array(umemory.buffer);
+				if (umemory.buffer instanceof SharedArrayBuffer) {
+					_uvm_spacep = _exports.new_uvmspace();
+					post_mmblkd_attach(umemory, _uvm_spacep);
+				}
 			}
 
 			// TODO: entry-point from fork could use lwp_trampoline() as well.

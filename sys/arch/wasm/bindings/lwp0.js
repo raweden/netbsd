@@ -1,3 +1,5 @@
+// lwp0.js 
+// sys/arch/wasm/bindings/lwp0.js
 
 const memory_min = 2000;
 const memory_max = 2000;
@@ -771,6 +773,16 @@ function kexec_ioctl(cmd, argp) {
 
 			break;
 		}
+
+		case 552: {
+			self.postMessage({
+				cmd: "mmblkd_attach",
+				kmemory: kmemory, 		// special role = "kmemory" key, normal memory = "memory" key
+				mmblkd_head: kmemdata.getUint32(argp, true),
+				meminfo_ptr: kmemdata.getUint32(argp + 4, true)
+			});
+			break;
+		}
 	}
 
 	return -1;
@@ -847,8 +859,27 @@ function bootstrap_kern(kmodule) {
 			}
 		}
 
+		/*
+		if (info.__wasm_kmeminfo) {
+			self.postMessage({
+				cmd: "mmblkd_attach",
+				kmemory: kmemory, 		// special role = "kmemory" key, normal memory = "memory" key
+				mmblkd_head: info.__mmblkd_head,
+				meminfo_ptr: info.__wasm_kmeminfo
+			});
+		}
+		*/
+
 		if (info.__builtin_iosurfaceAddr) {
 			iosurfaceIPCHead = info.__builtin_iosurfaceAddr;
+		}
+
+		if (info.__kmem_data) {
+			self.postMessage({
+				cmd: "__kmem_debug_data",
+				ptr: info.__kmem_data,
+				mem: kmemory
+			});
 		}
 
 		console.log("availble memory before iomem_start: %d", iomem_start - initmem_hi);
@@ -858,7 +889,7 @@ function bootstrap_kern(kmodule) {
 
 
 		rsvdmem.push({addr: initmem_lo, size: initmem_hi - initmem_lo});
-		//rsvdmem.push({addr: iomem_start, size: iomem_end - iomem_start});
+		rsvdmem.push({addr: iomem_start, size: iomem_end - iomem_start});
 
 		// whats allocated here needs to fit before iomem_start or be placed after iomem_end
 		let mem_l2tbl = {size: PAGE_SIZE, align: PAGE_SIZE};
@@ -1142,7 +1173,11 @@ function bootstrap_kern(kmodule) {
 					entries.push({addr: mem.addr, size: mem.size, type: BIM_Reserved});
 					lastend = mem.addr + mem.size;
 				} else {
-					lastend = IOM_END;
+					entries.push({addr: IOM_BEGIN, size: IOM_END - IOM_BEGIN, type: 14});
+					lastend = mem.addr + mem.size;
+					if (lastend != IOM_END) {
+						entries.push({addr: IOM_END, size: lastend - IOM_END, type: BIM_Reserved});
+					}
 				}
 			}
 
