@@ -141,6 +141,8 @@ common_src = [
     "../sys/arch/wasm/wasm/lapic.c",
     "../sys/arch/wasm/wasm/consinit.c",
     "../sys/arch/wasm/wasm/wasm_bio.c",
+    
+    "../sys/arch/wasm/mm/mm.c",
 
     # devices 
     "../sys/dev/cons.c",
