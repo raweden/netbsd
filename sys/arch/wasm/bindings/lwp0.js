@@ -1083,11 +1083,12 @@ function bootstrap_kern(kmodule) {
 
 		function btinfo_memmap(entries) {
 			
-			kmemdata.setInt32(ptr, 12 + (20 * entries), true);
+			kmemdata.setInt32(ptr, 16 + (20 * entries), true);
 			kmemdata.setInt32(ptr + 4, BTINFO_MEMMAP, true);
-			kmemdata.setInt32(ptr + 8, entries.length, true);
+			kmemdata.setInt32(ptr + 8, memory_max === undefined ? -1 : memory_max, true);
+			kmemdata.setInt32(ptr + 12, entries.length, true);
 
-			ptr += 12;
+			ptr += 16;
 			let len = entries.length;
 			for (let i = 0; i < len; i++) {
 				let ent = entries[i];
