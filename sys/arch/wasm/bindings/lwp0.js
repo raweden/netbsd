@@ -651,6 +651,22 @@ function wasm_sched_add(td, flags) {
 	workers.push(worker);
 }
 
+function kgettimespec64_clock(ts) {
+
+	const now = Date.now();
+
+	kmem.setBigInt64(ts, BigInt(now / 1000), true);					// seconds
+	kmem.setInt32(ts + 8, ((now % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
+}
+
+function kgettimespec64_monotomic(ts) {
+
+	const now = performance.timeOrigin + performance.now();
+	
+	kmem.setBigInt64(ts, BigInt(now / 1000), true);					// seconds
+	kmem.setInt32(ts + 8, ((now % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
+}
+
 function wasm_clock_gettime(ts) {
 
 	let now = performance.timeOrigin + performance.now();
@@ -1439,7 +1455,8 @@ function bootstrap_kern(kmodule) {
 					ucas32: kern_ucas32,
 					spawn_blkdev_worker: kspawn_blkdev_worker,
 					__lock_debug: __lock_debug,
-					kexec_ualloca: __kexec_ualloca,				// khost_ioctl()
+					gettimespec64_clock: kgettimespec64_clock,
+					gettimespec64_monotomic: kgettimespec64_monotomic,
 					// kern_exec
 					execbuf_alloc: kexecbuf_alloc,
 					execbuf_copy: kexecbuf_copy,
