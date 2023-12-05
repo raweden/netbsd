@@ -64,9 +64,10 @@ __KERNEL_RCSID(0, "$NetBSD: kern_tc.c,v 1.73 2023/07/17 21:51:45 riastradh Exp $
 #include <sys/xcall.h>
 
 #ifdef __WASM
+#include <wasm/wasm_inst.h>
 #include <wasm/wasm_module.h>
-void __wasm_gettimespec_ms(struct timespec *) __WASM_IMPORT(kern, gettimespec_ms);
-void __wasm_gettimespec_hires(struct timespec *) __WASM_IMPORT(kern, gettimespec_hires);
+void __wasm_gettimespec_clock(struct timespec *) __WASM_IMPORT(kern, gettimespec64_clock);
+void __wasm_gettimespec_monotomic(struct timespec *) __WASM_IMPORT(kern, gettimespec64_monotomic);
 #endif
 
 
