@@ -36,6 +36,7 @@
 
 #ifdef __wasm__
 #include <wasm/../mm/mm.h>
+#endif
 
 #define	MAXMODNAME	32
 #define	MAXMODDEPS	10

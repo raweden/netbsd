@@ -84,7 +84,7 @@ get_proc_size_info(struct proc *p, struct vm_map *map, unsigned long *stext,
 	*stext = 0;
 	*etext = 0;
 	*sstack = 0;
-#ifndef __Wasm
+#ifndef __wasm__
 	// TODO: wasm fixme
 	vm_map_lock_read(map);
 #endif
