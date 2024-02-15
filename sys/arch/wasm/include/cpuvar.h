@@ -122,7 +122,6 @@ void x86_cpu_idle_xen(void);
 #endif
 
 void	cpu_get_tsc_freq(struct cpu_info *);
-void	pat_init(struct cpu_info *);
 
 extern int cpu_vendor;
 extern bool x86_mp_online;

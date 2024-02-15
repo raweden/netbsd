@@ -163,6 +163,7 @@ struct pool {
 #define PR_ZERO		0x8000	/* zero data before returning */
 #define PR_USEBMAP	0x10000	/* use a bitmap to manage freed items */
 #define PR_PSERIALIZE	0x20000	/* needs pserialize sync point before free */
+#define PR_FORCE_BITMAP 0x40000 /* wasm specific, forces bitmap no matter what.. */
 
 	/*
 	 * `pr_lock' protects the pool's data structures when removing

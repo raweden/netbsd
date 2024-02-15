@@ -60,6 +60,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "arch/wasm/include/types.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: sysv_shm.c,v 1.141 2019/10/09 17:47:13 chs Exp $");
 
@@ -82,6 +83,11 @@ __KERNEL_RCSID(0, "$NetBSD: sysv_shm.c,v 1.141 2019/10/09 17:47:13 chs Exp $");
 
 #include <uvm/uvm_extern.h>
 #include <uvm/uvm_object.h>
+
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#include <wasm/wasm-extra.h>
+#endif
 
 struct shmmap_entry {
 	SLIST_ENTRY(shmmap_entry) next;
@@ -273,6 +279,10 @@ shmmap_getprivate(struct proc *p)
 static int
 shm_memlock(struct shmid_ds *shmseg, int shmid, int cmd)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	size_t size;
 	int error;
 
@@ -294,7 +304,7 @@ shm_memlock(struct shmid_ds *shmseg, int shmid, int cmd)
 		uvm_obj_unwirepages(shmseg->_shm_internal, 0, size);
 		shmseg->shm_perm.mode &= ~SHMSEG_WIRED;
 	}
-
+#endif
 	return 0;
 }
 
@@ -449,10 +459,12 @@ sys_shmat(struct lwp *l, const struct sys_shmat_args *uap, register_t *retval)
 	 */
 	uobj = shmseg->_shm_internal;
 	uao_reference(uobj);
+#if 0
 	error = uvm_map(&vm->vm_map, &attach_va, size, uobj, 0, 0,
 	    UVM_MAPFLAG(prot, prot, UVM_INH_SHARE, UVM_ADV_RANDOM, flags));
 	if (error)
 		goto err_detach;
+#endif
 
 	/* Set the new address, and update the time */
 	shmmap_se->va = attach_va;
@@ -643,6 +655,10 @@ again:
 int
 sys_shmget(struct lwp *l, const struct sys_shmget_args *uap, register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(key_t) key;
 		syscallarg(size_t) size;
@@ -772,6 +788,8 @@ sys_shmget(struct lwp *l, const struct sys_shmget_args *uap, register_t *retval)
 	mutex_exit(&shm_lock);
 
 	return error;
+#endif
+	return 0;
 }
 
 void
@@ -871,7 +889,7 @@ shmrealloc(int newshmni)
 	sz = ALIGN(newshmni * sizeof(struct shmid_ds)) +
 	    ALIGN(newshmni * sizeof(kcondvar_t));
 	sz = round_page(sz);
-	v = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	v = (vaddr_t)kmem_page_alloc(sz, UVM_KMF_ZERO);
 	if (v == 0)
 		return ENOMEM;
 
@@ -889,7 +907,7 @@ shmrealloc(int newshmni)
 			lsegid = i;
 	if (lsegid >= newshmni) {
 		mutex_exit(&shm_lock);
-		uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+		kmem_page_free((void *)v, sz);
 		return EBUSY;
 	}
 	shm_realloc_state = true;
@@ -932,7 +950,7 @@ shmrealloc(int newshmni)
 	sz = ALIGN(oldshmni * sizeof(struct shmid_ds)) +
 	    ALIGN(oldshmni * sizeof(kcondvar_t));
 	sz = round_page(sz);
-	uvm_km_free(kernel_map, (vaddr_t)oldshmsegs, sz, UVM_KMF_WIRED);
+	kmem_page_free((void *)oldshmsegs, sz);
 
 	return 0;
 }

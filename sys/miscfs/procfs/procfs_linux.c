@@ -84,8 +84,10 @@ get_proc_size_info(struct proc *p, struct vm_map *map, unsigned long *stext,
 	*stext = 0;
 	*etext = 0;
 	*sstack = 0;
-
+#ifndef __Wasm
+	// TODO: wasm fixme
 	vm_map_lock_read(map);
+#endif
 
 	for (entry = map->header.next; entry != &map->header;
 	    entry = entry->next) {
@@ -124,7 +126,9 @@ get_proc_size_info(struct proc *p, struct vm_map *map, unsigned long *stext,
 	 */
 	*sstack -= PAGE_SIZE;
 
+#ifndef __wasm__
 	vm_map_unlock_read(map);
+#endif
 }
 
 /*

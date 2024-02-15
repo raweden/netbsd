@@ -74,6 +74,10 @@ __KERNEL_RCSID(0, "$NetBSD: ext2fs_lookup.c,v 1.92 2022/08/06 18:26:42 andvar Ex
 
 #include <miscfs/genfs/genfs.h>
 
+#ifdef __wasm__
+#include <wasm/../mm/mm.h>
+#endif
+
 extern	int dirchk;
 
 static void	ext2fs_dirconv2ffs(struct m_ext2fs *fs,
@@ -93,7 +97,7 @@ static int	ext2fs_dirbadentry(struct vnode *dp,
  * If it wasn't for that, the complete ufs code for directories would
  * have worked w/o changes (except for the difference in DIRBLKSIZ)
  */
-static void
+static void __noinline
 ext2fs_dirconv2ffs(struct m_ext2fs *fs, struct ext2fs_direct *e2dir, struct dirent *ffsdir)
 {
 	memset(ffsdir, 0, sizeof(struct dirent));
@@ -163,6 +167,10 @@ ext2fs_readdir(void *v)
 	struct uio auio;
 	struct iovec aiov;
 	void *dirbuf;
+#ifdef __wasm__
+	struct mm_page *pg;
+#endif
+
 	off_t off = uio->uio_offset;
 	off_t *cookies = NULL;
 	int nc = 0, ncookies = 0;
@@ -178,12 +186,18 @@ ext2fs_readdir(void *v)
 		return EINVAL;
 
 	auio = *uio;
+	auio.uio_offset = off;
 	auio.uio_iov = &aiov;
 	auio.uio_iovcnt = 1;
 	aiov.iov_len = e2fs_count;
 	auio.uio_resid = e2fs_count;
 	UIO_SETUP_SYSSPACE(&auio);
+#ifndef __wasm__
 	dirbuf = kmem_alloc(e2fs_count, KM_SLEEP);
+#else
+	dirbuf = kmem_page_alloc(1, 0);
+	pg = paddr_to_page(dirbuf);
+#endif
 	dstd = kmem_zalloc(sizeof(struct dirent), KM_SLEEP);
 	if (ap->a_ncookies) {
 		nc = e2fs_count / _DIRENT_MINSIZE((struct dirent *)0);
@@ -224,7 +238,11 @@ ext2fs_readdir(void *v)
 		/* we need to correct uio_offset */
 		uio->uio_offset = off;
 	}
+#ifndef __wasm__
 	kmem_free(dirbuf, e2fs_count);
+#else
+	kmem_page_free(dirbuf, 1);
+#endif
 	kmem_free(dstd, sizeof(*dstd));
 	*ap->a_eofflag = ext2fs_size(VTOI(ap->a_vp)) <= uio->uio_offset;
 	if (ap->a_ncookies) {

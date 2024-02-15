@@ -1315,6 +1315,7 @@ do_ptrace(struct ptrace_methods *ptm, struct lwp *l, int req, pid_t pid,
 			}
 		}
 
+#ifndef __WASM
 		/*
 		 * Reject setting program counter to 0x0 if VA0 is disabled.
 		 *
@@ -1328,6 +1329,7 @@ do_ptrace(struct ptrace_methods *ptm, struct lwp *l, int req, pid_t pid,
 			error = EINVAL;
 			break;
 		}
+#endif
 
 		/* If the address parameter is not (int *)1, set the pc. */
 		if ((int *)addr != (int *)1) {

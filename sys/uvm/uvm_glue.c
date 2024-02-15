@@ -91,6 +91,7 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_glue.c,v 1.181 2020/06/14 21:41:42 ad Exp $");
 
 #ifdef __WASM
 #include <sys/kmem.h>
+#include <wasm/wasm-extra.h>
 #endif
 
 /*
@@ -101,15 +102,21 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_glue.c,v 1.181 2020/06/14 21:41:42 ad Exp $");
 bool
 uvm_kernacc(void *addr, size_t len, vm_prot_t prot)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	vaddr_t saddr = trunc_page((vaddr_t)addr);
 	vaddr_t eaddr = round_page(saddr + len);
 	bool rv;
 
-	vm_map_lock_read(kernel_map);
+	//vm_map_lock_read(kernel_map);
 	rv = uvm_map_checkprot(kernel_map, saddr, eaddr, prot);
-	vm_map_unlock_read(kernel_map);
+	//vm_map_unlock_read(kernel_map);
 
 	return rv;
+#endif
+	return false;
 }
 
 #ifdef KGDB
@@ -146,6 +153,7 @@ uvm_chgkprot(void *addr, size_t len, int rw)
 }
 #endif
 
+#if 0
 /*
  * uvm_vslock: wire user memory for I/O
  *
@@ -166,6 +174,7 @@ uvm_vslock(struct vmspace *vs, void *addr, size_t len, vm_prot_t access_type)
 	error = uvm_fault_wire(map, start, end, access_type, 0);
 	return error;
 }
+#endif
 
 /*
  * uvm_vsunlock: unwire user memory wired by uvm_vslock()
@@ -174,12 +183,14 @@ uvm_vslock(struct vmspace *vs, void *addr, size_t len, vm_prot_t access_type)
  * - XXXCDC: consider nuking this (or making it a macro?)
  */
 
+#if 0
 void
 uvm_vsunlock(struct vmspace *vs, void *addr, size_t len)
 {
 	uvm_fault_unwire(&vs->vm_map, trunc_page((vaddr_t)addr),
 		round_page((vaddr_t)addr + len));
 }
+#endif
 
 /*
  * uvm_proc_fork: fork a virtual address space
@@ -370,6 +381,7 @@ uvm_uarea_init(void)
 #endif
 }
 
+#if 0
 /*
  * uvm_uarea_alloc: allocate a u-area
  */
@@ -425,6 +437,7 @@ uvm_lwp_setuarea(lwp_t *l, vaddr_t addr)
 
 	l->l_addr = (void *)(addr + UAREA_PCB_OFFSET);
 }
+#endif
 
 /*
  * uvm_proc_exit: exit a virtual address space
@@ -450,9 +463,9 @@ uvm_proc_exit(struct proc *p)
 	 * borrow proc0's address space.
 	 */
 	kpreempt_disable();
-	pmap_deactivate(l);
+	//pmap_deactivate(l);
 	p->p_vmspace = proc0.p_vmspace;
-	pmap_activate(l);
+	//pmap_activate(l);
 	kpreempt_enable();
 
 	uvmspace_free(ovm);
@@ -524,7 +537,7 @@ uvm_scheduler(void)
 		uvm_update_uvmexp();
 
 		/* See if the pagedaemon needs to generate some free pages. */
-		uvm_kick_pdaemon();
+		//uvm_kick_pdaemon();
 
 		/* Calculate process statistics. */
 		sched_pstats();
@@ -539,6 +552,7 @@ uvm_scheduler(void)
 void
 uvm_idle(void)
 {
+#if 0
 	struct cpu_info *ci = curcpu();
 	struct uvm_cpu *ucpu = ci->ci_data.cpu_uvm;
 
@@ -546,4 +560,5 @@ uvm_idle(void)
 
 	if (!ci->ci_want_resched)
 		uvmpdpol_idle(ucpu);
+#endif
 }

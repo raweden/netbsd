@@ -407,6 +407,10 @@ dosetrlimit(struct lwp *l, struct proc *p, int which, struct rlimit *limp)
 		limp->rlim_max = round_page(limp->rlim_max);
 		limp->rlim_cur = round_page(limp->rlim_cur);
 		if (limp->rlim_cur != alimp->rlim_cur) {
+			// TODO: fixme
+			printf("%s fixme!\n", __func__);
+			__panic_abort();
+#if 0
 			vaddr_t addr;
 			vsize_t size;
 			vm_prot_t prot;
@@ -425,6 +429,7 @@ dosetrlimit(struct lwp *l, struct proc *p, int which, struct rlimit *limp)
 			addr = (vaddr_t)STACK_ALLOC(tmp, size);
 			(void) uvm_map_protect(&p->p_vmspace->vm_map,
 			    addr, addr + size, prot, false);
+#endif
 		}
 		break;
 
@@ -643,7 +648,11 @@ ruspace(struct proc *p)
 	ru->ru_isrss = vm->vm_ssize << (PAGE_SHIFT - 10);
 #ifdef __HAVE_NO_PMAP_STATS
 	/* We don't keep track of the max so we get the current */
+#ifndef __WASM
 	ru->ru_maxrss = vm_resident_count(vm) << (PAGE_SHIFT - 10);
+#else
+	ru->ru_maxrss = 0;
+#endif
 #else
 	ru->ru_maxrss = vm->vm_rssmax << (PAGE_SHIFT - 10);
 #endif

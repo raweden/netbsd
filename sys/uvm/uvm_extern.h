@@ -581,6 +581,9 @@ struct vmspace {
 	void *vm_maxsaddr;	/* user VA at max stack growth */
 	void *vm_minsaddr;	/* user VA at top of stack */
 	size_t vm_aslr_delta_mmap;	/* mmap() random delta for ASLR */
+#ifdef __wasm__
+	void *vm_wasm_mem;	/* reference representation for WebAssembly.Memory*/
+#endif
 };
 #define	VMSPACE_IS_KERNEL_P(vm)	VM_MAP_IS_KERNEL(&(vm)->vm_map)
 #endif

@@ -38,6 +38,7 @@
  * This software is provided ``AS IS'' without any warranties of any kind.
  */
 
+#include "arch/wasm/include/types.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: sysv_sem.c,v 1.98 2019/08/07 00:38:02 pgoyette Exp $");
 
@@ -54,6 +55,10 @@ __KERNEL_RCSID(0, "$NetBSD: sysv_sem.c,v 1.98 2019/08/07 00:38:02 pgoyette Exp $
 #include <sys/syscallargs.h>
 #include <sys/kauth.h>
 #include <sys/once.h>
+
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
 
 /* 
  * Memory areas:
@@ -216,14 +221,14 @@ semrealloc(int newsemmni, int newsemmns, int newsemmnu)
 	    ALIGN(newsemmni * sizeof(kcondvar_t)) +
 	    ALIGN(newsemmnu * seminfo.semusz);
 	sz = round_page(sz);
-	v = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	v = (vaddr_t)kmem_page_alloc(sz, UVM_KMF_ZERO);
 	if (v == 0)
 		return ENOMEM;
 
 	mutex_enter(&semlock);
 	if (sem_realloc_state) {
 		mutex_exit(&semlock);
-		uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+		kmem_page_free((void *)v, sz);
 		return EBUSY;
 	}
 	sem_realloc_state = true;
@@ -257,7 +262,7 @@ semrealloc(int newsemmni, int newsemmns, int newsemmnu)
 	/* We cannot reallocate less memory than we use */
 	if (lsemid >= newsemmni || semtot > newsemmns || nmnus > newsemmnu) {
 		mutex_exit(&semlock);
-		uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+		kmem_page_free((void *)v, sz);
 		return EBUSY;
 	}
 
@@ -334,7 +339,7 @@ semrealloc(int newsemmni, int newsemmns, int newsemmnu)
 	cv_broadcast(&sem_realloc_cv);
 	mutex_exit(&semlock);
 
-	uvm_km_free(kernel_map, (vaddr_t)old_sema, sz, UVM_KMF_WIRED);
+	kmem_page_free((void *)old_sema, sz);
 	return 0;
 }
 

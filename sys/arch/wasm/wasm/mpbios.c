@@ -250,6 +250,10 @@ mp_ioapicprint(void *aux, const char *pnp)
 static const void *
 mpbios_map(paddr_t pa, int len, struct mp_map *handle)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	paddr_t pgpa = x86_trunc_page(pa);
 	paddr_t endpa = x86_round_page(pa + len);
 	vaddr_t va = uvm_km_alloc(kernel_map, endpa - pgpa, 0, UVM_KMF_VAONLY);
@@ -269,14 +273,21 @@ mpbios_map(paddr_t pa, int len, struct mp_map *handle)
 	pmap_update(pmap_kernel());
 
 	return (const void *)retva;
+#endif
+	return NULL;
 }
 
 inline static void
 mpbios_unmap(struct mp_map *handle)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	pmap_kremove(handle->baseva, handle->vsize);
 	pmap_update(pmap_kernel());
 	uvm_km_free(kernel_map, handle->baseva, handle->vsize, UVM_KMF_VAONLY);
+#endif
 }
 
 /*

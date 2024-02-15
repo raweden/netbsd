@@ -34,6 +34,9 @@
 #include <sys/cdefs.h>
 #include <sys/uio.h>
 
+#ifdef __wasm__
+#include <wasm/../mm/mm.h>
+
 #define	MAXMODNAME	32
 #define	MAXMODDEPS	10
 
@@ -168,7 +171,11 @@ _MODULE_REGISTER(name)
 
 TAILQ_HEAD(modlist, module);
 
+#ifdef __wasm__
+extern struct mm_arena	*module_map;
+#else
 extern struct vm_map	*module_map;
+#endif
 extern u_int		module_count;
 extern u_int		module_builtinlist;
 extern struct modlist	module_list;

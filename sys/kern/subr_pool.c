@@ -32,6 +32,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "arch/wasm/include/vmparam.h"
+#include <stdint.h>
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: subr_pool.c,v 1.290 2023/04/09 12:21:59 riastradh Exp $");
 
@@ -62,6 +64,8 @@ __KERNEL_RCSID(0, "$NetBSD: subr_pool.c,v 1.290 2023/04/09 12:21:59 riastradh Ex
 #include <sys/fault.h>
 
 #include <uvm/uvm_extern.h>
+
+#include <wasm/../mm/mm.h>
 
 /*
  * Pool resource management utility.
@@ -630,12 +634,24 @@ pr_find_pagehead(struct pool *pp, void *v)
 	if ((pp->pr_roflags & PR_NOALIGN) != 0) {
 		ph = pr_find_pagehead_noalign(pp, v);
 	} else {
-		void *page = POOL_OBJ_TO_PAGE(pp, v);
+#if __WASM
+		// how this is done in regular netbsd requires the address to always aligned with the page-size,
+		// which is not a problem when vm address space avilable, but in wasm its not a option..
+		void *page;
+		if (pp->pr_alloc->pa_pagesz == PAGE_SIZE) {
+			page = POOL_OBJ_TO_PAGE(pp, v);
+		} else {
+			page = kmem_first_in_list(v);
+		}
+#else
+		void *page = POOL_OBJ_TO_PAGE(pp, v);	
+#endif
 		if ((pp->pr_roflags & PR_PHINPAGE) != 0) {
 			ph = (struct pool_item_header *)page;
 			pr_phinpage_check(pp, ph, page, v);
 		} else {
 			tmp.ph_page = page;
+			printf("%s pp->pr_alloc->pa_pagemask = %d page-size = %d new-page %p vs. old-page %p\n", __func__, pp->pr_alloc->pa_pagemask, pp->pr_alloc->pa_pagesz, page, POOL_OBJ_TO_PAGE(pp, v));
 			ph = SPLAY_FIND(phtree, &pp->pr_phtree, &tmp);
 		}
 	}
@@ -1220,8 +1236,14 @@ pool_get(struct pool *pp, int flags)
 		KASSERTMSG((ph->ph_nmissing < pp->pr_itemsperpage),
 		    "%s: [%s] pool page empty", __func__, pp->pr_wchan);
 		v = pr_item_bitmap_get(pp, ph);
+#if __WASM_KERN_DEBUG_PRINT
+		printf("pr_item_bitmap_get returned %p\n", v);
+#endif
 	} else {
 		v = pr_item_linkedlist_get(pp, ph);
+#if __WASM_KERN_DEBUG_PRINT
+		printf("pr_item_linkedlist_get returned %p\n", v);
+#endif
 	}
 	pp->pr_nitems--;
 	pp->pr_nout++;
@@ -1278,7 +1300,7 @@ pool_get(struct pool *pp, int flags)
 /*
  * Internal version of pool_put().  Pool is already locked/entered.
  */
-static void
+static __noinline void
 pool_do_put(struct pool *pp, void *v, struct pool_pagelist *pq)
 {
 	struct pool_item_header *ph;
@@ -2270,7 +2292,7 @@ pool_cache_cpu_init1(struct cpu_info *ci, pool_cache_t pc)
 
 	KASSERT(index < __arraycount(pc->pc_cpus));
 
-	if ((cc = pc->pc_cpus[index]) != NULL) {
+	if ((cc = pc->pc_cpus[0]) != NULL) {
 		return;
 	}
 
@@ -2296,7 +2318,7 @@ pool_cache_cpu_init1(struct cpu_info *ci, pool_cache_t pc)
 	cc->cc_nfull = 0;
 	cc->cc_npart = 0;
 
-	pc->pc_cpus[index] = cc;
+	pc->pc_cpus[0] = cc;
 }
 
 /*
@@ -2460,13 +2482,13 @@ pool_cache_invalidate(pool_cache_t pc)
 	pcg = pool_pcg_trunc(&pc->pc_fullgroups);
 	n = pool_cache_invalidate_groups(pc, pcg);
 	s = splvm();
-	((pool_cache_cpu_t *)pc->pc_cpus[curcpu()->ci_index])->cc_nfull -= n;
+	((pool_cache_cpu_t *)pc->pc_cpus[0])->cc_nfull -= n;
 	splx(s);
 
 	pcg = pool_pcg_trunc(&pc->pc_partgroups);
 	n = pool_cache_invalidate_groups(pc, pcg);
 	s = splvm();
-	((pool_cache_cpu_t *)pc->pc_cpus[curcpu()->ci_index])->cc_npart -= n;
+	((pool_cache_cpu_t *)pc->pc_cpus[0])->cc_npart -= n;
 	splx(s);
 }
 
@@ -2487,7 +2509,7 @@ pool_cache_invalidate_cpu(pool_cache_t pc, u_int index)
 	pool_cache_cpu_t *cc;
 	pcg_t *pcg;
 
-	if ((cc = pc->pc_cpus[index]) == NULL)
+	if ((cc = pc->pc_cpus[0]) == NULL)
 		return;
 
 	if ((pcg = cc->cc_current) != &pcg_dummy) {
@@ -2745,11 +2767,19 @@ pool_cache_get_paddr(pool_cache_t pc, int flags, paddr_t *pap)
 			return NULL;
 	}
 
+	object = pool_get(&pc->pc_pool, flags);
+	if (object != NULL) {
+		int ret = pc->pc_ctor(pc->pc_arg, object, flags);
+	}
+
+	return object;
+#if 0
+
 	/* Lock out interrupts and disable preemption. */
 	s = splvm();
 	while (/* CONSTCOND */ true) {
 		/* Try and allocate an object from the current group. */
-		cc = pc->pc_cpus[curcpu()->ci_index];
+		cc = pc->pc_cpus[0];
 	 	pcg = cc->cc_current;
 		if (__predict_true(pcg->pcg_avail > 0)) {
 			object = pcg->pcg_objects[--pcg->pcg_avail].pcgo_va;
@@ -2800,6 +2830,7 @@ pool_cache_get_paddr(pool_cache_t pc, int flags, paddr_t *pap)
 	 * constructor fails.
 	 */
 	return object;
+#endif
 }
 
 static bool __noinline
@@ -2890,7 +2921,7 @@ pool_cache_put_paddr(pool_cache_t pc, void *object, paddr_t pa)
 	s = splvm();
 	while (/* CONSTCOND */ true) {
 		/* If the current group isn't full, release it there. */
-		cc = pc->pc_cpus[curcpu()->ci_index];
+		cc = pc->pc_cpus[0];
 	 	pcg = cc->cc_current;
 		if (__predict_true(pcg->pcg_avail < pcg->pcg_size)) {
 			pcg->pcg_objects[pcg->pcg_avail].pcgo_va = object;
@@ -2936,7 +2967,7 @@ pool_cache_transfer(pool_cache_t pc)
 	int s;
 
 	s = splvm();
-	cc = pc->pc_cpus[curcpu()->ci_index];
+	cc = pc->pc_cpus[0];
 	cur = cc->cc_current;
 	cc->cc_current = __UNCONST(&pcg_dummy);
 	prev = cc->cc_previous;
@@ -3021,40 +3052,111 @@ void *
 pool_page_alloc(struct pool *pp, int flags)
 {
 	const vm_flag_t vflags = (flags & PR_WAITOK) ? VM_SLEEP: VM_NOSLEEP;
-	vmem_addr_t va;
-	int ret;
+	void *ptr;
+	int pgs, pgsz;
 
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pp->pr_alloc->pa_pagesz);
+#endif
+	pgsz = pp->pr_alloc->pa_pagesz;
+	if (pgsz == PAGE_SIZE) {
+		pgs = 1;
+	} else {
+		pgs = howmany(pgsz, PAGE_SIZE);
+	}
+
+	ptr = kmem_page_alloc(pgs, vflags);
+
+	return ptr;
+#if 0
 	ret = uvm_km_kmem_alloc(kmem_va_arena, pp->pr_alloc->pa_pagesz,
 	    vflags | VM_INSTANTFIT, &va);
 
 	return ret ? NULL : (void *)va;
+#endif
 }
 
 void
 pool_page_free(struct pool *pp, void *v)
 {
-
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p ptr = %p pa_pagesz = %d\n", __func__, pp, v, pp->pr_alloc->pa_pagesz);
+#endif
+#if 0
 	uvm_km_kmem_free(kmem_va_arena, (vaddr_t)v, pp->pr_alloc->pa_pagesz);
+#endif
+
+	int pgs, pgsz = pp->pr_alloc->pa_pagesz;
+
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pgsz);
+#endif
+
+	if (pgsz == PAGE_SIZE) {
+		pgs = 1;
+	} else {
+		pgs = howmany(pgsz, PAGE_SIZE);
+	}
+
+	kmem_page_free(v, pgs);
 }
 
 static void *
 pool_page_alloc_meta(struct pool *pp, int flags)
 {
 	const vm_flag_t vflags = (flags & PR_WAITOK) ? VM_SLEEP: VM_NOSLEEP;
+	void *ptr;
+	int pgs, pgsz;
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pp->pr_alloc->pa_pagesz);
+#endif
+
+#if 0
+	const vm_flag_t vflags = (flags & PR_WAITOK) ? VM_SLEEP: VM_NOSLEEP;
 	vmem_addr_t va;
 	int ret;
-
 	ret = vmem_alloc(kmem_meta_arena, pp->pr_alloc->pa_pagesz,
 	    vflags | VM_INSTANTFIT, &va);
 
 	return ret ? NULL : (void *)va;
+#endif
+
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pp->pr_alloc->pa_pagesz);
+#endif
+	pgsz = pp->pr_alloc->pa_pagesz;
+	if (pgsz == PAGE_SIZE) {
+		pgs = 1;
+	} else {
+		pgs = howmany(pgsz, PAGE_SIZE);
+	}
+
+	ptr = kmem_page_alloc(pgs, vflags);
+
+	return ptr;
 }
 
 static void
 pool_page_free_meta(struct pool *pp, void *v)
 {
+	int pgs, pgsz = pp->pr_alloc->pa_pagesz;
+
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pgsz);
+#endif
+
+	if (pgsz == PAGE_SIZE) {
+		pgs = 1;
+	} else {
+		pgs = howmany(pgsz, PAGE_SIZE);
+	}
+
+	kmem_page_free(v, pgs);
+#if 0
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pp->pr_alloc->pa_pagesz);
 
 	vmem_free(kmem_meta_arena, (vmem_addr_t)v, pp->pr_alloc->pa_pagesz);
+#endif
 }
 
 #ifdef KMSAN

@@ -96,6 +96,7 @@
  *	@(#)init_main.c	8.16 (Berkeley) 5/14/95
  */
 
+#include "arch/wasm/include/vmparam.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: init_main.c,v 1.542 2023/07/07 12:34:50 riastradh Exp $");
 
@@ -252,6 +253,12 @@ int	shutting_down __read_mostly;	/* system is shutting down */
 
 int	start_init_exec;		/* semaphore for start_init() */
 
+#ifdef __WASM
+extern bool wasm_kmem_growable;
+extern uint32_t wasm_kmem_avail;
+extern uint32_t wasm_kmem_limit;
+void wasm_superentropy_init(void);
+#endif
 
 
 static void check_console(struct lwp *l);
@@ -322,7 +329,9 @@ main(void)
 	/* Initialize event counters. */
 	evcnt_init();
 
+#ifndef __WASM
 	uvm_init();
+#endif
 	ubchist_init();
 	kcpuset_sysinit();
 
@@ -409,6 +418,10 @@ main(void)
 	 */
 	rnd_init();		/* initialize entropy pool */
 
+#ifdef __WASM
+	wasm_superentropy_init();
+#endif
+
 	cprng_init();		/* initialize cryptographic PRNG */
 
 	/* Initialize process and pgrp structures. */
@@ -453,9 +466,11 @@ main(void)
 	/* Initialize cpufreq(9) */
 	cpufreq_init();
 
+#ifndef __WASM
 	/* MI initialization of the boot cpu */
 	error = mi_cpu_attach(curcpu());
 	KASSERT(error == 0);
+#endif
 
 	/* Initialize timekeeping. */
 	time_init();
@@ -472,8 +487,10 @@ main(void)
 	/* Initialize the log device. */
 	loginit();
 
+#ifndef __WASM
 	/* Second part of module system initialization. */
 	module_start_unload_thread();
+#endif
 
 	/* Initialize autoconf data structures before any modules are loaded */
 	config_init_mi();
@@ -486,8 +503,12 @@ main(void)
 	 * 10% of memory for vnodes and associated data structures in the
 	 * assumed worst case.  Do not provide fewer than NVNODE vnodes.
 	 */
+#ifdef __WASM
+	usevnodes = calc_cache_size(0, 10, 0) / VNODE_COST;
+#else
 	usevnodes = calc_cache_size(vmem_size(kmem_arena, VMEM_FREE|VMEM_ALLOC),
 	    10, VNODE_KMEM_MAXPCT) / VNODE_COST;
+#endif
 	if (usevnodes > desiredvnodes)
 		desiredvnodes = usevnodes;
 #endif /* NVNODE_IMPLICIT */
@@ -579,7 +600,10 @@ main(void)
 
 	ssp_init();
 
+//#ifndef __WASM
+	// pager related init, skip for wasm
 	ubc_init();		/* must be after autoconfig */
+//#endif
 
 	mm_init();
 
@@ -596,10 +620,10 @@ main(void)
 #ifndef __WASM
 	/* Get the threads going and into any sleeps before continuing. */
 	yield();
-#endif
+
 
 	vmem_rehash_start();	/* must be before exec_init */
-
+#endif
 	/* Initialize exec structures */
 	exec_init(1);		/* seminit calls exithook_establish() */
 
@@ -846,12 +870,12 @@ configure2(void)
 	runq_init();
 	synch_init();
 
+#ifndef __WASM
 	/* Boot the secondary processors. */
 	for (CPU_INFO_FOREACH(cii, ci)) {
 		uvm_cpu_attach(ci);
 	}
 
-#ifndef __WASM
 	/* Decide how to partition free memory. */
 	uvm_page_rebucket();
 #endif
@@ -1233,8 +1257,21 @@ banner(void)
 
 	memset(pbuf, 0, sizeof(pbuf));
 	(*pr)("%s%s", copyright, version);
+#ifndef __WASM
 	format_bytes(pbuf, MEM_PBUFSIZE, ctob((uint64_t)physmem));
 	(*pr)("total memory = %s\n", pbuf);
+#else
+	format_bytes(pbuf, MEM_PBUFSIZE, ctob((uint64_t)wasm_kmem_avail / PAGE_SIZE));
+	if (wasm_kmem_growable) {
+		(*pr)("total kernel memory = %s (growable)\n", pbuf);
+	} else {
+		(*pr)("total kernel memory = %s (fixed)\n", pbuf);
+	}
+#endif
+#ifndef __WASM
 	format_bytes(pbuf, MEM_PBUFSIZE, ctob((uint64_t)uvm_availmem(false)));
-	(*pr)("avail memory = %s\n", pbuf);
+#else
+	format_bytes(pbuf, MEM_PBUFSIZE, ctob((uint64_t)uvm_availmem(false)));
+#endif
+	(*pr)("avail kernel memory = %s\n", pbuf);
 }

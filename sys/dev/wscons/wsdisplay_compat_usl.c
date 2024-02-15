@@ -101,7 +101,7 @@ usl_sync_init(struct wsscreen *scr, struct usl_syncdata **sdp,
 	struct usl_syncdata *sd;
 	int res;
 
-	sd = kmem_intr_alloc(sizeof(*sd), KM_SLEEP);
+	sd = kmem_alloc(sizeof(*sd), KM_SLEEP);
 
 	sd->s_scr = scr;
 	sd->s_proc = p;
@@ -116,7 +116,7 @@ usl_sync_init(struct wsscreen *scr, struct usl_syncdata **sdp,
 	callout_setfunc(&sd->s_detach_ch, usl_detachtimeout, sd);
 	res = wsscreen_attach_sync(scr, &usl_syncops, sd);
 	if (res) {
-		kmem_intr_free(sd, sizeof(*sd));
+		kmem_free(sd, sizeof(*sd));
 		return res;
 	}
 	*sdp = sd;
@@ -135,7 +135,7 @@ usl_sync_done(struct usl_syncdata *sd)
 		(*sd->s_callback)(sd->s_cbarg, ENXIO, 0);
 	}
 	wsscreen_detach_sync(sd->s_scr);
-	kmem_intr_free(sd, sizeof(*sd));
+	kmem_free(sd, sizeof(*sd));
 }
 
 static int

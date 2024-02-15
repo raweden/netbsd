@@ -40,6 +40,8 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_user.c,v 1.14 2011/02/02 15:13:34 chuck Exp $");
 
 #include <uvm/uvm.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * uvm_deallocate: deallocate memory (unmap)
  */
@@ -47,9 +49,13 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_user.c,v 1.14 2011/02/02 15:13:34 chuck Exp $");
 void
 uvm_deallocate(struct vm_map *map, vaddr_t start, vsize_t size)
 {
-
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	if (size == 0)
 		return;
 
 	uvm_unmap(map, trunc_page(start), round_page(start + size));
+#endif
 }

@@ -238,13 +238,13 @@ static void	stage_mem_gc(thmap_t *, uintptr_t, size_t);
 static uintptr_t
 alloc_wrapper(size_t len)
 {
-	return (uintptr_t)kmem_intr_alloc(len, KM_NOSLEEP);
+	return (uintptr_t)kmem_alloc(len, KM_NOSLEEP);
 }
 
 static void
 free_wrapper(uintptr_t addr, size_t len)
 {
-	kmem_intr_free((void *)addr, len);
+	kmem_free((void *)addr, len);
 }
 
 static const thmap_ops_t thmap_default_ops = {
@@ -929,7 +929,7 @@ stage_mem_gc(thmap_t *thmap, uintptr_t addr, size_t len)
 {
 	thmap_gc_t *head, *gc;
 
-	gc = kmem_intr_alloc(sizeof(thmap_gc_t), KM_NOSLEEP);
+	gc = kmem_alloc(sizeof(thmap_gc_t), KM_NOSLEEP);
 	gc->addr = addr;
 	gc->len = len;
 retry:
@@ -959,7 +959,7 @@ thmap_gc(thmap_t *thmap, void *ref)
 	while (gc) {
 		thmap_gc_t *next = gc->next;
 		thmap->ops->free(gc->addr, gc->len);
-		kmem_intr_free(gc, sizeof(thmap_gc_t));
+		kmem_free(gc, sizeof(thmap_gc_t));
 		gc = next;
 	}
 }

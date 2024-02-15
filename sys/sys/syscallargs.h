@@ -57,6 +57,11 @@ struct sys_exit_args {
 check_syscall_args(sys_exit)
 #endif /* !RUMP_CLIENT */
 
+#ifdef __wasm__
+#define REG_IS_64 1
+#endif
+
+
 struct sys_read_args {
 	syscallarg(int) fd;
 	syscallarg(void *) buf;
@@ -1094,7 +1099,9 @@ struct sys_pread_args {
 	syscallarg(int) fd;
 	syscallarg(void *) buf;
 	syscallarg(size_t) nbyte;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) offset;
 };
 check_syscall_args(sys_pread)
@@ -1103,7 +1110,9 @@ struct sys_pwrite_args {
 	syscallarg(int) fd;
 	syscallarg(const void *) buf;
 	syscallarg(size_t) nbyte;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) offset;
 };
 check_syscall_args(sys_pwrite)
@@ -1274,7 +1283,9 @@ struct sys_mmap_args {
 	syscallarg(int) prot;
 	syscallarg(int) flags;
 	syscallarg(int) fd;
+#ifndef REG_IS_64
 	syscallarg(long) PAD;
+#endif
 	syscallarg(off_t) pos;
 };
 check_syscall_args(sys_mmap)
@@ -1289,7 +1300,9 @@ struct sys___syscall_args {
 
 struct sys_lseek_args {
 	syscallarg(int) fd;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) offset;
 	syscallarg(int) whence;
 };
@@ -1297,14 +1310,18 @@ check_syscall_args(sys_lseek)
 
 struct sys_truncate_args {
 	syscallarg(const char *) path;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) length;
 };
 check_syscall_args(sys_truncate)
 
 struct sys_ftruncate_args {
 	syscallarg(int) fd;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) length;
 };
 check_syscall_args(sys_ftruncate)
@@ -1883,7 +1900,9 @@ struct sys_preadv_args {
 	syscallarg(int) fd;
 	syscallarg(const struct iovec *) iovp;
 	syscallarg(int) iovcnt;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) offset;
 };
 check_syscall_args(sys_preadv)
@@ -1892,7 +1911,9 @@ struct sys_pwritev_args {
 	syscallarg(int) fd;
 	syscallarg(const struct iovec *) iovp;
 	syscallarg(int) iovcnt;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) offset;
 };
 check_syscall_args(sys_pwritev)
@@ -2698,7 +2719,9 @@ check_syscall_args(sys__pset_bind)
 
 struct sys___posix_fadvise50_args {
 	syscallarg(int) fd;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) offset;
 	syscallarg(off_t) len;
 	syscallarg(int) advice;
@@ -3028,7 +3051,9 @@ struct sys_mknodat_args {
 	syscallarg(int) fd;
 	syscallarg(const char *) path;
 	syscallarg(mode_t) mode;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(dev_t) dev;
 };
 check_syscall_args(sys_mknodat)
@@ -3183,7 +3208,9 @@ check_syscall_args(sys____lwp_park60)
 
 struct sys_posix_fallocate_args {
 	syscallarg(int) fd;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) pos;
 	syscallarg(off_t) len;
 };
@@ -3191,7 +3218,9 @@ check_syscall_args(sys_posix_fallocate)
 
 struct sys_fdiscard_args {
 	syscallarg(int) fd;
+#ifndef REG_IS_64
 	syscallarg(int) PAD;
+#endif
 	syscallarg(off_t) pos;
 	syscallarg(off_t) len;
 };

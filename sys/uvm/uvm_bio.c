@@ -51,6 +51,11 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_bio.c,v 1.128 2023/04/09 09:00:56 riastradh Exp 
 #include <uvm/uvm.h>
 #include <uvm/uvm_pdpolicy.h>
 
+#ifdef __WASM
+#include <wasm/wasm-extra.h>
+#include <wasm/../mm/mm.h>
+#endif
+
 #ifdef PMAP_DIRECT
 #  define UBC_USE_PMAP_DIRECT
 #endif
@@ -76,11 +81,11 @@ bool ubc_direct = false;
  * local data structures
  */
 
-#define UBC_HASH(uobj, offset) 						\
-	(((((u_long)(uobj)) >> 8) + (((u_long)(offset)) >> PAGE_SHIFT)) & \
+#define UBC_HASH(uobj, offset) 											\
+	(((((u_long)(uobj)) >> 8) + (((u_long)(offset)) >> PAGE_SHIFT)) & 	\
 				ubc_object.hashmask)
 
-#define UBC_QUEUE(offset)						\
+#define UBC_QUEUE(offset)											\
 	(&ubc_object.inactive[(((u_long)(offset)) >> ubc_winshift) &	\
 			     (UBC_NQUEUES - 1)])
 
@@ -108,7 +113,7 @@ struct ubc_map {
 TAILQ_HEAD(ubc_inactive_head, ubc_map);
 static struct ubc_object {
 	struct uvm_object uobj;		/* glue for uvm_map() */
-	char *kva;			/* where ubc_object is mapped */
+	char *kva;					/* where ubc_object is mapped */
 	struct ubc_map *umap;		/* array of ubc_map's */
 
 	LIST_HEAD(, ubc_map) *hash;	/* hashtable for cached ubc_map's */
@@ -161,7 +166,6 @@ UBC_EVCNT_DEFINE(faultbusy)
  *
  * init pager private data structures.
  */
-
 void
 ubc_init(void)
 {
@@ -211,12 +215,14 @@ ubc_init(void)
 		LIST_INIT(&ubc_object.hash[i]);
 	}
 
+#ifndef __WASM
 	if (uvm_map(kernel_map, (vaddr_t *)&ubc_object.kva,
 		    ubc_nwins << ubc_winshift, &ubc_object.uobj, 0, (vsize_t)va,
 		    UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
 				UVM_ADV_RANDOM, UVM_FLAG_NOMERGE)) != 0) {
 		panic("ubc_init: failed to map ubc_object");
 	}
+#endif
 
 	hashstat_register("ubchash", ubchash_stats);
 }
@@ -247,9 +253,10 @@ ubc_fault_page(const struct uvm_faultinfo *ufi, const struct ubc_map *umap,
 
 	KASSERT((pg->flags & PG_FAKE) == 0);
 	if (pg->flags & PG_RELEASED) {
-		uvm_pagefree(pg);
+		kmem_page_free((void *)pg->phys_addr, 1);
 		return 0;
 	}
+#if 0
 	if (pg->loan_count != 0) {
 
 		/*
@@ -270,6 +277,7 @@ ubc_fault_page(const struct uvm_faultinfo *ufi, const struct ubc_map *umap,
 			pg = newpg;
 		}
 	}
+#endif
 
 	/*
 	 * Note that a page whose backing store is partially allocated
@@ -283,13 +291,13 @@ ubc_fault_page(const struct uvm_faultinfo *ufi, const struct ubc_map *umap,
 	    (access_type & VM_PROT_WRITE) == 0 ||
 	    pg->offset < umap->writeoff ||
 	    pg->offset + PAGE_SIZE > umap->writeoff + umap->writelen);
-
+#if 0
 	rdonly = uvm_pagereadonly_p(pg);
 	mask = rdonly ? ~VM_PROT_WRITE : VM_PROT_ALL;
 
 	error = pmap_enter(ufi->orig_map->pmap, va, VM_PAGE_TO_PHYS(pg),
 	    prot & mask, PMAP_CANFAIL | (access_type & mask));
-
+#endif
 	uvm_pagelock(pg);
 	uvm_pageactivate(pg);
 	uvm_pagewakeup(pg);
@@ -324,7 +332,7 @@ ubc_fault(struct uvm_faultinfo *ufi, vaddr_t ign1, struct vm_page **ign2,
 	 */
 
 	if (flags & PGO_LOCKED) {
-		uvmfault_unlockall(ufi, NULL, &ubc_object.uobj);
+		//uvmfault_unlockall(ufi, NULL, &ubc_object.uobj);
 		flags &= ~PGO_LOCKED;
 	}
 
@@ -439,14 +447,14 @@ again:
 			 * Flush (there might be pages entered), drop the lock,
 			 * and perform uvm_wait().  Note: page will re-fault.
 			 */
-			pmap_update(ufi->orig_map->pmap);
+			//pmap_update(ufi->orig_map->pmap);
 			rw_exit(uobj->vmobjlock);
 			uvm_wait("ubc_fault");
 			rw_enter(uobj->vmobjlock, RW_WRITER);
 		}
 	}
 	/* Must make VA visible before the unlock. */
-	pmap_update(ufi->orig_map->pmap);
+	//pmap_update(ufi->orig_map->pmap);
 	rw_exit(uobj->vmobjlock);
 
 	return 0;
@@ -514,7 +522,7 @@ again:
 			rw_enter(ubc_object.uobj.vmobjlock, RW_WRITER);
 			goto again;
 		}
-
+		// TODO: this expects file data to be mapped to virtual-memory which will not work for wasm.
 		va = UBC_UMAP_ADDR(umap);
 		oobj = umap->uobj;
 
@@ -529,11 +537,10 @@ again:
 			 */
 			if (umap->flags & UMAP_MAPPING_CACHED) {
 				umap->flags &= ~UMAP_MAPPING_CACHED;
-				rw_enter(oobj->vmobjlock, RW_WRITER);
-				pmap_remove(pmap_kernel(), va,
-				    va + ubc_winsize);
-				pmap_update(pmap_kernel());
-				rw_exit(oobj->vmobjlock);
+				//rw_enter(oobj->vmobjlock, RW_WRITER);
+				//pmap_remove(pmap_kernel(), va, va + ubc_winsize);
+				//pmap_update(pmap_kernel());
+				//rw_exit(oobj->vmobjlock);
 			}
 			LIST_REMOVE(umap, hash);
 			LIST_REMOVE(umap, list);
@@ -573,7 +580,7 @@ again:
 		int npages = (*lenp + (offset & (PAGE_SIZE - 1)) +
 		    PAGE_SIZE - 1) >> PAGE_SHIFT;
 		int gpflags =
-		    PGO_SYNCIO|PGO_OVERWRITE|PGO_PASTEOF|PGO_NOBLOCKALLOC|
+		    PGO_SYNCIO/*|PGO_OVERWRITE*/|PGO_PASTEOF|PGO_NOBLOCKALLOC|	// TODO: wasm
 		    PGO_NOTIMESTAMP;
 		int i;
 		KDASSERT(flags & UBC_WRITE);
@@ -585,7 +592,7 @@ again_faultbusy:
 		rw_enter(uobj->vmobjlock, RW_WRITER);
 		if (umap->flags & UMAP_MAPPING_CACHED) {
 			umap->flags &= ~UMAP_MAPPING_CACHED;
-			pmap_remove(pmap_kernel(), va, va + ubc_winsize);
+			//pmap_remove(pmap_kernel(), va, va + ubc_winsize);
 		}
 		memset(pgs, 0, *npagesp * sizeof(pgs[0]));
 
@@ -596,13 +603,24 @@ again_faultbusy:
 			/*
 			 * Flush: the mapping above might have been removed.
 			 */
-			pmap_update(pmap_kernel());
+			//pmap_update(pmap_kernel());
 			goto out;
 		}
 		for (i = 0; i < npages; i++) {
 			struct vm_page *pg = pgs[i];
 
 			KASSERT(pg->uobject == uobj);
+			if (pg == NULL) {
+				//rw_exit(uobj->vmobjlock);
+				goto again_faultbusy;
+			}
+
+			//rw_exit(uobj->vmobjlock);
+			pgs[i] = pg;
+#if __WASM_KERN_DEBUG_PRINT
+			printf("%s pg[%d] is %p phys_addr %p\n", __func__, i, pg, (void *)pg->phys_addr);
+#endif
+#if 0
 			if (pg->loan_count != 0) {
 				rw_enter(uobj->vmobjlock, RW_WRITER);
 				if (pg->loan_count != 0) {
@@ -623,8 +641,9 @@ again_faultbusy:
 			    va + trunc_page(slot_offset) + (i << PAGE_SHIFT),
 			    VM_PAGE_TO_PHYS(pg),
 			    VM_PROT_READ | VM_PROT_WRITE, 0);
+#endif
 		}
-		pmap_update(pmap_kernel());
+		//pmap_update(pmap_kernel());
 		umap->flags |= UMAP_PAGES_LOCKED;
 		*npagesp = npages;
 	} else {
@@ -653,6 +672,9 @@ ubc_release(void *va, int flags, struct vm_page **pgs, int npages)
 	umapva = UBC_UMAP_ADDR(umap);
 	uobj = umap->uobj;
 	KASSERT(uobj != NULL);
+
+	// FIXME: this need to be enabled!
+#if 0
 
 	if (umap->flags & UMAP_PAGES_LOCKED) {
 		const voff_t endoff = umap->writeoff + umap->writelen;
@@ -708,9 +730,10 @@ ubc_release(void *va, int flags, struct vm_page **pgs, int npages)
 			 * incompatible cache aliases around indefinitely.
 			 */
 			rw_enter(uobj->vmobjlock, RW_WRITER);
-			pmap_remove(pmap_kernel(), umapva,
-				    umapva + ubc_winsize);
+#ifndef __WASM
+			pmap_remove(pmap_kernel(), umapva, umapva + ubc_winsize);
 			pmap_update(pmap_kernel());
+#endif
 			rw_exit(uobj->vmobjlock);
 
 			umap->flags &= ~UMAP_MAPPING_CACHED;
@@ -730,18 +753,63 @@ ubc_release(void *va, int flags, struct vm_page **pgs, int npages)
 	UVMHIST_LOG(ubchist, "umap %#jx refs %jd", (uintptr_t)umap,
 	    umap->refcount, 0, 0);
 	rw_exit(ubc_object.uobj.vmobjlock);
+#endif
 }
+
+#ifdef __WASM
+/**
+ * Bypasses any file mapping cache and does read/write directly from/to 1x page in uio iov. This is used for 
+ * loading executable files from disk on the wasm platform, since that mapping we do not want to cache anyways.
+ */
+int
+ubc_uiomove_direct_wasm(struct uvm_object *uobj, struct uio *uio, vsize_t todo, int advice, int flags)
+{
+	struct mm_page *pg;
+	int error, gpflags;
+	int npgs = 1;
+	struct vm_page *pgs[1];
+	
+
+	gpflags = PGO_SYNCIO/*|PGO_OVERWRITE*/|PGO_PASTEOF|PGO_NOBLOCKALLOC| PGO_NOTIMESTAMP;
+	error = 0;
+
+	if (uio->uio_rw == UIO_READ) {
+		pg = paddr_to_page(uio->uio_iov->iov_base);
+		pgs[0] = (struct vm_page *)pg;
+
+		//rw_enter(uobj->vmobjlock, RW_WRITER);
+		error = (uobj->pgops->pgo_get)(uobj, uio->uio_offset, pgs, &npgs, 0, VM_PROT_READ | VM_PROT_WRITE, advice, flags);
+		uio->uio_resid = 0;
+		//printf("call to uobj->pgops->pgo_get returned %d\n", error);
+		//rw_exit(uobj->vmobjlock);
+	} else if (uio->uio_rw == UIO_WRITE) {
+		/*
+		rw_enter(uobj->vmobjlock, RW_WRITER);
+		(uobj->pgops->pgo_put)(uobj, uio->uio_offset);
+		rw_exit(uobj->vmobjlock);
+		*/
+	}
+
+	return error;
+}
+#endif
 
 /*
  * ubc_uiomove: move data to/from an object.
  */
-
+//#ifndef __WASM
 int
 ubc_uiomove(struct uvm_object *uobj, struct uio *uio, vsize_t todo, int advice,
     int flags)
 {
 	const bool overwrite = (flags & UBC_FAULTBUSY) != 0;
 	struct vm_page *pgs[howmany(ubc_winsize, MIN_PAGE_SIZE)];
+#ifdef __wasm__
+	struct mm_page *pg;
+	void *pg_win;
+	uint32_t pg_winsz;
+	voff_t win_off;
+#endif
 	voff_t off;
 	int error, npages;
 
@@ -768,6 +836,20 @@ ubc_uiomove(struct uvm_object *uobj, struct uio *uio, vsize_t todo, int advice,
 	}
 #endif
 
+#ifdef __WASM
+	if (uio->uio_iovcnt == 1 && uio->uio_iov->iov_len == PAGE_SIZE && ((uintptr_t)(uio->uio_iov->iov_base) % PAGE_SIZE) == 0) {
+		pg = paddr_to_page(uio->uio_iov->iov_base);
+		if ((pg->flags & PG_BYPASS_FILE_MAP) != 0) {
+			vsize_t bytelen = todo;
+			error = ubc_uiomove_direct_wasm(uobj, uio, bytelen, advice, flags);
+			
+			return error;
+		}
+	}
+#endif
+
+ 
+
 	off = uio->uio_offset;
 	error = 0;
 	while (todo > 0) {
@@ -775,18 +857,62 @@ ubc_uiomove(struct uvm_object *uobj, struct uio *uio, vsize_t todo, int advice,
 		void *win;
 
 		npages = __arraycount(pgs);
+#ifdef __WASM
+        if ((flags & UBC_FAULTBUSY) == 0) {
+            flags |= UBC_FAULTBUSY;
+        }
+#endif
 		win = ubc_alloc(uobj, off, &bytelen, advice, flags, pgs,
 		    &npages);
 		if (error == 0) {
+#if 0
+			if (npages == 1) {
+				win = (void *)(pgs[0]->phys_addr);
+			} else {
+				printf("%s multi-page uiomove() not supported\n", __func__);
+				__panic_abort();
+			}
+#endif
+			win_off = off;
+			pg = (struct mm_page *)pgs[0];
+			printf("%s page = %p page[0]->uobject = %p page[0]->offset = %lld", __func__, pg, pg->uobject, pg->offset);
+			for (int i = 0; i < npages; i++) {
+				pg = (struct mm_page *)pgs[i];
+				pg_winsz = (uint32_t)(win_off - pg->offset);
+				pg_win = (void *)(pg->phys_addr) + pg_winsz;
+				pg_winsz = PAGE_SIZE - pg_winsz;
+				pg_winsz = MIN(bytelen, pg_winsz);
+				uiomove(pg_win, pg_winsz, uio);
+				win_off += pg_winsz;
+			}
+#if 0
 			error = uiomove(win, bytelen, uio);
+#endif
 		}
+#if __WASM_KERN_DEBUG_PRINT
+		printf("%s file mapping = %p\n", __func__, win);
+#endif
 		if (error != 0 && overwrite) {
 			/*
 			 * if we haven't initialized the pages yet,
 			 * do it now.  it's safe to use memset here
 			 * because we just mapped the pages above.
 			 */
+#ifndef __wasm__
 			memset(win, 0, bytelen);
+#else
+			win_off = off;
+			pg = (struct mm_page *)pgs[0];
+			for (int i = 0; i < npages; i++) {
+				pg = (struct mm_page *)pgs[i];
+				pg_winsz = (uint32_t)(win_off - pg->offset);
+				pg_win = (void *)(pg->phys_addr) + pg_winsz;
+				pg_winsz = PAGE_SIZE - pg_winsz;
+				pg_winsz = MIN(bytelen, pg_winsz);
+				memset(pg_win, 0, pg_winsz);
+				win_off += pg_winsz;
+			}
+#endif
 		}
 		ubc_release(win, flags, pgs, npages);
 		off += bytelen;
@@ -798,6 +924,7 @@ ubc_uiomove(struct uvm_object *uobj, struct uio *uio, vsize_t todo, int advice,
 
 	return error;
 }
+//#endif
 
 /*
  * ubc_zerorange: set a range of bytes in an object to zero.
@@ -939,7 +1066,7 @@ ubc_direct_release(struct uvm_object *uobj,
 		UVM_PAGE_OWN(pg, NULL);
 		if (pg->flags & PG_RELEASED) {
 			pg->flags &= ~PG_RELEASED;
-			uvm_pagefree(pg);
+			kmem_page_free(pg->phys_addr, 1);
 			continue;
 		}
 

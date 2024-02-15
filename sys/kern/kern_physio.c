@@ -123,7 +123,7 @@ physio_done(struct work *wk, void *dummy)
 	KASSERT(dummy == NULL);
 
 	vunmapbuf(bp, todo);
-	uvm_vsunlock(bp->b_proc->p_vmspace, bp->b_data, todo);
+	//uvm_vsunlock(bp->b_proc->p_vmspace, bp->b_data, todo);
 
 	mutex_enter(&ps->ps_lock);
 	is_iobuf = (bp != ps->ps_orig_bp);
@@ -217,6 +217,10 @@ int
 physio(void (*strategy)(struct buf *), struct buf *obp, dev_t dev, int flags,
     void (*min_phys)(struct buf *), struct uio *uio)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	struct iovec *iovp;
 	struct lwp *l = curlwp;
 	struct proc *p = l->l_proc;
@@ -360,7 +364,7 @@ physio(void (*strategy)(struct buf *), struct buf *obp, dev_t dev, int flags,
 			 * However, vunmapbuf() restores b_data.
 			 */
 			if ((error = vmapbuf(bp, todo)) != 0) {
-				uvm_vsunlock(p->p_vmspace, bp->b_data, todo);
+				//uvm_vsunlock(p->p_vmspace, bp->b_data, todo);
 				goto done;
 			}
 
@@ -440,6 +444,8 @@ done_locked:
 	    __func__, uio->uio_offset, uio->uio_resid));
 
 	return error;
+#endif
+	return (0);
 }
 
 /*

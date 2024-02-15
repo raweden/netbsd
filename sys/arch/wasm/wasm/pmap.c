@@ -721,7 +721,7 @@ pmap_compare_key(void *context, const void *n, const void *k)
 	}
 	return 0;
 }
-
+#if 0
 /*
  * pmap_ptp_range_set: abuse ptp->uanon to record minimum VA of PTE
  */
@@ -734,6 +734,7 @@ pmap_ptp_range_set(struct vm_page *ptp, vaddr_t va)
 		*min = va;
 	}
 }
+
 
 /*
  * pmap_ptp_range_clip: abuse ptp->uanon to clip range of PTEs to remove
@@ -752,6 +753,7 @@ pmap_ptp_range_clip(struct vm_page *ptp, vaddr_t *startva, pt_entry_t **pte)
 	*pte += (sclip - *startva) / PAGE_SIZE;
 	*startva = sclip;
 }
+#endif
 
 /*
  * pmap_map_ptes: map a pmap's PTEs into KVM and lock them in
@@ -950,26 +952,6 @@ pmap_exec_fixup(struct vm_map *map, struct trapframe *tf, struct pcb *pcb)
 	return 1;
 }
 #endif /* !defined(__x86_64__) */
-
-void
-pat_init(struct cpu_info *ci)
-{
-#ifndef XENPV
-	uint64_t pat;
-
-	if (!(ci->ci_feat_val[0] & CPUID_PAT))
-		return;
-
-	/* We change WT to WC. Leave all other entries the default values. */
-	pat = PATENTRY(0, PAT_WB) | PATENTRY(1, PAT_WC) |
-	      PATENTRY(2, PAT_UCMINUS) | PATENTRY(3, PAT_UC) |
-	      PATENTRY(4, PAT_WB) | PATENTRY(5, PAT_WC) |
-	      PATENTRY(6, PAT_UCMINUS) | PATENTRY(7, PAT_UC);
-
-	wrmsr(MSR_CR_PAT, pat);
-	cpu_pat_enabled = true;
-#endif
-}
 
 static pt_entry_t
 pmap_pat_flags(u_int flags)
@@ -1693,6 +1675,8 @@ randomize_hole(size_t *randholep, vaddr_t *randvap)
 static void
 pmap_init_directmap(struct pmap *kpm)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	extern phys_ram_seg_t mem_clusters[];
 	extern int mem_cluster_cnt;
 
@@ -1793,6 +1777,7 @@ pmap_init_directmap(struct pmap *kpm)
 	pmap_direct_end = endva;
 
 	tlbflush();
+#endif
 }
 #endif /* __HAVE_DIRECT_MAP */
 
@@ -1975,76 +1960,6 @@ pmap_init(void)
 
 	pmap_initialized = true;
 }
-
-#ifndef XENPV
-/*
- * pmap_cpu_init_late: perform late per-CPU initialization.
- */
-void
-pmap_cpu_init_late(struct cpu_info *ci)
-{
-	/*
-	 * The BP has already its own PD page allocated during early
-	 * MD startup.
-	 */
-	if (ci == &cpu_info_primary)
-		return;
-#ifdef PAE
-	cpu_alloc_l3_page(ci);
-#endif
-}
-#endif
-
-#ifndef __HAVE_DIRECT_MAP
-CTASSERT(CACHE_LINE_SIZE > sizeof(pt_entry_t));
-CTASSERT(CACHE_LINE_SIZE % sizeof(pt_entry_t) == 0);
-
-static void
-pmap_vpage_cpualloc(struct cpu_info *ci)
-{
-	bool primary = (ci == &cpu_info_primary);
-	size_t i, npages;
-	vaddr_t vabase;
-	vsize_t vrange;
-
-	npages = (CACHE_LINE_SIZE / sizeof(pt_entry_t));
-	KASSERT(npages >= VPAGE_MAX);
-	vrange = npages * PAGE_SIZE;
-
-	if (primary) {
-		while ((vabase = pmap_bootstrap_valloc(1)) % vrange != 0) {
-			/* Waste some pages to align properly */
-		}
-		/* The base is aligned, allocate the rest (contiguous) */
-		pmap_bootstrap_valloc(npages - 1);
-	} else {
-		vabase = uvm_km_alloc(kernel_map, vrange, vrange,
-		    UVM_KMF_VAONLY);
-		if (vabase == 0) {
-			panic("%s: failed to allocate tmp VA for CPU %d\n",
-			    __func__, cpu_index(ci));
-		}
-	}
-
-	KASSERT((vaddr_t)&PTE_BASE[pl1_i(vabase)] % CACHE_LINE_SIZE == 0);
-
-	for (i = 0; i < VPAGE_MAX; i++) {
-		ci->vpage[i] = vabase + i * PAGE_SIZE;
-		ci->vpage_pte[i] = PTE_BASE + pl1_i(ci->vpage[i]);
-	}
-}
-
-void
-pmap_vpage_cpu_init(struct cpu_info *ci)
-{
-	if (ci == &cpu_info_primary) {
-		/* cpu0 already taken care of in pmap_bootstrap */
-		return;
-	}
-
-	pmap_vpage_cpualloc(ci);
-}
-#endif
 
 /*
  * p v _ e n t r y   f u n c t i o n s
@@ -2233,6 +2148,7 @@ pmap_treelookup_pv(const struct pmap *pmap, const struct vm_page *ptp,
 	}
 }
 
+#if 0
 /*
  * pmap_lookup_pv: look up a non-embedded pv entry for the given pmap
  *
@@ -2287,6 +2203,7 @@ pmap_lookup_pv(const struct pmap *pmap, const struct vm_page *ptp,
 	/* Search the RB tree for the key (uncommon). */
 	return pmap_treelookup_pv(pmap, ptp, tree, va);
 }
+#endif
 
 /*
  * pmap_enter_pv: enter a mapping onto a pmap_page lst
@@ -2376,6 +2293,7 @@ pmap_enter_pv(struct pmap *pmap, struct pmap_page *pp, struct vm_page *ptp,
 	return error;
 }
 
+#if 0
 /*
  * pmap_remove_pv: try to remove a mapping from a pv_list
  *
@@ -2429,6 +2347,7 @@ pmap_remove_pv(struct pmap *pmap, struct pmap_page *pp, struct vm_page *ptp,
 	pmap_check_pv(pmap, ptp, pp, va, false);
 }
 
+
 /*
  * p t p   f u n c t i o n s
  */
@@ -2462,6 +2381,7 @@ pmap_find_ptp(struct pmap *pmap, vaddr_t va, int level)
 	return pg;
 }
 
+
 static inline void
 pmap_freepage(struct pmap *pmap, struct vm_page *ptp, int level)
 {
@@ -2487,6 +2407,7 @@ pmap_freepage(struct pmap *pmap, struct vm_page *ptp, int level)
 	 */
 	LIST_INSERT_HEAD(&pmap->pm_gc_ptp, ptp, mdpage.mp_pp.pp_link);
 }
+
 
 static void
 pmap_free_ptp(struct pmap *pmap, struct vm_page *ptp, vaddr_t va,
@@ -2599,6 +2520,7 @@ pmap_get_ptp(struct pmap *pmap, struct pmap_ptparray *pt, vaddr_t va,
 	pmap->pm_ptphint[0] = ptp;
 	return 0;
 }
+#endif
 
 /*
  * pmap_install_ptp: install any freshly allocated PTPs
@@ -2670,7 +2592,7 @@ pmap_install_ptp(struct pmap *pmap, struct pmap_ptparray *pt, vaddr_t va,
 		}
 	}
 }
-
+#if 0
 /*
  * pmap_unget_ptp: free unusued PTPs
  *
@@ -2694,6 +2616,7 @@ pmap_unget_ptp(struct pmap *pmap, struct pmap_ptparray *pt)
 		pmap_freepage(pmap, pt->pg[i], i - 1);
 	}
 }
+#endif
 
 /*
  * p m a p   l i f e c y c l e   f u n c t i o n s
@@ -3101,6 +3024,7 @@ pmap_destroy(struct pmap *pmap)
 	}
 }
 
+#if 0
 /*
  * pmap_zap_ptp: clear out an entire PTP without modifying PTEs
  *
@@ -3236,6 +3160,7 @@ pmap_zap_ptp(struct pmap *pmap, struct vm_page *ptp, pt_entry_t *pte,
 	pmap_remove_ptes(pmap, ptp, (vaddr_t)pte, startva, blkendva);
 #endif	/* !XENPV */
 }
+#endif
 
 /*
  * pmap_remove_all: remove all mappings from pmap in bulk.

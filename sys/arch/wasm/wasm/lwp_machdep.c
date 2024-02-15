@@ -5,10 +5,8 @@
 #include <sys/param.h>
 #include <sys/lwp.h>
 
-#include <wasm/wasm_module.h>
 #include <wasm/frame.h>
-
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#include <wasm/wasm-extra.h>
 
 
 volatile struct lwp *wasm_curlwp;
@@ -90,21 +88,24 @@ void lwp_trampoline(void)
 	pcb = lwp_getpcb(l);
 
 	if ((struct lwp *)(pcb->pcb_ebp) != l) {
-		printf("PANIC: pcb->pcb_ebp != curlwp");
+		printf("PANIC: pcb->pcb_ebp (%p) != curlwp (%p) pcb = %p\n", (void *)pcb->pcb_ebp, l, pcb);
 		__panic_abort();
 	}
 
 	sf = (struct switchframe *)pcb->pcb_esp;
+	printf("%s reading switchframe at %p for lwp %p\n", __func__, sf, l);
+#if 0
 	if (sf->sf_eip != (int)lwp_trampoline) {
 		printf("PANIC: pcb->sf_eip != lwp_trampoline");
 		__panic_abort();
 	}
+#endif
 
 	func = (void (*)(void *))sf->sf_esi;
 	arg = (void *)sf->sf_ebx;
 
 	if (func == NULL) {
-		printf("PANIC: sf->sf_esi == NULL");
+		printf("PANIC: lwp @%p sf->sf_esi == NULL (stackframe %p)", l, sf);
 		__panic_abort();
 	}
 

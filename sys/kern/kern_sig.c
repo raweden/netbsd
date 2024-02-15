@@ -69,6 +69,7 @@
  * Signal subsystem.
  */
 
+#include "arch/wasm/include/vmparam.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: kern_sig.c,v 1.405 2023/04/09 09:18:09 riastradh Exp $");
 
@@ -109,6 +110,10 @@ __KERNEL_RCSID(0, "$NetBSD: kern_sig.c,v 1.405 2023/04/09 09:18:09 riastradh Exp
 #endif /* PAX_SEGVGUARD */
 
 #include <uvm/uvm_extern.h>
+
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
 
 /* Many hard-coded assumptions that there are <= 4 x 32bit signal mask bits */
 __CTASSERT(NSIG <= 128);
@@ -235,11 +240,7 @@ signal_init(void)
 static void *
 sigacts_poolpage_alloc(struct pool *pp, int flags)
 {
-
-	return (void *)uvm_km_alloc(kernel_map,
-	    PAGE_SIZE * 2, PAGE_SIZE * 2,
-	    ((flags & PR_WAITOK) ? 0 : UVM_KMF_NOWAIT | UVM_KMF_TRYLOCK)
-	    | UVM_KMF_WIRED);
+	return kmem_page_alloc(2, 0);
 }
 
 /*
@@ -250,8 +251,7 @@ sigacts_poolpage_alloc(struct pool *pp, int flags)
 static void
 sigacts_poolpage_free(struct pool *pp, void *v)
 {
-
-	uvm_km_free(kernel_map, (vaddr_t)v, PAGE_SIZE * 2, UVM_KMF_WIRED);
+	kmem_page_free(v, PAGE_SIZE * 2);
 }
 
 /*

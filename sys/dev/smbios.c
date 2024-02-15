@@ -122,6 +122,10 @@ const struct cdevsw smbios_cdevsw = {
 static void *
 smbios_map_memory(paddr_t pa, size_t size)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	panic("NOT_IMPLEMENTED");
+#if 0
 	paddr_t spa, epa, curpa;
 	vaddr_t va, curva;
 
@@ -139,6 +143,8 @@ smbios_map_memory(paddr_t pa, size_t size)
 	pmap_update(pmap_kernel());
 
 	return (void *)(uintptr_t)(va + (pa - spa));
+#endif
+	return NULL;
 }
 
 static void

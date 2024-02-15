@@ -154,6 +154,10 @@ __KERNEL_RCSID(0, "$NetBSD: vfs_bio.c,v 1.303 2022/03/30 14:54:29 riastradh Exp 
 
 #include <miscfs/specfs/specdev.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 SDT_PROVIDER_DEFINE(io);
 
 SDT_PROBE_DEFINE4(io, kernel, , bbusy__start,
@@ -276,15 +280,30 @@ __CTASSERT((1 << (NMEMPOOLS + MEMPOOL_INDEX_OFFSET - 1)) == MAXBSIZE);
 /* Buffer memory pools */
 static struct pool bmempools[NMEMPOOLS];
 
-static struct vm_map *buf_map;
-
 /*
  * Buffer memory pool allocator.
  */
 static void *
 bufpool_page_alloc(struct pool *pp, int flags)
 {
+	const vm_flag_t vflags = (flags & PR_WAITOK) ? VM_SLEEP: VM_NOSLEEP;
+	void *ptr;
+	int pgs, pgsz = pp->pr_alloc->pa_pagesz;
 
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pgsz);
+#endif
+
+	if (pgsz == PAGE_SIZE) {
+		pgs = 1;
+	} else {
+		pgs = howmany(pgsz, PAGE_SIZE);
+	}
+
+	ptr = kmem_page_alloc(pgs, vflags);
+
+	return ptr;
+#if 0
 #ifndef __WASM
 	return (void *)uvm_km_alloc(buf_map,
 	    MAXBSIZE, MAXBSIZE,
@@ -299,15 +318,33 @@ bufpool_page_alloc(struct pool *pp, int flags)
 
 	return ret ? NULL : (void *)va;
 #endif
+#endif
 }
 
 static void
 bufpool_page_free(struct pool *pp, void *v)
 {
+	int pgs, pgsz = pp->pr_reqsize;
+
+#if __WASM_KERN_DEBUG_MEM
+	printf("%s pp = %p pa_pagesz = %d\n", __func__, pp, pgsz);
+#endif
+
+	if (pgsz == PAGE_SIZE) {
+		pgs = 1;
+	} else {
+		pgs = howmany(pgsz, PAGE_SIZE);
+	}
+
+	printf("%s ERROR freeing {start = %p, end = %p} pgs = %d\n", __func__, v, v + (PAGE_SIZE + pgs), pgs);
+
+	kmem_page_free(v, pgs);
+#if 0
 #ifndef __WASM
 	uvm_km_free(buf_map, (vaddr_t)v, MAXBSIZE, UVM_KMF_WIRED);
 #else
 	uvm_km_kmem_free(kmem_va_arena, (vaddr_t)v, pp->pr_reqsize);
+#endif
 #endif
 }
 
@@ -456,10 +493,8 @@ buf_memcalc(void)
 			printf("forcing bufcache %d -> 95", bufcache);
 			bufcache = 95;
 		}
-		if (buf_map != NULL)
-			mapsz = vm_map_max(buf_map) - vm_map_min(buf_map);
-		n = calc_cache_size(mapsz, bufcache,
-		    (buf_map != kernel_map) ? 100 : BUFCACHE_VA_MAXPCT)
+		mapsz = 2097152;
+		n = calc_cache_size(mapsz, bufcache, 100)
 		    / PAGE_SIZE;
 	}
 
@@ -478,6 +513,7 @@ bufinit(void)
 {
 	struct bqueue *dp;
 	int use_std;
+	u_int flags;
 	u_int i;
 
 	biodone_vfs = biodone;
@@ -496,7 +532,6 @@ bufinit(void)
 			panic("bufinit: cannot allocate submap");
 	} else
 #endif
-		buf_map = kernel_map;
 
 	/*
 	 * Initialize buffer cache memory parameters.
@@ -505,7 +540,11 @@ bufinit(void)
 	buf_setwm();
 
 	/* On "small" machines use small pool page sizes where possible */
+#ifndef __WASM
 	use_std = (physmem < atop(16*1024*1024));
+#else
+	use_std = false;
+#endif
 
 	/*
 	 * Also use them on systems that can map the pool pages using
@@ -535,10 +574,20 @@ bufinit(void)
 			(void)snprintf(name, 8, "buf%uk", size / 1024);
 		else
 			(void)snprintf(name, 8, "buf%ub", size);
+#ifndef __WASM
 		pa = (size <= PAGE_SIZE && use_std)
 			? &pool_allocator_nointr
 			: &bufmempool_allocator;
-		pool_init(pp, size, DEV_BSIZE, 0, 0, name, pa, IPL_NONE);
+#else
+		if (size < PAGE_SIZE && use_std) {
+			pa = &pool_allocator_nointr;
+			flags = 0;
+		} else {
+			pa = &bufmempool_allocator;
+			flags = PR_USEBMAP;
+		}
+#endif
+		pool_init(pp, size, DEV_BSIZE, 0, flags, name, pa, IPL_NONE);
 		pool_setlowat(pp, 1);
 		pool_sethiwat(pp, 1);
 #ifdef __WASM_KERN_DEBUG_PRINT
@@ -664,13 +713,15 @@ buf_roundsize(u_long size)
 	return (1 << (buf_mempoolidx(size) + MEMPOOL_INDEX_OFFSET));
 }
 
-static void *
+static void * __noinline
 buf_alloc(size_t size)
 {
 	u_int n = buf_mempoolidx(size);
 	void *addr;
 
+#if __WASM_KERN_DEBUG_PRINT
 	printf("%s buf_mempoolidx = %d", __func__, n);
+#endif
 
 	while (1) {
 		addr = pool_get(&bmempools[n], PR_NOWAIT);
@@ -686,6 +737,7 @@ buf_alloc(size_t size)
 
 		if (curlwp == uvm.pagedaemon_lwp) {
 			mutex_exit(&bufcache_lock);
+			printf("%s buf_mempoolidx = %d returning addr = %p\n", __func__, n, NULL);
 			return NULL;
 		}
 
@@ -693,6 +745,8 @@ buf_alloc(size_t size)
 		cv_timedwait(&needbuffer_cv, &bufcache_lock, hz / 4);
 		mutex_exit(&bufcache_lock);
 	}
+
+	printf("%s buf_mempoolidx = %d returning addr = %p\n", __func__, n, addr);
 
 	return addr;
 }

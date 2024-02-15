@@ -42,9 +42,7 @@
 #include <machine/segments.h>
 #include <machine/specialreg.h>
 
-#include <wasm/wasm_module.h>
-
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#include <wasm/wasm-extra.h>
 
 #ifdef _KERNEL
 #if defined(_KERNEL_OPT)

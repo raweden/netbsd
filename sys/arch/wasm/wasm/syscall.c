@@ -50,9 +50,7 @@ __KERNEL_RCSID(0, "$NetBSD: syscall.c,v 1.21 2022/03/17 22:22:49 riastradh Exp $
 
 #include "opt_dtrace.h"
 
-#include <wasm/wasm_module.h>
-
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#include <wasm/wasm-extra.h>
 
 struct wasm_trapframe { 	// 280 bytes
     uint64_t tf_ra;

@@ -133,6 +133,7 @@ struct x86_bus_dma_cookie {
 static __inline bus_addr_t _bus_virt_to_bus(struct pmap *, vaddr_t);
 #define	_BUS_VIRT_TO_BUS(pm, va) _bus_virt_to_bus((pm), (va))
 
+#if 0
 static __inline bus_addr_t
 _bus_virt_to_bus(struct pmap *pm, vaddr_t va)
 {
@@ -144,6 +145,7 @@ _bus_virt_to_bus(struct pmap *pm, vaddr_t va)
 
 	return _BUS_PHYS_TO_BUS(pa);
 }
+#endif
 #endif /* !defined(_BUS_VIRT_TO_BUS) */
 
 /*

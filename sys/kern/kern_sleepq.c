@@ -51,8 +51,7 @@ __KERNEL_RCSID(0, "$NetBSD: kern_sleepq.c,v 1.74 2023/04/09 09:18:09 riastradh E
 #include <sys/ktrace.h>
 
 #ifdef __WASM_KDEBUG
-#include <wasm/wasm_module.h>
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#include <wasm/wasm-extra.h>
 #endif
 
 /*
@@ -178,8 +177,8 @@ sleepq_remove(sleepq_t *sq, lwp_t *l)
 	sched_setrunnable(l);
 	l->l_stat = LSRUN;
 	l->l_slptime = 0;
-	sched_enqueue(l);
 #ifndef __WASM
+	sched_enqueue(l);
 	sched_resched_lwp(l, true);
 #else
 	wasm_lwp_awake(l);

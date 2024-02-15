@@ -48,9 +48,8 @@ __KERNEL_RCSID(0, "$NetBSD: cpufunc.S,v 1.49 2020/07/19 07:35:08 maxv Exp $");
 #include <machine/specialreg.h>
 #include <machine/segments.h>
 
-#include <wasm/wasm_module.h>
+#include <wasm/wasm-extra.h>
 
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 
 void
 x86_lfence(void)

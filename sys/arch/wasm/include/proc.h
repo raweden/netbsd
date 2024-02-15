@@ -31,17 +31,18 @@
  *	@(#)proc.h	7.1 (Berkeley) 5/15/91
  */
 
-#ifndef _I386_PROC_H_
-#define _I386_PROC_H_
+#ifndef _WASM_PROC_H_
+#define _WASM_PROC_H_
 
 #include <machine/frame.h>
 #include <machine/pcb.h>
 
 /*
- * Machine-dependent part of the lwp structure for i386.
+ * Machine-dependent part of the lwp structure for wasm.
  */
 struct pmap;
 struct vm_page;
+struct vm_space_wasm;
 
 #define	MDL_FPU_IN_CPU		0x0020	/* the FPU state is in the CPU */
 
@@ -50,6 +51,9 @@ struct mdlwp {
 	struct	trapframe *md_regs;	/* registers on current frame */
 	int	md_flags;		/* machine-dependent flags */
 	volatile int md_astpending;	/* AST pending for this process */
+	volatile int md_wakesig; 	/* 	: address used with the memory.atomic.wait32 and memory.atomic.notify instruction used for sleep & awake of thread. */
+	struct vm_space_wasm *md_kmem;
+	struct vm_space_wasm *md_umem;
 };
 
 /* md_flags */
@@ -57,11 +61,12 @@ struct mdlwp {
 
 struct mdproc {
 	int	md_flags;
-	void	(*md_syscall)(struct trapframe *);
-					/* Syscall handling function */
+	void (*md_syscall)(struct trapframe *); /* Syscall handling function */
+	struct vm_space_wasm *md_kmem;
+	struct vm_space_wasm *md_umem;
 };
 
 /* md_flags */
 #define MDP_USEDMTRR	0x0002	/* has set volatile MTRRs */
 
-#endif /* _I386_PROC_H_ */
+#endif /* _WASM_PROC_H_ */

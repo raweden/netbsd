@@ -60,6 +60,8 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_unix.c,v 1.51 2022/01/10 18:04:20 christos Exp $
 
 #include <uvm/uvm.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * sys_obreak: set break
  */
@@ -67,6 +69,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_unix.c,v 1.51 2022/01/10 18:04:20 christos Exp $
 int
 sys_obreak(struct lwp *l, const struct sys_obreak_args *uap, register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(char *) nsize;
 	} */
@@ -122,7 +128,7 @@ sys_obreak(struct lwp *l, const struct sys_obreak_args *uap, register_t *retval)
 		vm->vm_dsize -= atop(obreak - nbreak);
 	}
 	mutex_exit(&p->p_auxlock);
-
+#endif
 	return (0);
 }
 

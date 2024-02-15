@@ -675,8 +675,10 @@ mi_switch(lwp_t *l)
 		KASSERT((l->l_flag & LW_IDLE) == 0);
 		l->l_stat = LSRUN;
 		lwp_setlock(l, spc->spc_mutex);
+#ifndef __WASM
 		sched_enqueue(l);
-		sched_preempted(l);
+		sched_preempted(l); // FIXME: use memory.wait() a couple of ms to yield for another worker.
+#endif
 
 		/*
 		 * Handle migration.  Note that "migrating LWP" may
@@ -794,7 +796,7 @@ mi_switch(lwp_t *l)
 			lwp_unlock(l);
 		} else {
 			/* A normal LWP: save old VM context. */
-			pmap_deactivate(l);
+			//pmap_deactivate(l);
 		}
 
 		/*
@@ -852,7 +854,7 @@ mi_switch(lwp_t *l)
 		 * Switched away - we have new curlwp.
 		 * Restore VM context and IPL.
 		 */
-		pmap_activate(l);
+		//pmap_activate(l);
 		pcu_switchpoint(l);
 
 		/* Update status for lwpctl, if present. */
@@ -906,7 +908,7 @@ setrunnable(struct lwp *l)
 	if ((l->l_pflag & LP_WASM_NEED_BACKING_WORKER) != 0) {
 		struct pcb *pcb = lwp_getpcb(l);
 		l->l_pflag = l->l_pflag & ~LP_WASM_NEED_BACKING_WORKER;
-		__wasm_lwp_spawn(NULL, l, (void *)pcb->pcb_esp0, USPACE);
+		__wasm_lwp_spawn(NULL, l, (void *)pcb->pcb_esp, USPACE);
 	}
 #endif
 
@@ -968,8 +970,10 @@ setrunnable(struct lwp *l)
 	sched_setrunnable(l);
 	l->l_stat = LSRUN;
 	l->l_slptime = 0;
+#ifndef __WASM
 	sched_enqueue(l);
 	sched_resched_lwp(l, true);
+#endif
 	/* SPC & LWP now unlocked. */
 	mutex_spin_exit(oldlock);
 }
@@ -1082,14 +1086,18 @@ sched_changepri(struct lwp *l, pri_t pri)
 		KASSERT(lwp_locked(l, spc->spc_mutex));
 		sched_dequeue(l);
 		l->l_priority = pri;
+#ifndef __WASM
 		sched_enqueue(l);
 		sched_resched_lwp(l, false);
+#endif
 	} else if (l->l_stat == LSONPROC && l->l_class != SCHED_OTHER) {
 		/* On priority drop, only evict realtime LWPs. */
 		KASSERT(lwp_locked(l, spc->spc_lwplock));
 		l->l_priority = pri;
 		spc_lock(ci);
+#ifndef __WASM
 		sched_resched_cpu(ci, spc->spc_maxpriority, true);
+#endif
 		/* spc now unlocked */
 	} else {
 		l->l_priority = pri;
@@ -1112,15 +1120,19 @@ sched_lendpri(struct lwp *l, pri_t pri)
 		sched_dequeue(l);
 		l->l_inheritedprio = pri;
 		l->l_auxprio = MAX(l->l_inheritedprio, l->l_protectprio);
+#ifndef __WASM
 		sched_enqueue(l);
 		sched_resched_lwp(l, false);
+#endif
 	} else if (l->l_stat == LSONPROC && l->l_class != SCHED_OTHER) {
 		/* On priority drop, only evict realtime LWPs. */
 		KASSERT(lwp_locked(l, spc->spc_lwplock));
 		l->l_inheritedprio = pri;
 		l->l_auxprio = MAX(l->l_inheritedprio, l->l_protectprio);
 		spc_lock(ci);
+#ifndef __WASM
 		sched_resched_cpu(ci, spc->spc_maxpriority, true);
+#endif
 		/* spc now unlocked */
 	} else {
 		l->l_inheritedprio = pri;

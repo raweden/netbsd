@@ -1427,7 +1427,7 @@ cpu_intr_init(struct cpu_info *ci)
 #endif
 	x86_intr_calculatemasks(ci);
 
-#if defined(INTRSTACKSIZE)
+#if defined(INTRSTACKSIZE) && !defined (__WASM)
 	vaddr_t istack;
 
 	/*
@@ -1437,11 +1437,6 @@ cpu_intr_init(struct cpu_info *ci)
 	istack = uvm_km_alloc(kernel_map,
 	    INTRSTACKSIZE + redzone_const_or_zero(2 * PAGE_SIZE), 0,
 	    UVM_KMF_WIRED | UVM_KMF_ZERO);
-	if (redzone_const_or_false(true)) {
-		pmap_kremove(istack, PAGE_SIZE);
-		pmap_kremove(istack + INTRSTACKSIZE + PAGE_SIZE, PAGE_SIZE);
-		pmap_update(pmap_kernel());
-	}
 
 	/*
 	 * 33 used to be 1.  Arbitrarily reserve 32 more register_t's

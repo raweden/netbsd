@@ -113,6 +113,11 @@ __KERNEL_RCSID(0, "$NetBSD: uipc_socket.c,v 1.302 2022/04/09 23:52:22 riastradh 
 #include <uvm/uvm_loan.h>
 #include <uvm/uvm_page.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#include <wasm/wasm-extra.h>
+#endif
+
 #ifdef SCTP
 #include <netinet/sctp_route.h>
 #endif
@@ -221,9 +226,7 @@ sokvaalloc(vaddr_t sva, vsize_t len, struct socket *so)
 
 	if (sokvareserve(so, len) == 0)
 		return 0;
-
-	lva = uvm_km_alloc(kernel_map, len, atop(sva) & uvmexp.colormask,
-	    UVM_KMF_COLORMATCH | UVM_KMF_VAONLY | UVM_KMF_WAITVA);
+	lva = (vaddr_t)kmem_page_alloc(len, 0);
 	if (lva == 0) {
 		sokvaunreserve(len);
 		return 0;
@@ -239,7 +242,7 @@ void
 sokvafree(vaddr_t sva, vsize_t len)
 {
 
-	uvm_km_free(kernel_map, sva, len, UVM_KMF_VAONLY);
+	kmem_page_free((void *)sva, len);
 	sokvaunreserve(len);
 }
 
@@ -257,9 +260,9 @@ sodoloanfree(struct vm_page **pgs, void *buf, size_t size)
 	len = eva - sva;
 	npgs = len >> PAGE_SHIFT;
 
-	pmap_kremove(sva, len);
-	pmap_update(pmap_kernel());
-	uvm_unloan(pgs, npgs, UVM_LOAN_TOPAGE);
+	//pmap_kremove(sva, len);
+	//pmap_update(pmap_kernel());
+	//uvm_unloan(pgs, npgs, UVM_LOAN_TOPAGE);
 	sokvafree(sva, len);
 }
 
@@ -327,6 +330,10 @@ soloanfree(struct mbuf *m, void *buf, size_t size, void *arg)
 static long
 sosend_loan(struct socket *so, struct uio *uio, struct mbuf *m, long space)
 {
+	// TODO: fixme, pmap should not be used in wasm variant.
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	struct iovec *iov = uio->uio_iov;
 	vaddr_t sva, eva;
 	vsize_t len;
@@ -335,7 +342,7 @@ sosend_loan(struct socket *so, struct uio *uio, struct mbuf *m, long space)
 	vaddr_t va;
 	int i;
 
-	if (VMSPACE_IS_KERNEL_P(uio->uio_vmspace))
+	if (VMSPACE_IS_KERNEL_P(uio->uio_vmspace)) // this references kernel_pmap_ptr
 		return 0;
 
 	if (iov->iov_len < (size_t) space)
@@ -381,6 +388,8 @@ sosend_loan(struct socket *so, struct uio *uio, struct mbuf *m, long space)
 	}
 
 	return space;
+#endif
+	return 0;
 }
 
 static int

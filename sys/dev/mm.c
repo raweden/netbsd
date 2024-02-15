@@ -33,6 +33,7 @@
  * Special /dev/{mem,kmem,zero,null} memory devices.
  */
 
+
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: mm.c,v 1.24 2019/02/05 11:33:13 mrg Exp $");
 
@@ -48,6 +49,11 @@ __KERNEL_RCSID(0, "$NetBSD: mm.c,v 1.24 2019/02/05 11:33:13 mrg Exp $");
 #include <dev/mm.h>
 
 #include <uvm/uvm_extern.h>
+
+#include <wasm/../mm/mm.h>
+#include <machine/wasm/builtin.h>
+
+// TODO: this might be doable without using a page for it..
 
 static void *		dev_zero_page	__read_mostly;
 static kmutex_t		dev_mem_lock	__cacheline_aligned;
@@ -109,22 +115,19 @@ mm_open(dev_t dev, int flag, int mode, struct lwp *l)
 void
 mm_init(void)
 {
-	vaddr_t pg;
+	void *pg;
 
 	mutex_init(&dev_mem_lock, MUTEX_DEFAULT, IPL_NONE);
 
 	/* Read-only zero-page. */
-	pg = uvm_km_alloc(kernel_map, PAGE_SIZE, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	pg = kmem_page_alloc(1, 0);
 	KASSERT(pg != 0);
-	pmap_protect(pmap_kernel(), pg, pg + PAGE_SIZE, VM_PROT_READ);
-	pmap_update(pmap_kernel());
-	dev_zero_page = (void *)pg;
+	wasm_memory_fill(pg, 0, PAGE_SIZE);
+	dev_zero_page = pg;
 
 #ifndef __HAVE_MM_MD_CACHE_ALIASING
 	/* KVA for mappings during I/O. */
-	dev_mem_addr = uvm_km_alloc(kernel_map, PAGE_SIZE, 0,
-	    UVM_KMF_VAONLY|UVM_KMF_WAITVA);
-	KASSERT(dev_mem_addr != 0);
+	dev_mem_addr = (uintptr_t)pg;
 #else
 	dev_mem_addr = 0;
 #endif
@@ -206,16 +209,16 @@ dev_mem_readwrite(struct uio *uio, struct iovec *iov)
 
 		/* Map selected KVA to physical address. */
 		mutex_enter(&dev_mem_lock);
-		pmap_kenter_pa(va, paddr, prot, 0);
-		pmap_update(pmap_kernel());
+		//pmap_kenter_pa(va, paddr, prot, 0);
+		//pmap_update(pmap_kernel());
 
 		/* Perform I/O. */
 		vaddr = va + offset;
 		error = uiomove((void *)vaddr, len, uio);
 
 		/* Unmap, flush before unlock. */
-		pmap_kremove(va, PAGE_SIZE);
-		pmap_update(pmap_kernel());
+		//pmap_kremove(va, PAGE_SIZE);
+		//pmap_update(pmap_kernel());
 		mutex_exit(&dev_mem_lock);
 
 		/* "Release" the virtual address. */

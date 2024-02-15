@@ -169,14 +169,6 @@ pmap_tlb_init(void)
 #endif
 }
 
-void
-pmap_tlb_cpu_init(struct cpu_info *ci)
-{
-	pmap_tlb_packet_t *tp = (pmap_tlb_packet_t *)ci->ci_pmap_data;
-
-	memset(tp, 0, sizeof(pmap_tlb_packet_t));
-	kcpuset_create(&ci->ci_tlb_cpuset, true);
-}
 
 static inline void
 pmap_tlbstat_count(struct pmap *pm, vaddr_t va, tlbwhy_t why)

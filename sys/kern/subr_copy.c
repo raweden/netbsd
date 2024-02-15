@@ -79,6 +79,7 @@
  *	@(#)kern_subr.c	8.4 (Berkeley) 2/14/95
  */
 
+#include "arch/wasm/mm/mm.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: subr_copy.c,v 1.19 2023/05/22 14:07:24 riastradh Exp $");
 
@@ -92,11 +93,13 @@ __KERNEL_RCSID(0, "$NetBSD: subr_copy.c,v 1.19 2023/05/22 14:07:24 riastradh Exp
 
 #include <uvm/uvm_extern.h>
 
+#include <wasm/../mm/mm.h>
+
 void
 uio_setup_sysspace(struct uio *uio)
 {
-
-	uio->uio_vmspace = vmspace_kernel();
+	//uio->uio_vmspace = vmspace_kernel();
+	uio->uio_vmspace = (struct vmspace *)__wasm_kmeminfo;
 }
 
 int
@@ -123,9 +126,11 @@ uiomove(void *buf, size_t n, struct uio *uio)
 		}
 		if (cnt > n)
 			cnt = n;
+#if 0
 		if (!VMSPACE_IS_KERNEL_P(vm)) {
 			preempt_point();
 		}
+#endif
 
 		if (uio->uio_rw == UIO_READ) {
 			error = copyout_vmspace(vm, cp, iov->iov_base,
@@ -200,9 +205,11 @@ uiopeek(void *buf, size_t n, struct uio *uio)
 		}
 		if (cnt > n)
 			cnt = n;
+#if 0
 		if (!VMSPACE_IS_KERNEL_P(vm)) {
 			preempt_point();
 		}
+#endif
 
 		if (uio->uio_rw == UIO_READ) {
 			error = copyout_vmspace(vm, cp, base, cnt);
@@ -272,13 +279,15 @@ again:
 		uio->uio_iov++;
 		goto again;
 	}
+#if 0
 	if (!VMSPACE_IS_KERNEL_P(uio->uio_vmspace)) {
 		int error;
 		if ((error = ustore_char(iov->iov_base, c)) != 0)
 			return (error);
 	} else {
+#endif
 		*(char *)iov->iov_base = c;
-	}
+	//}
 	iov->iov_base = (char *)iov->iov_base + 1;
 	iov->iov_len--;
 	uio->uio_resid--;
@@ -294,17 +303,32 @@ copyin_vmspace(struct vmspace *vm, const void *uaddr, void *kaddr, size_t len)
 {
 	struct iovec iov;
 	struct uio uio;
+#ifdef __wasm__
+	struct wm_space_wasm *md_umem;
+#endif
 	int error;
 
 	if (len == 0)
 		return (0);
 
+	if (vm_space_is_kernel(vm)) {
+		return kcopy(uaddr, kaddr, len);
+	}
+#if 0
 	if (VMSPACE_IS_KERNEL_P(vm)) {
 		return kcopy(uaddr, kaddr, len);
 	}
+#endif
+#ifdef __wasm__
+	md_umem = (struct wm_space_wasm *)vm->vm_wasm_mem;
+	if (__predict_true(md_umem == curproc->p_md.md_umem)) {
+		return copyout(kaddr, uaddr, len);
+	}
+#else
 	if (__predict_true(vm == curproc->p_vmspace)) {
 		return copyin(uaddr, kaddr, len);
 	}
+#endif
 
 	iov.iov_base = kaddr;
 	iov.iov_len = len;
@@ -327,17 +351,30 @@ copyout_vmspace(struct vmspace *vm, const void *kaddr, void *uaddr, size_t len)
 {
 	struct iovec iov;
 	struct uio uio;
+#ifdef __wasm__
+	struct wm_space_wasm *md_umem;
+#endif
 	int error;
 
 	if (len == 0)
 		return (0);
 
+#ifdef __wasm__
+	if (vm_space_is_kernel((struct vm_space_wasm *)vm)) {
+		return kcopy(kaddr, uaddr, len);
+	}
+	md_umem = (struct wm_space_wasm *)vm;
+	if (__predict_true(md_umem == curproc->p_md.md_umem)) {
+		return copyout(kaddr, uaddr, len);
+	}
+#else
 	if (VMSPACE_IS_KERNEL_P(vm)) {
 		return kcopy(kaddr, uaddr, len);
 	}
 	if (__predict_true(vm == curproc->p_vmspace)) {
 		return copyout(kaddr, uaddr, len);
 	}
+#endif
 
 	iov.iov_base = __UNCONST(kaddr); /* XXXUNCONST cast away const */
 	iov.iov_len = len;

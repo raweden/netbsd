@@ -195,6 +195,8 @@ aprint_bootinfo(void)
 int
 mm_md_physacc(paddr_t pa, vm_prot_t prot)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	extern phys_ram_seg_t mem_clusters[VM_PHYSSEG_MAX];
 	extern int mem_cluster_cnt;
 	int i;
@@ -207,8 +209,9 @@ mm_md_physacc(paddr_t pa, vm_prot_t prot)
 			return 0;
 		}
 	}
-	return kauth_authorize_machdep(kauth_cred_get(),
-	    KAUTH_MACHDEP_UNMANAGEDMEM, NULL, NULL, NULL, NULL);
+	return kauth_authorize_machdep(kauth_cred_get(), KAUTH_MACHDEP_UNMANAGEDMEM, NULL, NULL, NULL, NULL);
+#endif
+	return 0;
 }
 
 #ifdef MODULAR
@@ -564,6 +567,8 @@ x86_select_freelist(uint64_t maxaddr)
 static int
 x86_add_cluster(uint64_t seg_start, uint64_t seg_end, uint32_t type)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	extern struct extent *iomem_ex;
 	const uint64_t endext = MAXIOMEM + 1;
 	uint64_t new_physmem = 0;
@@ -672,7 +677,7 @@ x86_add_cluster(uint64_t seg_start, uint64_t seg_end, uint32_t type)
 		physmem = new_physmem;
 	}
 	mem_cluster_cnt++;
-
+#endif
 	return 0;
 }
 
@@ -755,6 +760,8 @@ x86_parse_clusters(struct btinfo_memmap *bim)
 static int
 x86_fake_clusters(void)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	extern struct extent *iomem_ex;
 	phys_ram_seg_t *cluster;
 	KASSERT(mem_cluster_cnt == 0);
@@ -817,7 +824,7 @@ x86_fake_clusters(void)
 	mem_cluster_cnt = 2;
 
 	avail_end = IOM_END + trunc_page(KBTOB(biosextmem));
-
+#endif
 	return 0;
 }
 
@@ -909,6 +916,7 @@ init_x86_clusters(void)
 #endif
 #endif
 
+#if 0
 	if (mem_cluster_cnt == 0) {
 		/*
 		 * If x86_parse_clusters didn't find any valid segment, create
@@ -916,6 +924,7 @@ init_x86_clusters(void)
 		 */
 		x86_fake_clusters();
 	}
+#endif
 }
 
 /*
@@ -926,6 +935,8 @@ init_x86_clusters(void)
 int
 init_x86_vm(paddr_t pa_kend)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	extern struct bootspace bootspace;
 	paddr_t pa_kstart = bootspace.head.pa;
 	uint64_t seg_start, seg_end;
@@ -1055,56 +1066,11 @@ init_x86_vm(paddr_t pa_kend)
 		}
 	}
 
+#endif
 	return 0;
 }
 
 #endif /* !XENPV */
-
-void
-init_x86_msgbuf(void)
-{
-	/* Message buffer is located at end of core. */
-	psize_t sz = round_page(MSGBUFSIZE);
-	psize_t reqsz = sz;
-	uvm_physseg_t x;
-
-search_again:
-	for (x = uvm_physseg_get_first();
-	     uvm_physseg_valid_p(x);
-	     x = uvm_physseg_get_next(x)) {
-
-		if (ctob(uvm_physseg_get_avail_end(x)) == avail_end)
-			break;
-	}
-
-	if (uvm_physseg_valid_p(x) == false)
-		panic("init_x86_msgbuf: can't find end of memory");
-
-	/* Shrink so it'll fit in the last segment. */
-	if (uvm_physseg_get_avail_end(x) - uvm_physseg_get_avail_start(x) < atop(sz))
-		sz = ctob(uvm_physseg_get_avail_end(x) - uvm_physseg_get_avail_start(x));
-
-	msgbuf_p_seg[msgbuf_p_cnt].sz = sz;
-	msgbuf_p_seg[msgbuf_p_cnt++].paddr = ctob(uvm_physseg_get_avail_end(x)) - sz;
-	uvm_physseg_unplug(uvm_physseg_get_end(x) - atop(sz), atop(sz));
-
-	/* Now find where the new avail_end is. */
-	avail_end = ctob(uvm_physseg_get_highest_frame());
-
-	if (sz == reqsz)
-		return;
-
-	reqsz -= sz;
-	if (msgbuf_p_cnt == VM_PHYSSEG_MAX) {
-		/* No more segments available, bail out. */
-		printf("WARNING: MSGBUFSIZE (%zu) too large, using %zu.\n",
-		    (size_t)MSGBUFSIZE, (size_t)(MSGBUFSIZE - reqsz));
-		return;
-	}
-
-	sz = reqsz;
-	goto search_again;
-}
 
 void
 x86_reset(void)
@@ -1194,8 +1160,7 @@ void
 machdep_init(void)
 {
 
-	x86_listener = kauth_listen_scope(KAUTH_SCOPE_MACHDEP,
-	    x86_listener_cb, NULL);
+	x86_listener = kauth_listen_scope(KAUTH_SCOPE_MACHDEP, x86_listener_cb, NULL);
 }
 
 /*

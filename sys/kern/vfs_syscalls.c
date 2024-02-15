@@ -3388,7 +3388,11 @@ do_sys_readlinkat(struct lwp *l, int fdat, const char *path, char *buf,
 		auio.uio_offset = 0;
 		auio.uio_rw = UIO_READ;
 		KASSERT(l == curlwp);
+#ifdef __wasm__
+		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 		auio.uio_resid = count;
 		if ((error = VOP_READLINK(vp, &auio, l->l_cred)) == 0)
 			*retval = count - auio.uio_resid;

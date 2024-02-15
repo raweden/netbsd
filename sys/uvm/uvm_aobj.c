@@ -54,6 +54,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_aobj.c,v 1.157 2023/02/24 11:03:13 riastradh Exp
 #include <uvm/uvm.h>
 #include <uvm/uvm_page_array.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 /*
  * An anonymous UVM object (aobj) manages anonymous-memory.  In addition to
  * keeping the list of resident pages, it may also keep a list of allocated
@@ -537,12 +541,16 @@ static inline struct vm_page *
 uao_pagealloc(struct uvm_object *uobj, voff_t offset, int flags)
 {
 	struct uvm_aobj *aobj = (struct uvm_aobj *)uobj;
-
+	void *addr;
+	addr = kmem_page_alloc(1, flags);
+	return (struct vm_page *)(addr != NULL ? paddr_to_page(addr) : NULL);
+#if 0
 	if (__predict_true(aobj->u_freelist == VM_NFREELIST))
 		return uvm_pagealloc(uobj, offset, NULL, flags);
 	else
 		return uvm_pagealloc_strat(uobj, offset, NULL, flags,
 		    UVM_PGA_STRAT_ONLY, aobj->u_freelist);
+#endif
 }
 
 /*
@@ -637,7 +645,7 @@ uao_detach(struct uvm_object *uobj)
 			continue;
 		}
 		uao_dropswap(&aobj->u_obj, pg->offset >> PAGE_SHIFT);
-		uvm_pagefree(pg);
+		kmem_page_free(pg->phys_addr, 1);
 	}
 	uvm_page_array_fini(&a);
 
@@ -771,7 +779,7 @@ uao_put(struct uvm_object *uobj, voff_t start, voff_t stop, int flags)
 			 */
 
 			uao_dropswap(uobj, pg->offset >> PAGE_SHIFT);
-			uvm_pagefree(pg);
+			kmem_page_free((void *)pg->phys_addr, 1);
 			break;
 
 		default:
@@ -1015,7 +1023,7 @@ uao_get(struct uvm_object *uobj, voff_t offset, struct vm_page **pps,
 					uvm_swap_markbad(swslot, 1);
 				}
 
-				uvm_pagefree(ptmp);
+				kmem_page_free((void *)ptmp->phys_addr, 1);
 				rw_exit(uobj->vmobjlock);
 				UVMHIST_LOG(pdhist, "<- done (error)",
 				    error,lcv,0,0);
@@ -1282,6 +1290,7 @@ uao_pagein_page(struct uvm_aobj *aobj, int pageidx)
 	 */
 	uao_dropswap(&aobj->u_obj, pageidx);
 
+#ifndef __WASM
 	/*
 	 * make sure it's on a page queue.
 	 */
@@ -1289,6 +1298,7 @@ uao_pagein_page(struct uvm_aobj *aobj, int pageidx)
 	uvm_pageenqueue(pg);
 	uvm_pagewakeup(pg);
 	uvm_pageunlock(pg);
+#endif
 
 	pg->flags &= ~(PG_BUSY|PG_FAKE);
 	uvm_pagemarkdirty(pg, UVM_PAGE_STATUS_DIRTY);

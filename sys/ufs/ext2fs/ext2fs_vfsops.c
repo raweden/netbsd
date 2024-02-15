@@ -980,6 +980,7 @@ ext2fs_init_vnode(struct ufsmount *ump, struct vnode *vp, ino_t ino)
 	int error;
 
 	fs = ump->um_e2fs;
+	bp = NULL;
 
 	/* Read in the disk contents for the inode, copy into the inode. */
 	error = bread(ump->um_devvp, EXT2_FSBTODB(fs, ino_to_fsba(fs, ino)),

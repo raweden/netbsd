@@ -573,7 +573,7 @@ lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 			KM_NOSLEEP : KM_SLEEP;
 
 		size_t alloc_size = nsize + hdr_size;
-		alloc_header_t *nhdr = kmem_intr_alloc(alloc_size, sleep);
+		alloc_header_t *nhdr = kmem_alloc(alloc_size, sleep);
 		if (nhdr == NULL) /* failed to allocate */
 			return NULL;
 

@@ -92,6 +92,10 @@ __KERNEL_RCSID(0, "$NetBSD: sys_pipe.c,v 1.160 2023/04/22 13:53:02 riastradh Exp
 #include <sys/atomic.h>
 #include <sys/pipe.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 static int	pipe_read(file_t *, off_t *, struct uio *, kauth_cred_t, int);
 static int	pipe_write(file_t *, off_t *, struct uio *, kauth_cred_t, int);
 static int	pipe_close(file_t *);
@@ -171,15 +175,16 @@ static int
 pipe_ctor(void *arg, void *obj, int flags)
 {
 	struct pipe *pipe;
+	uint32_t pgc;
 	vaddr_t va;
 
 	pipe = obj;
 
 	memset(pipe, 0, sizeof(struct pipe));
 	if (arg != NULL) {
+		pgc = howmany(PIPE_SIZE, PAGE_SIZE);
 		/* Preallocate space. */
-		va = uvm_km_alloc(kernel_map, PIPE_SIZE, 0,
-		    UVM_KMF_PAGEABLE | UVM_KMF_WAITVA);
+		va = (vaddr_t)kmem_page_zalloc(pgc, 0);
 		KASSERT(va != 0);
 		pipe->pipe_kmem = va;
 		atomic_add_int(&amountpipekva, PIPE_SIZE);
@@ -207,8 +212,7 @@ pipe_dtor(void *arg, void *obj)
 	cv_destroy(&pipe->pipe_lkcv);
 	seldestroy(&pipe->pipe_sel);
 	if (pipe->pipe_kmem != 0) {
-		uvm_km_free(kernel_map, pipe->pipe_kmem, PIPE_SIZE,
-		    UVM_KMF_PAGEABLE);
+		kmem_page_free((void *)pipe->pipe_kmem, PIPE_SIZE);
 		atomic_add_int(&amountpipekva, -PIPE_SIZE);
 	}
 }
@@ -291,8 +295,7 @@ pipespace(struct pipe *pipe, int size)
 	if (size == PIPE_SIZE && pipe->pipe_kmem != 0) {
 		buffer = (void *)pipe->pipe_kmem;
 	} else {
-		buffer = (void *)uvm_km_alloc(kernel_map, round_page(size),
-		    0, UVM_KMF_PAGEABLE);
+		buffer = kmem_page_alloc(round_page(size), 0);
 		if (buffer == NULL)
 			return (ENOMEM);
 		atomic_add_int(&amountpipekva, size);
@@ -946,9 +949,7 @@ pipe_free_kmem(struct pipe *pipe)
 			atomic_dec_uint(&nbigpipe);
 		}
 		if (pipe->pipe_buffer.buffer != (void *)pipe->pipe_kmem) {
-			uvm_km_free(kernel_map,
-			    (vaddr_t)pipe->pipe_buffer.buffer,
-			    pipe->pipe_buffer.size, UVM_KMF_PAGEABLE);
+			kmem_page_free(pipe->pipe_buffer.buffer, pipe->pipe_buffer.size);
 			atomic_add_int(&amountpipekva,
 			    -pipe->pipe_buffer.size);
 		}

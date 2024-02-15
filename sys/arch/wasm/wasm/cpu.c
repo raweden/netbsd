@@ -139,6 +139,10 @@ __KERNEL_RCSID(0, "$NetBSD: cpu.c,v 1.209 2023/07/16 19:55:43 riastradh Exp $");
 #include <xen/hypervisor.h>
 #endif
 
+#ifdef __wasm__
+#include "arch/wasm/mm/mm.h"
+#endif
+
 static int	cpu_match(device_t, cfdata_t, void *);
 static void	cpu_attach(device_t, device_t, void *);
 static void	cpu_defer(device_t);
@@ -228,13 +232,6 @@ void
 cpu_init_first(void)
 {
 
-	cpu_info_primary.ci_cpuid = lapic_cpu_number();
-
-	cmos_data_mapping = uvm_km_alloc(kernel_map, PAGE_SIZE, 0, UVM_KMF_VAONLY);
-	if (cmos_data_mapping == 0)
-		panic("No KVA for page 0");
-	pmap_kenter_pa(cmos_data_mapping, 0, VM_PROT_READ|VM_PROT_WRITE, 0);
-	pmap_update(pmap_kernel());
 }
 #endif
 
@@ -244,36 +241,6 @@ cpu_match(device_t parent, cfdata_t match, void *aux)
 
 	return 1;
 }
-
-#ifdef __HAVE_PCPU_AREA
-void
-cpu_pcpuarea_init(struct cpu_info *ci)
-{
-	struct vm_page *pg;
-	size_t i, npages;
-	vaddr_t base, va;
-	paddr_t pa;
-
-	CTASSERT(sizeof(struct pcpu_entry) % PAGE_SIZE == 0);
-
-	npages = sizeof(struct pcpu_entry) / PAGE_SIZE;
-	base = (vaddr_t)&pcpuarea->ent[cpu_index(ci)];
-
-	for (i = 0; i < npages; i++) {
-		pg = uvm_pagealloc(NULL, 0, NULL, UVM_PGA_ZERO);
-		if (pg == NULL) {
-			panic("failed to allocate pcpu PA");
-		}
-
-		va = base + i * PAGE_SIZE;
-		pa = VM_PAGE_TO_PHYS(pg);
-
-		pmap_kenter_pa(va, pa, VM_PROT_READ|VM_PROT_WRITE, 0);
-	}
-
-	pmap_update(pmap_kernel());
-}
-#endif
 
 static void
 cpu_vm_init(struct cpu_info *ci)
@@ -331,12 +298,6 @@ cpu_vm_init(struct cpu_info *ci)
 	 * re-color our pages.
 	 */
 	aprint_debug_dev(ci->ci_dev, "%d page colors\n", ncolors);
-	uvm_page_recolor(ncolors);
-
-	pmap_tlb_cpu_init(ci);
-#ifndef __HAVE_DIRECT_MAP
-	pmap_vpage_cpu_init(ci);
-#endif
 }
 
 static void
@@ -375,9 +336,7 @@ cpu_attach(device_t parent, device_t self, void *aux)
 			return;
 		}
 		aprint_naive(": Application Processor\n");
-		ptr = (uintptr_t)uvm_km_alloc(kernel_map,
-		    sizeof(*ci) + CACHE_LINE_SIZE - 1, 0,
-		    UVM_KMF_WIRED|UVM_KMF_ZERO);
+		ptr = (uintptr_t)kmem_zalloc(sizeof(*ci) + CACHE_LINE_SIZE - 1, 0);
 		ci = (struct cpu_info *)roundup2(ptr, CACHE_LINE_SIZE);
 		ci->ci_curldt = -1;
 	} else {
@@ -439,8 +398,6 @@ cpu_attach(device_t parent, device_t self, void *aux)
 	cpu_svs_init(ci);
 #endif
 
-	pmap_reference(pmap_kernel());
-	ci->ci_pmap = pmap_kernel();
 	ci->ci_tlbstate = TLBSTATE_STALE;
 
 	/*
@@ -463,7 +420,6 @@ cpu_attach(device_t parent, device_t self, void *aux)
 #ifdef i386
 		cpu_set_tss_gates(ci);
 #endif
-		pmap_cpu_init_late(ci);
 #if NLAPIC > 0
 		if (caa->cpu_role != CPU_ROLE_SP) {
 			/* Enable lapic. */
@@ -500,37 +456,9 @@ cpu_attach(device_t parent, device_t self, void *aux)
 #endif
 		break;
 
-#ifdef MULTIPROCESSOR
-	case CPU_ROLE_AP:
-		/*
-		 * report on an AP
-		 */
-		cpu_intr_init(ci);
-		idt_vec_init_cpu_md(&ci->ci_idtvec, cpu_index(ci));
-		gdt_alloc_cpu(ci);
-#ifdef i386
-		cpu_set_tss_gates(ci);
-#endif
-		pmap_cpu_init_late(ci);
-		cpu_start_secondary(ci);
-		if (ci->ci_flags & CPUF_PRESENT) {
-			struct cpu_info *tmp;
-
-			cpu_identify(ci);
-			tmp = cpu_info_list;
-			while (tmp->ci_next)
-				tmp = tmp->ci_next;
-
-			tmp->ci_next = ci;
-		}
-		break;
-#endif
-
 	default:
 		panic("unknown processor type??\n");
 	}
-
-	pat_init(ci);
 
 	if (!pmf_device_register1(self, cpu_suspend, cpu_resume, cpu_shutdown))
 		aprint_error_dev(self, "couldn't establish power handler\n");

@@ -575,7 +575,11 @@ do_sys_sendmsg_so(struct lwp *l, int s, struct socket *so, file_t *fp,
 	auio.uio_offset = 0;			/* XXX */
 	auio.uio_resid = 0;
 	KASSERT(l == curlwp);
+#ifdef __wasm__
+	auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 
 	tiov = auio.uio_iov;
 	for (i = 0; i < auio.uio_iovcnt; i++, tiov++) {
@@ -952,7 +956,11 @@ do_sys_recvmsg_so(struct lwp *l, int s, struct socket *so, struct msghdr *mp,
 	auio.uio_offset = 0;			/* XXX */
 	auio.uio_resid = 0;
 	KASSERT(l == curlwp);
+#ifdef __wasm__
+	auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 
 	tiov = auio.uio_iov;
 	for (i = 0; i < auio.uio_iovcnt; i++, tiov++) {

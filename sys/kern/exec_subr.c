@@ -217,7 +217,7 @@ vmcmd_map_pagedvn(struct lwp *l, struct exec_vmcmd *cmd)
 	 */
 	uobj = &vp->v_uobj;
 	vref(vp);
-
+#if 0
 	error = uvm_map(&p->p_vmspace->vm_map, &cmd->ev_addr, cmd->ev_len,
 		uobj, cmd->ev_offset, 0,
 		UVM_MAPFLAG(prot, maxprot, UVM_INH_COPY,
@@ -225,6 +225,7 @@ vmcmd_map_pagedvn(struct lwp *l, struct exec_vmcmd *cmd)
 	if (error) {
 		uobj->pgops->pgo_detach(uobj);
 	}
+#endif
 	return error;
 }
 
@@ -249,6 +250,7 @@ vmcmd_map_readvn(struct lwp *l, struct exec_vmcmd *cmd)
 	cmd->ev_offset -= diff;
 	cmd->ev_len += diff;
 
+#if 0
 	error = uvm_map(&p->p_vmspace->vm_map, &cmd->ev_addr,
 			round_page(cmd->ev_len), NULL, UVM_UNKNOWN_OFFSET, 0,
 			UVM_MAPFLAG(UVM_PROT_ALL, UVM_PROT_ALL, UVM_INH_COPY,
@@ -257,6 +259,7 @@ vmcmd_map_readvn(struct lwp *l, struct exec_vmcmd *cmd)
 
 	if (error)
 		return error;
+#endif
 
 	return vmcmd_readvn(l, cmd);
 }
@@ -286,6 +289,7 @@ vmcmd_readvn(struct lwp *l, struct exec_vmcmd *cmd)
 		pmap_procwr(p, cmd->ev_addr, cmd->ev_len);
 #endif
 
+#ifndef __WASM
 	/*
 	 * we had to map in the area at PROT_ALL so that vn_rdwr()
 	 * could write to it.   however, the caller seems to want
@@ -309,6 +313,7 @@ vmcmd_readvn(struct lwp *l, struct exec_vmcmd *cmd)
 		if (error)
 			return error;
 	}
+#endif
 
 	return 0;
 }
@@ -334,11 +339,13 @@ vmcmd_map_zero(struct lwp *l, struct exec_vmcmd *cmd)
 	if ((error = vmcmd_get_prot(l, cmd, &prot, &maxprot)) != 0)
 		return error;
 
+#if 0
 	error = uvm_map(&p->p_vmspace->vm_map, &cmd->ev_addr,
 			round_page(cmd->ev_len), NULL, UVM_UNKNOWN_OFFSET, 0,
 			UVM_MAPFLAG(prot, maxprot, UVM_INH_COPY,
 			UVM_ADV_NORMAL,
 			UVM_FLAG_FIXED|UVM_FLAG_COPYONW));
+#endif
 	if (cmd->ev_flags & VMCMD_STACK)
 		curproc->p_vmspace->vm_issize += atop(round_page(cmd->ev_len));
 	return error;
