@@ -78,14 +78,17 @@ struct krndsource uvm_fault_rndsource;
 void
 uvm_md_init(void)
 {
+#ifndef __wasm__
 	uvm_setpagesize(); /* initialize PAGE_SIZE-dependent variables */
 	uvm_physseg_init();
+#endif
 }
+
+#if 0
 
 /*
  * uvm_init: init the VM system.   called from kern/init_main.c.
  */
-
 void
 uvm_init(void)
 {
@@ -202,3 +205,5 @@ uvm_init(void)
 	    RND_FLAG_COLLECT_TIME|RND_FLAG_COLLECT_VALUE|
 	    RND_FLAG_ESTIMATE_VALUE);
 }
+
+#endif

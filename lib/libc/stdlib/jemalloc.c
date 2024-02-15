@@ -113,6 +113,8 @@ int wasm_memory_grow(int pgcnt) __WASM_BUILTIN(memory_grow);
 int wasm_memory_size(void) __WASM_BUILTIN(memory_size);
 #endif
 
+// TODO: use memory.grow / memory.size like sbrk and ignore memory resize ranges done outside of jemalloc.
+
 /*
  * MALLOC_PRODUCTION disables assertions and statistics gathering.  It also
  * defaults the A and J runtime options to off.  These settings are appropriate
@@ -321,7 +323,18 @@ __RCSID("$NetBSD: jemalloc.c,v 1.56 2023/05/07 12:41:47 skrll Exp $");
 #ifndef __WASM_IMPORT
 #define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
 #endif
-void *sbrk(intptr_t) __WASM_IMPORT(sys, sbrk);
+//void *sbrk(intptr_t) __WASM_IMPORT(sys, sbrk);
+int __wasm_last_grow;
+mutex_t __wasm_grow_lock;
+struct wasm_memory_bucket {
+	struct wasm_memory_bucket *mb_next;
+	uintptr_t mb_start;
+	uint32_t mb_size;
+};
+struct wasm_memory_bucket __wasm_membuckets[32];
+struct wasm_memory_bucket *__wasm_memfree;
+
+void usr_stderr_stdout_write(int fd, void *buf, uint32_t bufsz) __WASM_IMPORT(kern, usr_stderr_stdout_write);
 #endif
 
 #define	SIZEOF_PTR		(1 << SIZEOF_PTR_2POW)
@@ -1104,8 +1117,10 @@ static bool
 base_pages_alloc(size_t minsize)
 {
 	size_t csize = 0;
+	char pbuf[1024];
+	int pbufsz;
 
-#ifdef USE_BRK
+#if defined (USE_BRK) || defined (__WASM)
 	/*
 	 * Do special brk allocation here, since base allocations don't need to
 	 * be chunk-aligned.
@@ -1113,6 +1128,8 @@ base_pages_alloc(size_t minsize)
 	if (brk_prev != (void *)-1) {
 		void *brk_cur;
 		intptr_t incr;
+		int incr_rem;
+		int growsz, growret, sizeret;
 
 		if (minsize != 0)
 			csize = CHUNK_CEILING(minsize);
@@ -1120,33 +1137,48 @@ base_pages_alloc(size_t minsize)
 		malloc_mutex_lock(&brk_mtx);
 		do {
 			/* Get the current end of brk. */
-			brk_cur = sbrk(0);
+			sizeret = wasm_memory_size();
 
 			/*
 			 * Calculate how much padding is necessary to
 			 * chunk-align the end of brk.  Don't worry about
 			 * brk_cur not being chunk-aligned though.
 			 */
-			incr = (intptr_t)chunksize
-			    - (intptr_t)CHUNK_ADDR2OFFSET(brk_cur);
+			incr = (intptr_t)chunksize; // dont care for alignment for wasm size these pages are 64kb of size
+			incr_rem = sizeret != 0 ? (sizeret * WASM_PAGE_SIZE) % chunksize : 0;
+			if (incr_rem > 0) {
+				incr = chunksize - incr_rem;
+			}
 			assert(incr >= 0);
 			if ((size_t)incr < minsize)
 				incr += csize;
 
-			brk_prev = sbrk(incr);
-			if (brk_prev == brk_cur) {
+			growsz = howmany(incr, WASM_PAGE_SIZE);
+			growret = wasm_memory_grow(growsz);
+
+			if (growret == -1) {
+				return NULL;
+			}
+
+			__wasm_last_grow = growret + growsz;
+
+			if (growret == sizeret) {
 				/* Success. */
 				malloc_mutex_unlock(&brk_mtx);
-				base_pages = brk_cur;
+				base_pages = (void *)(growret * WASM_PAGE_SIZE);
 				base_next_addr = base_pages;
-				base_past_addr = (void *)((uintptr_t)base_pages
-				    + incr);
+				base_past_addr = (void *)((growret + growsz) * WASM_PAGE_SIZE);
+				// do not print! print calls malloc
+				//printf("%s base_pages %p incr = %ld growsz = %d\n", __func__, base_pages, incr, growsz);
+				pbufsz = sprintf(pbuf, "%s base_pages %p incr = %ld growsz = %d\n", __func__, base_pages, incr, growsz);
+				usr_stderr_stdout_write(1, pbuf, pbufsz);
 #ifdef MALLOC_STATS
 				base_mapped += incr;
 #endif
 				return (false);
 			}
-		} while (brk_prev != (void *)-1);
+		} while (__wasm_last_grow != -1);
+
 		malloc_mutex_unlock(&brk_mtx);
 	}
 	if (minsize == 0) {
@@ -1157,6 +1189,11 @@ base_pages_alloc(size_t minsize)
 		return (true);
 	}
 #endif
+	// do not print! print calls malloc
+	//printf("%s alloc failed!\n", __func__);
+	pbufsz = sprintf(pbuf, "%s alloc failed!\n", __func__);
+	usr_stderr_stdout_write(1, pbuf, pbufsz);
+
 	assert(minsize != 0);
 	csize = PAGE_CEILING(minsize);
 	base_pages = pages_map(NULL, csize);
@@ -1175,9 +1212,14 @@ base_alloc(size_t size)
 {
 	void *ret;
 	size_t csize;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	/* Round size up to nearest multiple of the cacheline size. */
 	csize = CACHELINE_CEILING(size);
+
+	tmpbufsz = sprintf(tmpbuf, "%s size %zu csize = %zu\n", __func__, size, csize);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 
 	malloc_mutex_lock(&base_mtx);
 
@@ -1327,7 +1369,34 @@ static void *
 pages_map_align(void *addr, size_t size, int align)
 {
 	void *ret;
+	char tmpbuf[256];
+	int tmpbufsz;
 
+	if (addr == NULL) {
+		int growsz, growret;
+		growsz = howmany(size, WASM_PAGE_SIZE);
+		growret = wasm_memory_grow(growsz);
+
+		if (growret == -1) {
+			return NULL;
+		}
+
+		if (growret != __wasm_last_grow) {
+			// map the range as unmapped by jemalloc
+		}
+
+		ret = (void *)(growret * WASM_PAGE_SIZE);
+		__wasm_last_grow = growret + growsz;
+
+		// TODO: map the rest of the wasm page as free chunk.
+		tmpbufsz = sprintf(tmpbuf, "%s addr = %p size = %ld align = %d ret = %p\n", __func__, addr, size, align, ret);
+		usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
+
+		return ret;
+	}
+
+	tmpbufsz = sprintf(tmpbuf, "%s (memory.grow failed, addr is not NULL) addr = %p size = %zu align = %d\n", __func__, addr, size, align);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	/*
 	 * We don't use MAP_FIXED here, because it can cause the *replacement*
 	 * of existing mappings, and we only want to create new mappings.
@@ -1643,7 +1712,11 @@ choose_arena_hard(void)
 	 * If we were unable to allocate an arena above, then default to
 	 * the first arena, which is always present.
 	 */
+#ifndef __WASM
 	curcpu = thr_curcpu();
+#else
+	curcpu = 0;
+#endif
 	if (map[curcpu] != NULL)
 		return map[curcpu];
 	return arenas[0];
@@ -1656,7 +1729,11 @@ choose_arena(void)
 	arena_t **map;
 
 	map = get_arenas_map();
+#ifndef __WASM
 	curcpu = thr_curcpu();
+#else
+	curcpu = 0;
+#endif
 	if (__predict_true(map != NULL && map[curcpu] != NULL))
 		return map[curcpu];
 
@@ -1873,6 +1950,8 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size)
 	arena_chunk_t *chunk;
 	unsigned run_ind, map_offset, total_pages, need_pages, rem_pages;
 	unsigned i;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(run);
 	run_ind = (unsigned)(((uintptr_t)run - (uintptr_t)chunk)
@@ -1881,6 +1960,9 @@ arena_run_split(arena_t *arena, arena_run_t *run, size_t size)
 	need_pages = (unsigned)(size >> pagesize_2pow);
 	assert(need_pages <= total_pages);
 	rem_pages = total_pages - need_pages;
+
+	tmpbufsz = sprintf(tmpbuf, "%s arena = %p run = %p chunk = %p size = %zu run_ind = %d need_pages = %d total_pages = %d chunk->pages_used = %d pagesize_2pow = %d\n", __func__, arena, run, chunk, size, run_ind, need_pages, total_pages, chunk->pages_used, pagesize_2pow);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 
 	/* Split enough pages from the front of run to fit allocation size. */
 	map_offset = run_ind;
@@ -1981,6 +2063,8 @@ arena_run_alloc(arena_t *arena, size_t size)
 	arena_chunk_t *chunk, *chunk_tmp;
 	arena_run_t *run;
 	unsigned need_npages;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	assert(size <= (chunksize - (arena_chunk_header_npages <<
 	    pagesize_2pow)));
@@ -1992,6 +2076,10 @@ arena_run_alloc(arena_t *arena, size_t size)
 	 * otherwise the lowest address of the next size.
 	 */
 	need_npages = (unsigned)(size >> pagesize_2pow);
+
+	tmpbufsz = sprintf(tmpbuf, "%s arena = %p size = %zu need_npages = %d\n", __func__, arena, size, need_npages);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
+
 	/* LINTED */
 	for (;;) {
 		chunk_tmp = RB_ROOT(&arena->chunks);
@@ -2319,11 +2407,16 @@ static void *
 arena_malloc(arena_t *arena, size_t size)
 {
 	void *ret;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	assert(arena != NULL);
 	assert(arena->magic == ARENA_MAGIC);
 	assert(size != 0);
 	assert(QUANTUM_CEILING(size) <= arena_maxclass);
+
+	tmpbufsz = sprintf(tmpbuf, "%s arena = %p size = %zu bin_maxclass = %zu small_min = %zu small_max = %zu\n", __func__, arena, size, bin_maxclass, small_min, small_max);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 
 	if (size <= bin_maxclass) {
 		arena_bin_t *bin;
@@ -2377,6 +2470,10 @@ arena_malloc(arena_t *arena, size_t size)
 	} else {
 		/* Large allocation. */
 		size = PAGE_CEILING(size);
+
+		tmpbufsz = sprintf(tmpbuf, "%s arena = %p size = %zu (after PAGE_CEILING)\n", __func__, arena, size);
+		usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
+
 		malloc_mutex_lock(&arena->mtx);
 		ret = (void *)arena_run_alloc(arena, size);
 		if (ret == NULL) {
@@ -2800,6 +2897,11 @@ huge_malloc(size_t size)
 	void *ret;
 	size_t csize;
 	chunk_node_t *node;
+	char tmpbuf[256];
+	int tmpbufsz;
+
+	tmpbufsz = sprintf(tmpbuf, "%s size = %zu\n", __func__, size);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 
 	/* Allocate one or more contiguous chunks for this request. */
 
@@ -2836,6 +2938,9 @@ huge_malloc(size_t size)
 		memset(ret, 0xa5, csize);
 	else if (opt_zero)
 		memset(ret, 0, csize);
+
+	tmpbufsz = sprintf(tmpbuf, "%s size = %zu ret = %p\n", __func__, size, ret);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 
 	return (ret);
 }
@@ -3420,6 +3525,8 @@ malloc_init_hard(void)
 	char buf[PATH_MAX + 1];
 	const char *opts = "";
 	int serrno;
+	char tmpbuf[1024];
+	int tmpbufsz;
 
 	malloc_mutex_lock(&init_lock);
 	if (malloc_initialized) {
@@ -3433,6 +3540,7 @@ malloc_init_hard(void)
 
 	serrno = errno;
 	/* Get number of CPUs. */
+#ifndef __WASM
 	{
 		int mib[2];
 		size_t len;
@@ -3445,12 +3553,18 @@ malloc_init_hard(void)
 			ncpus = 1;
 		}
 	}
+#else
+	ncpus = 1;
+#endif
 
 	/* Get page size. */
 	{
 		long result;
-
+#ifndef __WASM
 		result = sysconf(_SC_PAGESIZE);
+#else
+		result = 4096;
+#endif
 		assert(result != -1);
 		pagesize = (unsigned) result;
 
@@ -3646,6 +3760,8 @@ malloc_init_hard(void)
 	chunksize_mask = chunksize - 1;
 	chunksize_2pow = (unsigned)opt_chunk_2pow;
 	chunk_npages = (unsigned)(chunksize >> pagesize_2pow);
+	tmpbufsz = sprintf(tmpbuf, "%s chunksize = %zu chunksize_mask = %zu chunksize_2pow = %d chunk_npages = %d sys-pagesize = %zu bin_maxclass = %zu ntbins = %d nqbins = %d nsbins = %d\n", __func__, chunksize, chunksize_mask, chunksize_2pow, chunk_npages, pagesize, bin_maxclass, ntbins, nqbins, nsbins);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	{
 		unsigned header_size;
 
@@ -3675,7 +3791,7 @@ malloc_init_hard(void)
 	RB_INIT(&huge);
 #ifdef USE_BRK
 	malloc_mutex_init(&brk_mtx);
-	brk_base = sbrk(0);
+	brk_base = (void *)(wasm_memory_size() * WASM_PAGE_SIZE);
 	brk_prev = brk_base;
 	brk_max = brk_base;
 #endif
@@ -3748,6 +3864,10 @@ malloc_init_hard(void)
 	 * arena_choose_hard().
 	 */
 	arenas_extend(0);
+
+	tmpbufsz = sprintf(tmpbuf, "%s narenas = %d arenas[0] = %p arenas = %p\n", __func__, narenas, arenas[0], arenas);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
+
 	if (arenas[0] == NULL) {
 		malloc_mutex_unlock(&init_lock);
 		return (true);
@@ -3772,6 +3892,8 @@ void *
 malloc(size_t size)
 {
 	void *ret;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	if (malloc_init()) {
 		ret = NULL;
@@ -3801,6 +3923,8 @@ RETURN:
 	}
 
 	UTRACE(0, size, ret);
+	tmpbufsz = sprintf(tmpbuf, "%s size = %zu ret = %p\n", __func__, size, ret);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	return (ret);
 }
 
@@ -3809,6 +3933,8 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 	int ret;
 	void *result;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	if (malloc_init())
 		result = NULL;
@@ -3846,6 +3972,8 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 
 RETURN:
 	UTRACE(0, size, result);
+	tmpbufsz = sprintf(tmpbuf, "%s size = %zu result = %p ret = %d\n", __func__, size, result, ret);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	return (ret);
 }
 
@@ -3854,12 +3982,17 @@ calloc(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	if (malloc_init()) {
 		num_size = 0;
 		ret = NULL;
 		goto RETURN;
 	}
+
+	if (num < 0)
+		num = 0;
 
 	num_size = num * size;
 	if (num_size == 0) {
@@ -3896,6 +4029,8 @@ RETURN:
 	}
 
 	UTRACE(0, num_size, ret);
+	tmpbufsz = sprintf(tmpbuf, "%s num_size = %zu ret = %p\n", __func__, num_size, ret);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	return (ret);
 }
 
@@ -3903,6 +4038,8 @@ void *
 realloc(void *ptr, size_t size)
 {
 	void *ret;
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	if (size == 0) {
 		if (opt_sysv == false)
@@ -3948,14 +4085,20 @@ realloc(void *ptr, size_t size)
 
 RETURN:
 	UTRACE(ptr, size, ret);
+	tmpbufsz = sprintf(tmpbuf, "%s ptr = %p size = %zu ret = %p\n", __func__, ptr, size, ret);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	return (ret);
 }
 
 void
 free(void *ptr)
 {
+	char tmpbuf[256];
+	int tmpbufsz;
 
 	UTRACE(ptr, 0, 0);
+	tmpbufsz = sprintf(tmpbuf, "%s ptr = %p\n", __func__, ptr);
+	usr_stderr_stdout_write(1, tmpbuf, tmpbufsz);
 	if (ptr != NULL) {
 		assert(malloc_initialized);
 

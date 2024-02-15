@@ -2777,7 +2777,11 @@ ttygetinfo(struct tty *tp, int fromsig, char *buf, size_t bufsz)
 	if (pick->p_stat == SIDL || P_ZOMBIE(pick))
 		rss = 0;
 	else
+#ifndef __WASM
 		rss = pgtok(vm_resident_count(pick->p_vmspace));
+#else
+		rss = 0;
+#endif
 
 	snprintf(lmsg, sizeof(lmsg), "%ld.%02ldu %ld.%02lds %d%% %ldk",
 	    (long)utime.tv_sec, (long)utime.tv_usec / 10000,

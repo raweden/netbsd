@@ -120,8 +120,11 @@ __KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.518 2022/07/01 01:05:31 riastradh Ex
 
 #ifdef __WASM
 #include <wasm/wasm_module.h>
+#include <wasm/../mm/mm.h>
 void wasm_exec_finish(void) __WASM_IMPORT(kern, exec_finish);
+int wasm_exec_ioctl(int cmd, void *arg) __WASM_IMPORT(kern, exec_ioctl);
 void wasm_exec_prepare_trampoline(void);
+extern bool wasm_auto_print2stdout;
 #endif
 
 #ifndef MD_TOPDOWN_INIT
@@ -289,22 +292,23 @@ struct spawn_exec_data {
 	volatile uint32_t	sed_refcnt;
 };
 
-static struct vm_map *exec_map;
+static struct mm_arena *exec_map;
 static struct pool exec_pool;
 
 static void *
 exec_pool_alloc(struct pool *pp, int flags)
 {
-
-	return (void *)uvm_km_alloc(exec_map, NCARGS, 0,
-	    UVM_KMF_PAGEABLE | UVM_KMF_WAITVA);
+	void *ptr;
+	mm_arena_alloc(exec_map, NCARGS, 0, ptr);
+	
+	return ptr;
 }
 
 static void
 exec_pool_free(struct pool *pp, void *addr)
 {
 
-	uvm_km_free(exec_map, (vaddr_t)addr, NCARGS, UVM_KMF_PAGEABLE);
+	mm_arena_free(exec_map, (vmem_addr_t)addr, 0);
 }
 
 static struct pool_allocator exec_palloc = {
@@ -461,12 +465,17 @@ check_exec(struct lwp *l, struct exec_package *epp, struct pathbuf *pb,
 
 	epp->ep_hdrvalid = epp->ep_hdrlen - resid;
 
+#ifdef __WASM
+	epp->ep_vm_minaddr = 0;
+	epp->ep_vm_maxaddr = UINT32_MAX;
+#else
 	/*
 	 * Set up default address space limits.  Can be overridden
 	 * by individual exec packages.
 	 */
 	epp->ep_vm_minaddr = exec_vm_minaddr(VM_MIN_ADDRESS);
 	epp->ep_vm_maxaddr = VM_MAXUSER_ADDRESS;
+#endif
 
 	/*
 	 * set up the vmcmds for creation of the process
@@ -737,6 +746,7 @@ err:
 	return error;
 }
 
+#ifndef __WASM
 vaddr_t
 exec_vm_minaddr(vaddr_t va_min)
 {
@@ -749,6 +759,7 @@ exec_vm_minaddr(vaddr_t va_min)
 		return VM_MIN_GUARD;
 	return va_min;
 }
+#endif
 
 static int
 execve_loadvm(struct lwp *l, bool has_path, const char *path, int fd,
@@ -1211,6 +1222,10 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	int error = 0;
 	struct proc		*p;
 	struct vmspace		*vm;
+	char *newstack;
+#ifdef __WASM
+	int uesp;
+#endif
 
 	/*
 	 * In case of a posix_spawn operation, the child doing the exec
@@ -1285,6 +1300,7 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	vm->vm_issize = 0;
 	vm->vm_maxsaddr = (void *)epp->ep_maxsaddr;
 	vm->vm_minsaddr = (void *)epp->ep_minsaddr;
+	vm->vm_wasm_mem = p->p_md.md_umem;
 
 	pax_aslr_init_vm(l, vm, epp);
 
@@ -1362,7 +1378,26 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 
 	pathexec(p, epp->ep_resolvedname);
 
-	char * const newstack = STACK_GROW(vm->vm_minsaddr, epp->ep_ssize);
+	// Determine stack-pointer for userspace.
+#ifndef __WASM
+	newstack = STACK_GROW(vm->vm_minsaddr, epp->ep_ssize);
+#else
+	// stack have been setup prior to this point being reached, example in dynamic-linking
+	error = wasm_exec_ioctl(545, (void *)&uesp);
+	if (error != 0)
+		goto exec_abort;
+
+	if (uesp == 0) {
+		newstack = (void *)wasm_exec_ioctl(548, (void *)epp->ep_ssize);
+	} else {
+		newstack = (void *)uesp;
+	}
+#endif
+
+#ifdef __WASM
+	if (wasm_auto_print2stdout)
+		fd_checkstd();
+#endif
 
 	error = copyoutargs(data, l, newstack);
 	if (error != 0)
@@ -1465,6 +1500,17 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	wasm_exec_prepare_trampoline();
 	// WASM: this beaty does never return..
 	wasm_exec_finish();
+
+	// if execution returned from wasm_exec_finish, it means that stack was not rewined..
+	// reset trampoline to prevent looping..
+	struct switchframe *sf;
+	struct pcb *pcb;
+    pcb = lwp_getpcb(l);
+    
+	sf = (struct switchframe *)pcb->pcb_esp;
+	sf->sf_esi = 0;
+	sf->sf_ebx = 0;
+	sf->sf_eip = 0;
 #endif
 
 	return EJUSTRETURN;
@@ -1599,8 +1645,12 @@ copyoutargs(struct execve_data * restrict data, struct lwp *l,
 	 * in setregs().
 	 */
 
+#ifndef __WASM
 	char *newargs = STACK_ALLOC(
 	    STACK_SHRINK(newstack, data->ed_argslen), data->ed_argslen);
+#else
+	char *newargs = (void *)wasm_exec_ioctl(549, (void *)data->ed_argslen);
+#endif
 
 	error = (*epp->ep_esch->es_copyargs)(l, epp,
 	    &data->ed_arginfo, &newargs, data->ed_argp);
@@ -1626,8 +1676,12 @@ copyoutpsstrs(struct execve_data * restrict data, struct proc *p)
 	int			error;
 
 	/* fill process ps_strings info */
+#ifndef __WASM
 	p->p_psstrp = (vaddr_t)STACK_ALLOC(STACK_GROW(epp->ep_minsaddr,
 	    STACK_PTHREADSPACE), data->ed_ps_strings_sz);
+#else
+	p->p_psstrp = (vaddr_t)wasm_exec_ioctl(549, (void *)data->ed_ps_strings_sz);
+#endif
 
 	if (epp->ep_flags & EXEC_32) {
 		aip = &arginfo32;
@@ -1978,9 +2032,8 @@ exec_init(int init_boot)
 		vaddr_t vmin = 0, vmax;
 
 		rw_init(&exec_lock);
-		exec_map = uvm_km_suballoc(kernel_map, &vmin, &vmax,
-		    maxexec*NCARGS, VM_MAP_PAGEABLE, false, NULL);
-		pool_init(&exec_pool, NCARGS, 0, 0, PR_NOALIGN|PR_NOTOUCH,
+		exec_map = mm_arena_create("exec_arena",0, 0, 0, NULL, NULL, NULL, 0, 0, IPL_NONE);
+		pool_init(&exec_pool, NCARGS, 0, 0, PR_NOALIGN | PR_NOTOUCH,
 		    "execargs", &exec_palloc, IPL_NONE);
 		pool_sethardlimit(&exec_pool, maxexec, "should not happen", 0);
 	} else {
@@ -2073,6 +2126,8 @@ exec_sigcode_alloc(const struct emul *e)
 	 * the way sys_mmap() would map it.
 	 */
 	if (*e->e_sigobject == NULL) {
+		printf("%s fixme! e_sigobject not handled\n", __func__);
+#if 0
 		uobj = uao_create(sz, 0);
 		(*uobj->pgops->pgo_reference)(uobj);
 		va = vm_map_min(kernel_map);
@@ -2091,6 +2146,7 @@ exec_sigcode_alloc(const struct emul *e)
 		uvm_unmap(kernel_map, va, va + round_page(sz));
 		*e->e_sigobject = uobj;
 		KASSERT(uobj->uo_refs == 1);
+#endif
 	} else {
 		/* if already created, reference++ */
 		uobj = *e->e_sigobject;
@@ -2151,6 +2207,7 @@ exec_sigcode_map(struct proc *p, const struct emul *e)
 #endif
 
 	(*uobj->pgops->pgo_reference)(uobj);
+#if 0
 	error = uvm_map(&p->p_vmspace->vm_map, &va, round_page(sz),
 			uobj, 0, 0,
 			UVM_MAPFLAG(UVM_PROT_RX, UVM_PROT_RX, UVM_INH_SHARE,
@@ -2163,6 +2220,7 @@ exec_sigcode_map(struct proc *p, const struct emul *e)
 		(*uobj->pgops->pgo_detach)(uobj);
 		return error;
 	}
+#endif
 	p->p_sigctx.ps_sigcode = (void *)va;
 	return 0;
 }
@@ -2671,6 +2729,10 @@ do_posix_spawn(struct lwp *l1, pid_t *pid_res, bool *child_ok, const char *path,
 	memcpy(&p2->p_startcopy, &p1->p_startcopy,
 	    (unsigned) ((char *)&p2->p_endcopy - (char *)&p2->p_startcopy));
 	p2->p_vmspace = proc0.p_vmspace;
+
+#ifdef __wasm__
+	p2->p_md.md_kmem = proc0.p_md.md_kmem;
+#endif
 
 	TAILQ_INIT(&p2->p_sigpend.sp_info);
 

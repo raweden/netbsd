@@ -1,0 +1,856 @@
+
+// The bootstrap.js files is responsible for the GUI binding between display-server.js and viewport within the browser
+// 
+
+//debugger;
+const workers = [];
+const worker = new Worker("lwp0.js");
+let worker2;
+let worker3;
+let memstatDiv;
+let kmem_debug_data;
+let mmblkd_head;
+let mmblkd_worker;
+let canvasQuerySelector;
+
+let jsonrpc = new JSONRPC();
+let dragDataTransferStack = [];
+let dataTransferItemId = 1;
+let dataTransferFileMap = new Map();
+let dataTransferItemMap = new Map();
+
+let workercnt = 0;
+
+let commands = {
+	lwp_spawn: function(msg) {
+
+	},
+	lwp_kill_sig: function(msg) {
+
+	},
+	rblkdev_init_signal: function(msg) {
+
+	}
+}
+
+function lwp_error_handler(evt) {
+    console.error("There is an error with your worker! %o", evt);
+}
+
+function lwp0_message_handler(evt) {
+
+	let msg = evt.data;
+	let cmd = msg.cmd;
+	if (cmd == "lwp_spawn") {
+		let options = {};
+		options.name = msg.name;
+		let worker = new Worker("lwp.js", options);
+		let fmsg = Object.assign({}, msg);
+		fmsg.cmd = "lwp_ctor";
+        workers.push({addr: null, name: msg.name, worker: worker});
+		worker.addEventListener("message", lwp_message_handler);
+        worker.addEventListener("error", lwp_error_handler);
+		worker.postMessage(fmsg);
+		workercnt++;
+		return;
+	} else if (cmd == "rblkdev_init_signal") {
+		let worker = new Worker("./opfsblkd.js");
+		worker.postMessage(msg);
+		workers.push({addr: null, name: "opfsblkd", worker: worker});
+		return;
+	} else if (cmd == "rblkdev_kill_signal") {
+
+	} else if (cmd == "__kmem_debug_data") {
+		setupMemoryDebugPanel(msg.mem, msg.ptr);
+		return;
+	}
+
+	let ret = lwp_message_handler(evt);
+	if (!ret)
+		console.error("message not handled %o", evt);
+}
+
+function lwp_message_handler(evt) {
+
+	let msg = evt.data;
+	let cmd = msg.cmd;
+	if (cmd == "lwp_spawn") {
+		console.error("lwp_spawn called from non lwp0 (enabled this later)");
+		//return false;
+		if (workercnt > 256) {
+			console.error("more than 256 workers spawned, what is happening??");
+			return false;
+		}
+
+		let options = {};
+		options.name = msg.name;
+		let worker = new Worker("lwp.js", options);
+		let fmsg = Object.assign({}, msg);
+		fmsg.cmd = "lwp_ctor";
+        workers.push({addr: null, name: msg.name, worker: worker});
+		worker.addEventListener("message", lwp_message_handler);
+        worker.addEventListener("error", lwp_error_handler);
+		worker.postMessage(fmsg);
+		workercnt++;
+		return true;
+
+	} else if (cmd == "mmblkd_memcpy") {
+		// TODO: used for testing, remove once no-longer needed.
+		if (!mmblkd_worker) {
+			console.error("mmblkd_worker does not spawn on mmblkd_memcpy");
+			return;
+		}
+
+		mmblkd_worker.postMessage(msg);
+		return true;
+
+	} else if (cmd == "mmblkd_attach") {
+		if (!mmblkd_worker) {
+			setup_mmblkd_worker(msg);
+		} else if (msg.mmblkd_head && msg.mmblkd_head != mmblkd_head) {
+			console.error("msg.mmblkd_head is not the regular head");
+			return;
+		}
+
+		mmblkd_worker.postMessage(msg);
+		return true;
+
+	} else if (cmd == "mmblkd_detach") {
+
+		if (!mmblkd_worker) {
+			console.error("mmblkd_worker does not spawn on mmblkd_detach");
+			return;
+		}
+
+		mmblkd_worker.postMessage(msg);
+		return true;
+	} else if (cmd == "lwp_died") {
+
+        let target = evt.target;
+        let len = workers.length;
+        for (let i = 0; i < len; i++) {
+            if (target == workers[i].worker) {
+                console.log("found self killed lwp %s", workers[i].name);
+                workers.splice(i, 1);
+                break;
+            }
+        }
+
+		return true;
+	}
+
+	return false;
+}
+
+worker.addEventListener("message", lwp0_message_handler);
+worker.addEventListener("error", lwp_error_handler);
+
+function setup_mmblkd_worker(msg) {
+
+	if (mmblkd_worker)
+		return;
+
+	mmblkd_worker = new Worker("mmblkd.js");
+    workers.push({addr: null, name: "mmblkd", worker: worker});
+	mmblkd_head = msg.mmblkd_head;
+
+	if (msg.kmemory && msg.mmblkd_head) {
+		msg.cmd = "mmblkd_init_signal";
+	} else {
+		let init_msg = {cmd: "mmblkd_init_signal", mmblkd_head: msg.mmblkd_head};
+		delete msg.mmblkd_head;
+		mmblkd_worker.postMessage(init_msg);
+	}
+
+	//worker3 = new Worker("mmblkd-tester.js");
+	//worker3.addEventListener("message", lwp_message_handler);
+}
+
+// Debug
+
+function setupMemoryDebugPanel(memory, statptr) {
+	if (kmem_debug_data) {
+		return;
+	}
+
+	let heapu32 = new Uint32Array(memory.buffer);
+	let idx = statptr / 4;
+	let ptrs = {};
+	let info = {};
+	kmem_debug_data = {};
+	kmem_debug_data.memory = memory;
+	kmem_debug_data.heapu32 = heapu32;
+	kmem_debug_data.ptr = statptr;
+	kmem_debug_data.statidx = idx;
+	kmem_debug_data.info = info;
+	kmem_debug_data.ptrs = ptrs;
+	ptrs.rsvd_raw = idx++;
+	ptrs.rsvd_pad = idx++;
+	ptrs.rsvd_pgs = idx++;
+	ptrs.pages_total = idx++;
+	ptrs.pages_busy = idx++;
+	ptrs.pages_pool = idx++;
+	ptrs.pages_malloc = idx++;
+	ptrs.malloc_busy = idx++;
+	ptrs.malloc_free = idx++;
+
+	for (let p in ptrs) {
+		let ptr = ptrs[p];
+		info[p] = 0;
+	}
+
+	memstatDiv = document.createElement("div");
+	document.body.appendChild(memstatDiv);
+
+	let cellmap = {};
+	let table = document.createElement("table");
+	let tbody, thead = document.createElement("thead");
+	let tr = document.createElement("tr");
+	let td, th = document.createElement("th");
+	table.appendChild(thead);
+	thead.appendChild(tr);
+	tr.appendChild(th);
+	th.colspan = 3;
+	th.textContent = "Kernel Memory";
+	tr = document.createElement("tr");
+	th = document.createElement("th");
+	thead.appendChild(tr);
+	tr.appendChild(th);
+	th.colspan = 3;
+	th.textContent = "bytes";
+
+	tbody = document.createElement("tbody");
+	tr = document.createElement("tr");
+	td = document.createElement("td");
+	table.appendChild(tbody);
+	tbody.appendChild(tr);
+	tr.appendChild(td);
+	td.textContent = "free";
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "0";
+	cellmap.bytes_free = td;
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "bytes";
+
+	tr = document.createElement("tr");
+	td = document.createElement("td");
+	tbody.appendChild(tr);
+	tr.appendChild(td);
+	td.textContent = "used";
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "0";
+	cellmap.bytes_used = td;
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "bytes";
+
+	thead = document.createElement("thead");
+	tr = document.createElement("tr");
+	th = document.createElement("th");
+	table.appendChild(thead);
+	thead.appendChild(tr);
+	tr.appendChild(th);
+	th.colspan = 3;
+	th.textContent = "pages";
+
+	tbody = document.createElement("tbody");
+	tr = document.createElement("tr");
+	td = document.createElement("td");
+	table.appendChild(tbody);
+	tbody.appendChild(tr);
+	tr.appendChild(td);
+	td.textContent = "free";
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "0";
+	cellmap.pages_free = td;
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "pgs";
+
+	tr = document.createElement("tr");
+	td = document.createElement("td");
+	tbody.appendChild(tr);
+	tr.appendChild(td);
+	td.textContent = "used";
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "0";
+	cellmap.pages_used = td;
+	td = document.createElement("td");
+	tr.appendChild(td);
+	td.textContent = "pgs";
+
+
+	memstatDiv.appendChild(table);
+	kmem_debug_data.cellmap = cellmap;
+
+	requestAnimationFrame(render_mempanel);
+}
+
+function render_mempanel() {
+
+	if (!kmem_debug_data)
+		return;
+
+	let heapu32 = kmem_debug_data.heapu32;
+	let info = kmem_debug_data.info;
+	let ptrs = kmem_debug_data.ptrs;
+	let value, changed = false;
+
+	for (let p in ptrs) {
+		let ptr = ptrs[p];
+		let old = info[p];
+		let val = Atomics.load(heapu32, ptr);
+		if (val != old) {
+			info[p] = val;
+			changed = true;
+		}
+	}
+
+	if (changed) {
+		let cellmap = kmem_debug_data.cellmap;
+		let bytes_free = 0;
+		let bytes_used = 0;
+		let pages_free = info.pages_total - info.pages_busy;
+		let pages_used = info.pages_busy;
+
+		cellmap.bytes_free.textContent = bytes_free;
+		cellmap.bytes_used.textContent = bytes_used;
+		cellmap.pages_free.textContent = pages_free;
+		cellmap.pages_used.textContent = pages_used;
+	}
+
+	requestAnimationFrame(render_mempanel);
+}
+
+// Display Server
+
+
+jsonrpc.addMethod("browserUI.setClipboard", function (target, params, transfer) {
+
+});
+
+jsonrpc.addMethod("browserUI.getClipboard", function (target, params, transfer) {
+
+});
+
+jsonrpc.addMethod("browserUI.getDataTransferFile", function (target, params, transfer) {
+
+});
+
+jsonrpc.addMethod("browserUI.getDataTransferItem", function (target, params, transfer) {
+
+});
+
+function copyMouseEvent(evt) {
+	let cpy = {};
+	cpy.type = evt.type;
+	cpy.isTrusted = evt.isTrusted;
+	cpy.altKey = evt.altKey;
+	cpy.button = evt.button;
+	cpy.buttons = evt.buttons;
+	cpy.clientX = evt.clientX;
+	cpy.clientY = evt.clientY;
+	cpy.composed = evt.composed;
+	cpy.ctrlKey = evt.ctrlKey;
+	cpy.detail = evt.detail;
+	cpy.eventPhase = evt.eventPhase;
+	cpy.defaultPrevented = evt.defaultPrevented;
+	cpy.layerX = evt.layerX;
+	cpy.layerY = evt.layerY;
+	cpy.metaKey = evt.metaKey;
+	cpy.movementX = evt.movementX;
+	cpy.movementY = evt.movementY;
+	cpy.offsetX = evt.offsetX;
+	cpy.offsetY = evt.offsetY;
+	cpy.pageX = evt.pageX;
+	cpy.pageY = evt.pageY;
+	cpy.screenX = evt.screenX;
+	cpy.screenY = evt.screenY;
+	cpy.shiftKey = evt.shiftKey;
+	cpy.timeStamp = evt.timeStamp;
+	cpy.which = evt.which;
+	cpy.x = evt.x;
+	cpy.y = evt.y;
+	// evt.sourceCapabilities.firesTouchEvents
+	
+	return cpy;
+}
+
+function copyKeyboardEvent(evt) {
+
+	let cpy = {};
+	cpy.type = evt.type;
+	cpy.isTrusted = evt.isTrusted;
+	cpy.altKey = evt.altKey;
+	cpy.charCode = evt.charCode;
+	cpy.code = evt.code;
+	cpy.composed = evt.composed;
+	cpy.ctrlKey = evt.ctrlKey;
+	cpy.defaultPrevented = evt.defaultPrevented;
+	cpy.detail = evt.detail;
+	cpy.eventPhase = evt.eventPhase;
+	cpy.isComposing = evt.isComposing;
+	cpy.key = evt.key;
+	cpy.keyCode = evt.keyCode
+	cpy.location = evt.location;
+	cpy.metaKey = evt.metaKey;
+	cpy.repeat = evt.repeat;
+	cpy.shiftKey = evt.shiftKey;
+	cpy.timeStamp = evt.timeStamp;
+	cpy.which = evt.which;
+
+	return cpy;
+}
+
+function copyWheelEvent(evt) {
+	let cpy = {};
+	cpy.type = evt.type;
+	cpy.isTrusted = evt.isTrusted;
+	cpy.altKey = evt.altKey;
+	cpy.button = evt.button;
+	cpy.buttons = evt.buttons;
+	cpy.clientX = evt.clientX;
+	cpy.clientY = evt.clientY;
+	cpy.composed = evt.composed;
+	cpy.ctrlKey = evt.ctrlKey;
+	cpy.deltaMode = evt.deltaMode;
+	cpy.deltaY = evt.deltaY;
+	cpy.deltaX = evt.deltaX;
+	cpy.deltaZ = evt.deltaZ;
+	cpy.detail = evt.detail;
+	cpy.eventPhase = evt.eventPhase;
+	cpy.defaultPrevented = evt.defaultPrevented;
+	cpy.layerX = evt.layerX;
+	cpy.layerY = evt.layerY;
+	cpy.metaKey = evt.metaKey;
+	cpy.movementX = evt.movementX;
+	cpy.movementY = evt.movementY;
+	cpy.offsetX = evt.offsetX;
+	cpy.offsetY = evt.offsetY;
+	cpy.pageX = evt.pageX;
+	cpy.pageY = evt.pageY;
+	cpy.screenX = evt.screenX;
+	cpy.screenY = evt.screenY;
+	cpy.shiftKey = evt.shiftKey;
+	cpy.timeStamp = evt.timeStamp;
+	cpy.wheelDelta = evt.wheelDelta;
+	cpy.wheelDeltaX = evt.wheelDeltaX;
+	cpy.wheelDeltaY = evt.wheelDeltaY;
+	cpy.which = evt.which;
+	cpy.x = evt.x;
+	cpy.y = evt.y;
+	
+	return cpy;
+}
+
+// let model = pushDragDataTransfer(evt.dataTransfer);
+// DataTransferItem(s) is only available during the event call frame, once exiting the event call frame the
+// .kind & .type properties are set to empty string and.
+// Neiter is the DataTransfer object a transferable type, 
+function copyDragEvent(evt) {
+	let cpy = {};
+	cpy.type = evt.type;
+	cpy.isTrusted = evt.isTrusted;
+	cpy.altKey = evt.altKey;
+	cpy.button = evt.button;
+	cpy.buttons = evt.buttons;
+	cpy.clientX = evt.clientX;
+	cpy.clientY = evt.clientY;
+	cpy.composed = evt.composed;
+	cpy.ctrlKey = evt.ctrlKey;
+	cpy.detail = evt.detail;
+	cpy.eventPhase = evt.eventPhase;
+	cpy.defaultPrevented = evt.defaultPrevented;
+	cpy.layerX = evt.layerX;
+	cpy.layerY = evt.layerY;
+	cpy.metaKey = evt.metaKey;
+	cpy.movementX = evt.movementX;
+	cpy.movementY = evt.movementY;
+	cpy.offsetX = evt.offsetX;
+	cpy.offsetY = evt.offsetY;
+	cpy.pageX = evt.pageX;
+	cpy.pageY = evt.pageY;
+	cpy.screenX = evt.screenX;
+	cpy.screenY = evt.screenY;
+	cpy.shiftKey = evt.shiftKey;
+	cpy.timeStamp = evt.timeStamp;
+	cpy.which = evt.which;
+	cpy.x = evt.x;
+	cpy.y = evt.y;
+
+	let dataTransfer = evt.dataTransfer;
+	let dfiles = [];
+	let ditems = [];
+	let dtypes = [];
+	let obj = {};
+	obj.dropEffect = dataTransfer.dropEffect;
+	obj.effectAllowed = dataTransfer.effectAllowed;
+	obj.files = dfiles;
+	obj.items = ditems;
+	obj.types = dtypes;
+
+	if (dataTransfer.files.length > 0) {
+		let files = dataTransfer.files;
+		let len = files.length;
+		for (let i = 0; i < len; i++) {
+			let file = files[i];
+			let itemId = dataTransferItemId++;
+			dfiles.push({id: itemId, name: file.name});
+			dataTransferItemMap.set(itemId, file);
+		}
+	}
+
+	if (dataTransfer.items.length > 0) {
+		let items = dataTransfer.items;
+		let len = items.length;
+		for (let i = 0; i < len; i++) {
+			let item = items[i];
+			let itemId = dataTransferItemId++;
+			ditems.push({id: itemId, kind: item.kind, type: item.type});
+			dataTransferItemMap.set(itemId, item);
+		}
+	}
+
+	if (dataTransfer.types.length > 0) {
+		let types = dataTransfer.types;
+		let len = types.length;
+		for (let i = 0; i < len; i++) {
+			dtypes.push(types[i]);
+		}
+	}
+
+	cpy.dataTransfer = obj;
+	cpy._dataTransfer = dataTransfer;
+	
+	return cpy;
+}
+
+function pushDragDataTransfer(evt) {
+	let newModel = copyDragEvent(evt);
+	let dnd = {model: newModel, dataTransfer: evt.dataTransfer};
+	dragDataTransferStack.push(dnd);
+
+	if (dragDataTransferStack.length > 5) {
+		let dnd = dragDataTransferStack.shift();
+		// clear mapping
+		let dataTransfer = dnd.model.dataTransfer;
+		if (dataTransfer.files.length > 0) {
+			let files = dataTransfer.files;
+			let len = files.length;
+			for (let i = 0; i < len; i++) {
+				let itemId = files[i].itemId;
+				dataTransferItemMap.delete(itemId);
+			}
+		}
+
+		if (dataTransfer.items.length > 0) {
+			let items = dataTransfer.items;
+			let len = items.length;
+			for (let i = 0; i < len; i++) {
+				let itemId = items[i].itemId;
+				dataTransferItemMap.delete(itemId);
+			}
+		}
+	}
+
+	return newModel;
+}
+
+function clearDragDataTransfer(evt) {
+
+	while (dragDataTransferStack.length > 0) {
+		let dnd = dragDataTransferStack.pop();
+		// clear mapping
+		let dataTransfer = dnd.model.dataTransfer;
+		if (dataTransfer.files.length > 0) {
+			let files = dataTransfer.files;
+			let len = files.length;
+			for (let i = 0; i < len; i++) {
+				let itemId = files[i].itemId;
+				dataTransferItemMap.delete(itemId);
+			}
+		}
+
+		if (dataTransfer.items.length > 0) {
+			let items = dataTransfer.items;
+			let len = items.length;
+			for (let i = 0; i < len; i++) {
+				let itemId = items[i].itemId;
+				dataTransferItemMap.delete(itemId);
+			}
+		}
+	}
+}
+
+function onDisplayServerMessage(evt) {
+
+}
+
+function setupDisplayServer() {
+	if (worker2)
+		return;
+
+	let canvas;
+	let offscreen;
+	let keyCharMap = {};
+
+	if (canvasQuerySelector) {
+		canvas = document.querySelector(canvasQuerySelector);
+		if (!(canvas instanceof HTMLCanvasElement)) {
+			throw new TypeError("Not a HTMLCanvasElement");
+		}
+	} else {
+		canvas = document.createElement("canvas");
+		document.body.appendChild(canvas);
+	}
+
+	offscreen = canvas.transferControlToOffscreen();
+
+	worker2 = new Worker("display-server.js");
+	worker2.addEventListener("message", onDisplayServerMessage);
+
+	canvas.addEventListener("mousedown", function(evt) {
+
+		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+	});
+
+	canvas.addEventListener("mouseup", function(evt) {
+		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+	});
+
+	canvas.addEventListener("click", function(evt) {
+		console.log(evt);
+	});
+
+	canvas.addEventListener("dblclick", function(evt) {
+		console.log(evt);
+	});
+
+	canvas.addEventListener("mousemove", function(evt) {
+		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+	});
+
+	canvas.addEventListener("wheel", function(evt) {
+		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+        return false;
+	});
+
+	// Drag and Drop
+
+	canvas.addEventListener("drag", function(evt) {
+		console.log(evt);
+		let model = pushDragDataTransfer(evt);
+		lastDNDDataTransfer = evt.dataTransfer;
+		lastDNDDataTransferModel = cpy;
+		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+	});
+
+	canvas.addEventListener("dragend", function(evt) {
+		console.log(evt);
+		let model = pushDragDataTransfer(evt);
+		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+	});
+
+	canvas.addEventListener("dragenter", function(evt) {
+		console.log(evt);
+		let model = copyDragEvent(evt);
+		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+	});
+
+	canvas.addEventListener("dragleave", function(evt) {
+		console.log(evt);
+		let model = pushDragDataTransfer(evt);
+		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+	});
+
+	canvas.addEventListener("dragover", function(evt) {
+		let model = pushDragDataTransfer(evt);
+		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+		// prevent default to allow drop
+      	evt.preventDefault();
+	});
+
+	canvas.addEventListener("dragstart", function(evt) {
+		// Not sure about how well the canvas works when proxying a dragstart
+		// 
+		// To enable a HTML to be able to initiate such event the draggable
+		// attribute needs to be set to true, there might be chance to use 
+		// evt.preventDefault() to avoid starting a drag where there is no
+		// dragable item under the mouse within the GnuStep view realm. What the
+		// browser will generate as drag-image must be replaced by calling 
+		// evt.dataTransfer.setDragImage(element, x, y) as it would otherwise
+		// be dragging the main canvas. The mdn docs mention that <img> / <canvas>
+		// tag is the recomended element to use. I thing however that it is a
+		// single render use.
+	});
+
+	canvas.addEventListener("drop", function(evt) {
+		console.log(evt);
+		let model = pushDragDataTransfer(evt);
+		jsonrpc.send(worker2, "ui_event", model, [evt.dataTransfer]).then(function() {
+			clearDragDataTransfer();
+		});
+	});
+
+	// Keyboard and Text-Input
+
+	window.addEventListener("keydown", function(evt) {
+		jsonrpc.notify(worker2, "ui_event", copyKeyboardEvent(evt));
+	});
+
+	// The "keypress" event is basically the same as a keyup but also fires for repeat. 
+
+	window.addEventListener("keyup", function(evt) {
+		jsonrpc.notify(worker2, "ui_event", copyKeyboardEvent(evt));
+	});
+
+	// check other projects where input proxying is implemented.
+	// atleast from what i remember from the Retro-Platform's impl
+	// of such there where a special behaivor when any responder which
+	// handled text where the first responder, in which case it set the focus
+	// a hidden <input> 
+
+	var keyboard = navigator.keyboard;
+	keyboard.getLayoutMap().then(function(keyboardLayoutMap) {
+		console.log(keyboardLayoutMap);
+
+		let entries = keyboardLayoutMap.entries();
+		console.log(entries);
+
+		/*for (let key in keys) {
+			let val = keyboardLayoutMap.get(key);
+			console.log("key: '%s' value: '%s'", key, val);
+		}*/
+		keyboardLayoutMap.forEach(function(chr, key) {
+			keyCharMap[key] = chr;
+		});
+	});
+	/*
+	navigator.keyboard.addEventListener("layoutchange", function() {
+  		// Update user keyboard map settings
+  		updateGameControlSettingsPage();
+	});
+	 */
+	
+	//window.addEventListener("resize", domWindowOnResize);
+		
+	document.addEventListener("visibilitychange", function(evt) {
+		jsonrpc.notify(worker2, "ui_event", {type: "visibilitychange", visibilityState: document.visibilityState});
+	});
+
+	function domWindowOnOrientationChange(evt) {
+		console.log("screen.orientation.type: " + screen.orientation.type);
+		console.log("screen.orientation.angle: " + screen.orientation.angle);
+		/*
+		screen.orientation.type:  portrait-primary
+		screen.orientation.angle: 0
+		screen.orientation.type:  landscape-primary
+		screen.orientation.angle: 90
+		screen.orientation.type:  landscape-primary
+		screen.orientation.angle: 90
+		 */
+		jsonrpc.notify(worker2, "ui_event", {type: "orientationchange", orientationData: {type: screen.orientation.type, angle: screen.orientation.angle}});
+	}
+
+	
+	if(screen.orientation && typeof screen.orientation.addEventListener == "function"){
+		screen.orientation.addEventListener("change", domWindowOnOrientationChange);
+	}else{
+		window.addEventListener("orientationchange", domWindowOnOrientationChange);
+	}
+
+	let resolutionMediaQuery = window.matchMedia("(resolution: " + window.devicePixelRatio + "dppx)");
+	resolutionMediaQuery.addListener(function domWindowOnPixelRatioChange(evt) {
+		// May happen if the user drags the browser-window/tab to a screen with another pixel dencity.
+		// 
+		// https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#Monitoring_screen_resolution_or_zoom_level_changes
+
+		// @todo 1. Update the backingstore pixel-ration for the backing of the current set of active scenes.
+		//       2. In some cases the cached preview of inactive scenes may need to be optimized.
+		let newPixelRatio = window.devicePixelRatio;
+		console.log("resolution: (new: " + newPixelRatio + ") MediaQuery did trigger change event");
+		console.log(evt);
+		jsonrpc.notify(worker2, "ui_event", {type: "devicepixelratiochange", devicePixelRatio: newPixelRatio});
+	});
+
+	let prefersColorSchemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+		prefersColorSchemeMediaQuery.addListener(function(evt) {
+		// prefers-color-scheme: light
+		// prefers-color-scheme: dark
+		// prefers-color-scheme: no-preference
+		let prefersColorScheme = null;
+
+		// https://web.dev/prefers-color-scheme/
+		
+		// @todo 1. Invalidate and update traits for the current set of active scenes
+		//       2. Needs implementation to allow scenes in the app-switcher to refresh their UI.
+		
+		if (evt.matches) {
+			prefersColorScheme = "dark";
+		} else if (window.matchMedia("(prefers-color-scheme: light)")) {
+			prefersColorScheme = "light";
+		} else {
+			prefersColorScheme = "no-preference";
+		}
+
+		console.log("prefers-color-scheme: (new: '%s') MediaQuery did trigger change event", prefersColorScheme);
+		console.log(evt);
+		jsonrpc.notify(worker2, "ui_event", {type: "preferscolorschemechange", prefersColorScheme: prefersColorScheme});
+	});
+
+	function initialPreferedColorScheme(darkMediaQuery) {
+		let prefersColorScheme;
+		if (darkMediaQuery.matches) {
+			prefersColorScheme = "dark";
+		} else if (window.matchMedia("(prefers-color-scheme: light)")) {
+			prefersColorScheme = "light";
+		} else {
+			prefersColorScheme = "no-preference";
+		}
+
+		return prefersColorScheme;
+	}
+
+	worker2.postMessage({
+		jsonrpc: "2.0",
+		id: "abc123",
+		method: "display_server_init",
+		params: {
+			offscreenCanvas: offscreen,
+			devicePixelRatio: window.devicePixelRatio,
+			prefersColorScheme: initialPreferedColorScheme(prefersColorSchemeMediaQuery),
+			keyCharMap: keyCharMap,
+			options: {
+
+			},
+		},
+		_transfer: [offscreen]
+	}, [offscreen]);
+}
+
+setupDisplayServer();
+
+function launchQueue_handler(launchParam) {
+    console.log(launchParam);
+}
+
+if (window.launchQueue) {
+    window.launchQueue.setConsumer(launchQueue_handler);
+}
+
+
+
+
+
+
+
+
+
+
+
+

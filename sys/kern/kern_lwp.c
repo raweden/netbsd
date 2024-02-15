@@ -1054,10 +1054,12 @@ lwp_startup(struct lwp *prev, struct lwp *new_lwp)
 	/* Correct spin mutex count after mi_switch(). */
 	curcpu()->ci_mtx_count = 0;
 
+#ifndef __WASM
 	/* Install new VM context. */
 	if (__predict_true(new_lwp->l_proc->p_vmspace)) {
 		pmap_activate(new_lwp);
 	}
+#endif
 
 	/* We remain at IPL_SCHED from mi_switch() - reset it. */
 	spl0();
@@ -1842,6 +1844,10 @@ lwp_find_first(proc_t *p)
 int
 lwp_ctl_alloc(vaddr_t *uaddr)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	lcproc_t *lp;
 	u_int bit, i, offset;
 	struct uvm_object *uao;
@@ -1969,7 +1975,7 @@ lwp_ctl_alloc(vaddr_t *uaddr)
 	KPREEMPT_DISABLE(l);
 	l->l_lwpctl->lc_curcpu = (int)cpu_index(curcpu());
 	KPREEMPT_ENABLE(l);
-
+#endif
 	return 0;
 }
 
@@ -2017,6 +2023,10 @@ lwp_ctl_free(lwp_t *l)
 void
 lwp_ctl_exit(void)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	lcpage_t *lcp, *next;
 	lcproc_t *lp;
 	proc_t *p;
@@ -2046,6 +2056,7 @@ lwp_ctl_exit(void)
 	mutex_destroy(&lp->lp_lock);
 	kmem_free(lp, sizeof(*lp));
 	p->p_lwpctl = NULL;
+#endif
 }
 
 /*

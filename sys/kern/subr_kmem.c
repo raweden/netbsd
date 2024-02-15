@@ -279,6 +279,7 @@ static const id_t *kmem_cache_big_free_probe_id[KMEM_CACHE_COUNT];
 CTASSERT(KM_SLEEP == PR_WAITOK);
 CTASSERT(KM_NOSLEEP == PR_NOWAIT);
 
+#if 0
 /*
  * kmem_intr_alloc: allocate wired memory.
  */
@@ -395,6 +396,7 @@ kmem_intr_free(void *p, size_t requested_size)
 	pool_cache_put(pc, p);
 }
 
+
 /* -------------------------------- Kmem API -------------------------------- */
 
 /*
@@ -449,6 +451,7 @@ kmem_free(void *p, size_t size)
 	kmem_intr_free(p, size);
 	kmsan_mark(p, size, KMSAN_STATE_INITED);
 }
+#endif
 
 static size_t
 kmem_create_caches(const struct kmem_cache_info *array,

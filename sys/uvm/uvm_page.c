@@ -994,7 +994,7 @@ uvm_cpu_attach(struct cpu_info *ci)
  * to impact upon performance.  if calling frequently and an inexact value
  * is okay, call with cached = true.
  */
-
+#if 0
 int
 uvm_availmem(bool cached)
 {
@@ -1012,6 +1012,7 @@ uvm_availmem(bool cached)
 	}
 	return (int)fp;
 }
+#endif
 
 /*
  * uvm_pagealloc_pgb: helper routine that tries to allocate any color from a

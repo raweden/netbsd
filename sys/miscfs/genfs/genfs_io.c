@@ -53,6 +53,11 @@ __KERNEL_RCSID(0, "$NetBSD: genfs_io.c,v 1.103 2023/04/09 12:26:36 riastradh Exp
 #include <uvm/uvm_pager.h>
 #include <uvm/uvm_page_array.h>
 
+#ifdef __wasm__
+#include <wasm/wasm-extra.h>
+#include <wasm/../mm/mm.h>
+#endif
+
 static int genfs_do_directio(struct vmspace *, vaddr_t, size_t, struct vnode *,
     off_t, enum uio_rw);
 static void genfs_dio_iodone(struct buf *);
@@ -157,6 +162,15 @@ genfs_getpages(void *v)
 		}
 	}
 
+	if (*(ap->a_count) == 1 && (ap->a_m[0]->flags & PG_BYPASS_FILE_MAP) != 0) {
+		const int npages = *ap->a_count;
+		const off_t origoffset = ap->a_offset;
+		const voff_t origvsize = vp->v_size;
+		GOP_SIZE(vp, origvsize, &diskeof, 0);
+
+		return genfs_getpages_read(vp, ap->a_m, npages, origoffset, diskeof, false, memwrite, false, glocked);
+	}
+
 startover:
 	error = 0;
 	const voff_t origvsize = vp->v_size;
@@ -198,6 +212,9 @@ startover:
 		}
 		UVMHIST_LOG(ubchist, "off 0x%jx count %jd goes past EOF 0x%jx",
 		    origoffset, *ap->a_count, memeof,0);
+#if __WASM_KERN_DEBUG_PRINT
+		printf("%s off 0x%jx count %d goes past EOF 0x%jx", __func__, origoffset, *ap->a_count, memeof);
+#endif
 		error = EINVAL;
 		goto out_err;
 	}
@@ -323,6 +340,9 @@ startover:
 
 	UVMHIST_LOG(ubchist, "ridx %jd npages %jd startoff %#jx endoff %#jx",
 	    ridx, npages, startoffset, endoffset);
+#if __WASM_KERN_DEBUG_PRINT
+	printf("%s ridx %d npages %d startoff %#jx endoff %#jx\n", __func__, ridx, npages, startoffset, endoffset);
+#endif
 
 	if (trans_mount == NULL) {
 		trans_mount = vp->v_mount;
@@ -392,6 +412,9 @@ startover:
 			genfs_node_unlock(vp);
 		}
 		UVMHIST_LOG(ubchist, "PGO_OVERWRITE",0,0,0,0);
+#if __WASM_KERN_DEBUG_PRINT
+		printf("%s PGO_OVERWRITE\n", __func__);
+#endif
 
 		for (i = 0; i < npages; i++) {
 			struct vm_page *pg = pgs[ridx + i];
@@ -425,7 +448,7 @@ startover:
 	for (i = 0; i < npages; i++) {
 		struct vm_page *pg = pgs[ridx + i];
 
-		if ((pg->flags & PG_FAKE) ||
+		if (pg == NULL || (pg->flags & PG_FAKE) ||
 		    (blockalloc && (pg->flags & PG_RDONLY) != 0)) {
 			break;
 		}
@@ -436,6 +459,9 @@ startover:
 		}
 		UVMHIST_LOG(ubchist, "returning cached pages", 0,0,0,0);
 		npages += ridx;
+#if __WASM_KERN_DEBUG_PRINT
+		printf("%s returning cached pages (%d == %d) pgs = %p\n", __func__, i, npages, pgs);
+#endif
 		goto out;
 	}
 
@@ -529,13 +555,15 @@ out:
 				uvm_pagezero(pg);
 			}
 			if (pg->flags & PG_RELEASED) {
-				uvm_pagefree(pg);
+				kmem_page_free((void *)pg->phys_addr, 1);
 				continue;
 			}
+#ifndef __WASM
 			uvm_pagelock(pg);
 			uvm_pageenqueue(pg);
 			uvm_pagewakeup(pg);
 			uvm_pageunlock(pg);
+#endif
 			pg->flags &= ~(PG_BUSY|PG_FAKE);
 			UVM_PAGE_OWN(pg, NULL);
 		} else if (memwrite && !overwrite &&
@@ -554,6 +582,7 @@ out:
 	}
 
 out_err_free:
+	
 	if (pgs != NULL && pgs != pgs_onstack)
 		kmem_free(pgs, pgs_size);
 out_err:
@@ -562,6 +591,7 @@ out_err:
 			WAPBL_END(trans_mount);
 		fstrans_done(trans_mount);
 	}
+	printf("%s error = %d\n", __func__, error);
 	return error;
 }
 
@@ -601,12 +631,30 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 	tailbytes = totalbytes - bytes;
 	skipbytes = 0;
 
-	kva = uvm_pagermapin(pgs, npages,
-	    UVMPAGER_MAPIN_READ | (async ? 0 : UVMPAGER_MAPIN_WAITOK));
+#ifndef __WASM
+	kva = uvm_pagermapin(pgs, npages, UVMPAGER_MAPIN_READ | (async ? 0 : UVMPAGER_MAPIN_WAITOK));
 	if (kva == 0)
 		return EBUSY;
+#else
+	
+	// TODO: wasm, this needs to support multi-page loading of block-device.
+	if (npages == 1) {
+		if (pgs[0] == NULL) {
+			printf("%s page is NULL\n", __func__);
+			__panic_abort();
+		}
+		kva = pgs[0]->phys_addr;
+	} else {
+		kva = pgs[0]->phys_addr;
+#if 0
+		printf("%s multi-page loading not implemented yet!\n", __func__);
+		__panic_abort();
+#endif
+	}
 
-#ifdef __WASM_KERN_DEBUG_PRINT
+#endif
+
+#ifdef __KERNEL_DEBUG_OPFSBLKD
 	printf("%s page pa = %p", __func__, (void *)pgs[0]->phys_addr);
 #endif
 
@@ -635,11 +683,21 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 
 	tailstart = bytes;
 	while (tailbytes > 0) {
+#ifdef __wasm__
+		printf("%s check this scenario! %s:%d", __func__, __FILE_NAME__, __LINE__);
+		__panic_abort();
+		struct mm_page *tail_pg;
+#endif
 		const int len = PAGE_SIZE - (tailstart & PAGE_MASK);
 
 		KASSERT(len <= tailbytes);
-		if ((pgs[tailstart >> PAGE_SHIFT]->flags & PG_FAKE) != 0) {
+		tail_pg = (struct mm_page *)pgs[tailstart >> PAGE_SHIFT];
+		if ((tail_pg->flags & PG_FAKE) != 0) {
+#ifdef __wasm__
+			memset((void *)(tail_pg->phys_addr + (PAGE_SIZE - len)), 0, len);
+#else 
 			memset((void *)(kva + tailstart), 0, len);
+#endif
 			UVMHIST_LOG(ubchist, "tailbytes %#jx 0x%jx 0x%jx",
 			    (uintptr_t)kva, tailstart, len, 0);
 		}
@@ -776,6 +834,10 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 		    (uintptr_t)bp, offset, bp->b_bcount, bp->b_blkno);
 
 		VOP_STRATEGY(devvp, bp);
+#ifdef __wasm__
+		// FIXME: where should this be done?
+		pgs[pidx]->offset = offset;
+#endif
 	}
 
 loopdone:
@@ -789,7 +851,7 @@ loopdone:
 	}
 
 	/* Remove the mapping (make KVA available as soon as possible) */
-	uvm_pagermapout(kva, npages);
+	//uvm_pagermapout(kva, npages);
 
 	/*
 	 * if this we encountered a hole then we have to do a little more work.
@@ -1260,12 +1322,14 @@ retry:
 				pmap_page_protect(tpg, VM_PROT_NONE);
 				if (tpg->flags & PG_BUSY) {
 					tpg->flags |= freeflag;
+#if 0
 					if (pagedaemon) {
 						uvm_pageout_start(1);
 						uvm_pagelock(tpg);
 						uvm_pagedequeue(tpg);
 						uvm_pageunlock(tpg);
 					}
+#endif
 				} else {
 
 					/*
@@ -1279,7 +1343,7 @@ retry:
 					KASSERT(pg == tpg);
 					KASSERT(nextoff ==
 					    tpg->offset + PAGE_SIZE);
-					uvm_pagefree(tpg);
+					kmem_page_free((void *)tpg->phys_addr, 1);
 					if (pagedaemon)
 						uvmexp.pdfreed++;
 				}
@@ -1667,7 +1731,7 @@ genfs_compat_getpages(void *v)
 			memset(iov.iov_base, 0, uio.uio_resid);
 		}
 	}
-	uvm_pagermapout(kva, npages);
+	//uvm_pagermapout(kva, npages);
 	rw_enter(uobj->vmobjlock, RW_WRITER);
 	for (i = 0; i < npages; i++) {
 		pg = pgs[i];
@@ -1757,10 +1821,11 @@ genfs_directio(struct vnode *vp, struct uio *uio, int ioflag)
 	/*
 	 * We only support direct I/O to user space for now.
 	 */
-
-	if (VMSPACE_IS_KERNEL_P(uio->uio_vmspace)) {
+#if 0
+	if (VMSPACE_IS_KERNEL_P(uio->uio_vmspace)) {	// this references kernel_pmap_ptr
 		return;
 	}
+#endif
 
 	/*
 	 * If the vnode is mapped, we would need to get the getpages lock
@@ -1856,6 +1921,10 @@ static int
 genfs_do_directio(struct vmspace *vs, vaddr_t uva, size_t len, struct vnode *vp,
     off_t off, enum uio_rw rw)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	struct vm_map *map;
 	struct pmap *upm, *kpm __unused;
 	size_t klen = round_page(uva + len) - trunc_page(uva);
@@ -1920,8 +1989,7 @@ genfs_do_directio(struct vmspace *vs, vaddr_t uva, size_t len, struct vnode *vp,
 	upm = vm_map_pmap(map);
 	kpm = vm_map_pmap(kernel_map);
 	puva = trunc_page(uva);
-	kva = uvm_km_alloc(kernel_map, klen, atop(puva) & uvmexp.colormask,
-	    UVM_KMF_VAONLY | UVM_KMF_WAITVA | UVM_KMF_COLORMATCH);
+	kva = uvm_km_alloc(kernel_map, klen, atop(puva) & uvmexp.colormask, UVM_KMF_VAONLY | UVM_KMF_WAITVA | UVM_KMF_COLORMATCH);
 	for (poff = 0; poff < klen; poff += PAGE_SIZE) {
 		rv = pmap_extract(upm, puva + poff, &pa);
 		KASSERT(rv);
@@ -1951,4 +2019,6 @@ genfs_do_directio(struct vmspace *vs, vaddr_t uva, size_t len, struct vnode *vp,
 
 	uvm_vsunlock(vs, (void *)uva, len);
 	return error;
+#endif
+	return 0;
 }

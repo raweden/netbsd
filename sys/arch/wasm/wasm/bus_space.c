@@ -427,6 +427,9 @@ int
 x86_mem_add_mapping(bus_addr_t bpa, bus_size_t size,
 		int flags, bus_space_handle_t *bshp)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	paddr_t pa, endpa;
 	vaddr_t va, sva;
 	u_int pmapflags;
@@ -445,11 +448,6 @@ x86_mem_add_mapping(bus_addr_t bpa, bus_size_t size,
 		panic("x86_mem_add_mapping: overflow");
 #endif
 
-#ifdef XENPV
-	if (bpa >= IOM_BEGIN && (bpa + size) != 0 && (bpa + size) <= IOM_END) {
-		sva = (vaddr_t)ISA_HOLE_VADDR(pa);
-	} else
-#endif	/* XENPV */
 	{
 		sva = uvm_km_alloc(kernel_map, endpa - pa, 0,
 		    UVM_KMF_VAONLY | UVM_KMF_NOWAIT);
@@ -463,7 +461,7 @@ x86_mem_add_mapping(bus_addr_t bpa, bus_size_t size,
 		pmap_kenter_ma(va, pa, VM_PROT_READ | VM_PROT_WRITE, pmapflags);
 	}
 	pmap_update(pmap_kernel());
-
+#endif
 	return 0;
 }
 
@@ -489,6 +487,9 @@ void
 _x86_memio_unmap(bus_space_tag_t t, bus_space_handle_t bsh,
 		bus_size_t size, bus_addr_t *adrp)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	u_long va, endva;
 	bus_addr_t bpa;
 
@@ -532,12 +533,16 @@ _x86_memio_unmap(bus_space_tag_t t, bus_space_handle_t bsh,
 	if (adrp != NULL) {
 		*adrp = bpa;
 	}
+#endif
 }
 
 static void
 bus_space_reservation_unmap1(bus_space_tag_t t, const bus_space_handle_t bsh,
     const bus_size_t size, bus_addr_t *bpap)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	u_long va, endva;
 	bus_addr_t bpa;
 
@@ -576,6 +581,7 @@ bus_space_reservation_unmap1(bus_space_tag_t t, const bus_space_handle_t bsh,
 ok:
 	if (bpap != NULL)
 		*bpap = bpa;
+#endif
 }
 
 void

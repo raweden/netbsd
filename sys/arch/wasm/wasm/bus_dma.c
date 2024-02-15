@@ -115,6 +115,8 @@ __KERNEL_RCSID(0, "$NetBSD: bus_dma.c,v 1.90 2023/03/28 19:55:42 riastradh Exp $
 
 #include <uvm/uvm.h>
 
+#include <wasm/wasm-extra.h>
+
 extern	paddr_t avail_end;
 
 #define	IDTVEC(name)	__CONCAT(X,name)
@@ -198,6 +200,9 @@ _bus_dmamem_alloc_range(bus_dma_tag_t t, bus_size_t size,
     bus_size_t alignment, bus_size_t boundary, bus_dma_segment_t *segs,
     int nsegs, int *rsegs, int flags, bus_addr_t low, bus_addr_t high)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	paddr_t curaddr, lastaddr;
 	struct vm_page *m;
 	struct pglist mlist;
@@ -261,7 +266,7 @@ _bus_dmamem_alloc_range(bus_dma_tag_t t, bus_size_t size,
 	}
 
 	*rsegs = curseg + 1;
-
+#endif
 	return (0);
 }
 #endif /* _BUS_DMAMEM_ALLOC_RANGE */
@@ -1099,6 +1104,9 @@ _bus_dma_free_bouncebuf(bus_dma_tag_t t, bus_dmamap_t map)
 static int
 _bus_dma_uiomove(void *buf, struct uio *uio, size_t n, int direction)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	struct iovec *iov;
 	int error;
 	struct vmspace *vm;
@@ -1117,7 +1125,7 @@ _bus_dma_uiomove(void *buf, struct uio *uio, size_t n, int direction)
 			continue;
 		cnt = MIN(resid, iov->iov_len);
 
-		if (!VMSPACE_IS_KERNEL_P(vm)) {
+		if (!VMSPACE_IS_KERNEL_P(vm)) {	// <<--- this referneces kernel_pmap_ptr
 			preempt_point();
 		}
 		if (direction == UIO_READ) {
@@ -1130,6 +1138,7 @@ _bus_dma_uiomove(void *buf, struct uio *uio, size_t n, int direction)
 		cp += cnt;
 		resid -= cnt;
 	}
+#endif
 	return (0);
 }
 
@@ -1140,6 +1149,9 @@ _bus_dma_uiomove(void *buf, struct uio *uio, size_t n, int direction)
 static void
 _bus_dmamem_free(bus_dma_tag_t t, bus_dma_segment_t *segs, int nsegs)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	struct vm_page *m;
 	bus_addr_t addr;
 	struct pglist mlist;
@@ -1159,6 +1171,7 @@ _bus_dmamem_free(bus_dma_tag_t t, bus_dma_segment_t *segs, int nsegs)
 	}
 
 	uvm_pglistfree(&mlist);
+#endif
 }
 
 /*
@@ -1170,6 +1183,9 @@ static int
 _bus_dmamem_map(bus_dma_tag_t t, bus_dma_segment_t *segs, int nsegs,
     size_t size, void **kvap, int flags)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	vaddr_t va;
 	bus_addr_t addr;
 	int curseg;
@@ -1200,6 +1216,7 @@ _bus_dmamem_map(bus_dma_tag_t t, bus_dma_segment_t *segs, int nsegs,
 		}
 	}
 	pmap_update(pmap_kernel());
+#endif
 
 	return 0;
 }
@@ -1212,6 +1229,10 @@ _bus_dmamem_map(bus_dma_tag_t t, bus_dma_segment_t *segs, int nsegs,
 static void
 _bus_dmamem_unmap(bus_dma_tag_t t, void *kva, size_t size)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	pt_entry_t *pte, opte;
 	vaddr_t va, sva, eva;
 
@@ -1233,6 +1254,7 @@ _bus_dmamem_unmap(bus_dma_tag_t t, void *kva, size_t size)
 	pmap_remove(pmap_kernel(), (vaddr_t)kva, (vaddr_t)kva + size);
 	pmap_update(pmap_kernel());
 	uvm_km_free(kernel_map, (vaddr_t)kva, size, UVM_KMF_VAONLY);
+#endif
 }
 
 /*
@@ -1274,6 +1296,7 @@ static int
 _bus_dmamap_load_buffer(bus_dma_tag_t t, bus_dmamap_t map, void *buf,
     bus_size_t buflen, struct vmspace *vm, int flags)
 {
+#if 0
 	bus_size_t sgsize;
 	bus_addr_t curaddr;
 	vaddr_t vaddr = (vaddr_t)buf;
@@ -1315,7 +1338,8 @@ _bus_dmamap_load_buffer(bus_dma_tag_t t, bus_dmamap_t map, void *buf,
 		vaddr += sgsize;
 		buflen -= sgsize;
 	}
-
+#endif
+	printf("%s fixme", __func__);
 	return (0);
 }
 

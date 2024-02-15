@@ -38,8 +38,6 @@ __KERNEL_RCSID(0, "$NetBSD: machdep.h,v 1.5 2023/06/12 19:04:14 skrll Exp $");
 
 #include <sys/kcore.h>
 
-extern phys_ram_seg_t mem_clusters[];
-extern int mem_cluster_cnt;
 extern vaddr_t msgbuf_vaddr;
 extern unsigned int msgbuf_p_cnt;
 extern paddr_t __first_avail;

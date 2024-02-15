@@ -311,7 +311,10 @@ ptrace_machdep_dorequest(
 		uio.uio_offset = 0;
 		uio.uio_resid = sizeof(struct xmmregs);
 		uio.uio_rw = write ? UIO_WRITE : UIO_READ;
+#if 0
 		uio.uio_vmspace = vm;
+#endif
+		uio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
 		error = process_machdep_doxmmregs(l, *lt, &uio);
 		uvmspace_free(vm);
 		return error;
@@ -341,7 +344,10 @@ ptrace_machdep_dorequest(
 		uio.uio_offset = 0;
 		uio.uio_resid = iov.iov_len;
 		uio.uio_rw = write ? UIO_WRITE : UIO_READ;
+#if 0
 		uio.uio_vmspace = vm;
+#endif
+		uio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
 		error = process_machdep_doxstate(l, *lt, &uio);
 		uvmspace_free(vm);
 		return error;

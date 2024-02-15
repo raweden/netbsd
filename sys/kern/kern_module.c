@@ -60,7 +60,11 @@ __KERNEL_RCSID(0, "$NetBSD: kern_module.c,v 1.161 2023/01/31 13:21:37 riastradh 
 
 #include <uvm/uvm_extern.h>
 
-struct vm_map *module_map;
+#ifdef __wasm__
+#include "arch/wasm/mm/mm.h"
+#endif
+
+struct mm_arena *module_map;
 const char *module_machine;
 char	module_base[MODULE_BASE_SIZE];
 
@@ -414,9 +418,6 @@ module_init(void)
 	modinfo_t *const *mip;
 	int rv;
 
-	if (module_map == NULL) {
-		module_map = kernel_map;
-	}
 	cv_init(&module_thread_cv, "mod_unld");
 	mutex_init(&module_thread_lock, MUTEX_DEFAULT, IPL_NONE);
 	TAILQ_INIT(&modcblist);
@@ -880,8 +881,6 @@ module_do_builtin(const module_t *pmod, const char *name, module_t **modp,
 	int error;
 
 	KASSERT(kernconfig_is_held());
-
-	printf("%s loading = %s\n", __func__, name);
 
 	/*
 	 * Search the list to see if we have a module by this name.

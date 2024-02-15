@@ -74,6 +74,8 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_coredump.c,v 1.8 2020/02/23 15:46:43 ad Exp $");
 
 #include <uvm/uvm.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * uvm_coredump_walkmap: walk a process's map for the purpose of dumping
  * a core file.
@@ -87,6 +89,10 @@ int
 uvm_coredump_walkmap(struct proc *p, int (*func)(struct uvm_coredump_state *),
     void *cookie)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	struct uvm_coredump_state state;
 	struct vmspace *vm = p->p_vmspace;
 	struct vm_map *map = &vm->vm_map;
@@ -94,7 +100,7 @@ uvm_coredump_walkmap(struct proc *p, int (*func)(struct uvm_coredump_state *),
 	int error;
 
 	entry = NULL;
-	vm_map_lock_read(map);
+	//vm_map_lock_read(map);
 	state.end = 0;
 	for (;;) {
 		if (entry == NULL)
@@ -188,14 +194,14 @@ uvm_coredump_walkmap(struct proc *p, int (*func)(struct uvm_coredump_state *),
 			}
 		}
 
-		vm_map_unlock_read(map);
+		//vm_map_unlock_read(map);
 		error = (*func)(&state);
 		if (error)
 			return (error);
-		vm_map_lock_read(map);
+		//vm_map_lock_read(map);
 	}
-	vm_map_unlock_read(map);
-
+	//vm_map_unlock_read(map);
+#endif
 	return (0);
 }
 

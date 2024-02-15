@@ -43,9 +43,7 @@ __KERNEL_RCSID(0, "$NetBSD: i386func.S,v 1.22 2020/05/19 21:40:55 ad Exp $");
 #include <machine/specialreg.h>
 #include <machine/segments.h>
 
-#include <wasm/wasm_module.h>
-
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#include <wasm/wasm-extra.h>
 
 // https://www.felixcloutier.com/x86/invlpg
 void

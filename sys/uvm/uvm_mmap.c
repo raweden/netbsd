@@ -64,6 +64,8 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_mmap.c,v 1.184 2022/07/07 11:29:18 rin Exp $");
 #include <uvm/uvm.h>
 #include <uvm/uvm_device.h>
 
+#include <wasm/wasm-extra.h>
+
 static int uvm_mmap(struct vm_map *, vaddr_t *, vsize_t, vm_prot_t, vm_prot_t,
     int, int, struct uvm_object *, voff_t, vsize_t);
 
@@ -118,6 +120,10 @@ int
 sys_mincore(struct lwp *l, const struct sys_mincore_args *uap,
     register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(void *) addr;
 		syscallarg(size_t) len;
@@ -159,7 +165,7 @@ sys_mincore(struct lwp *l, const struct sys_mincore_args *uap,
 	if (error) {
 		return error;
 	}
-	vm_map_lock_read(map);
+	//vm_map_lock_read(map);
 
 	if (uvm_map_lookup_entry(map, start, &entry) == false) {
 		error = ENOMEM;
@@ -245,9 +251,11 @@ sys_mincore(struct lwp *l, const struct sys_mincore_args *uap,
 	}
 
  out:
-	vm_map_unlock_read(map);
-	uvm_vsunlock(p->p_vmspace, SCARG(uap, vec), npgs);
+	//vm_map_unlock_read(map);
+	//uvm_vsunlock(p->p_vmspace, SCARG(uap, vec), npgs);
 	return error;
+#endif
+	return 0;
 }
 
 /*
@@ -455,6 +463,10 @@ int
 sys___msync13(struct lwp *l, const struct sys___msync13_args *uap,
     register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(void *) addr;
 		syscallarg(size_t) len;
@@ -511,7 +523,7 @@ sys___msync13(struct lwp *l, const struct sys___msync13_args *uap,
 			addr = entry->start;
 			size = entry->end - entry->start;
 		}
-		vm_map_unlock_read(map);
+		//vm_map_unlock_read(map);
 		if (rv == false)
 			return EINVAL;
 	}
@@ -528,6 +540,8 @@ sys___msync13(struct lwp *l, const struct sys___msync13_args *uap,
 
 	error = uvm_map_clean(map, addr, addr+size, uvmflags);
 	return error;
+#endif
+	return 0;
 }
 
 /*
@@ -537,6 +551,10 @@ sys___msync13(struct lwp *l, const struct sys___msync13_args *uap,
 int
 sys_munmap(struct lwp *l, const struct sys_munmap_args *uap, register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(void *) addr;
 		syscallarg(size_t) len;
@@ -562,7 +580,7 @@ sys_munmap(struct lwp *l, const struct sys_munmap_args *uap, register_t *retval)
 	if (size == 0)
 		return 0;
 
-	vm_map_lock(map);
+	//vm_map_lock(map);
 #if 0
 	/*
 	 * interesting system call semantic: make sure entire range is
@@ -577,6 +595,7 @@ sys_munmap(struct lwp *l, const struct sys_munmap_args *uap, register_t *retval)
 	vm_map_unlock(map);
 	if (dead_entries != NULL)
 		uvm_unmap_detach(dead_entries, 0);
+#endif
 	return 0;
 }
 
@@ -588,6 +607,10 @@ int
 sys_mprotect(struct lwp *l, const struct sys_mprotect_args *uap,
     register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(void *) addr;
 		syscallarg(size_t) len;
@@ -612,6 +635,8 @@ sys_mprotect(struct lwp *l, const struct sys_mprotect_args *uap,
 
 	error = uvm_map_protect_user(l, addr, addr + size, prot);
 	return error;
+#endif
+	return 0;
 }
 
 /*
@@ -622,6 +647,10 @@ int
 sys_minherit(struct lwp *l, const struct sys_minherit_args *uap,
    register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(void *) addr;
 		syscallarg(int) len;
@@ -643,6 +672,8 @@ sys_minherit(struct lwp *l, const struct sys_minherit_args *uap,
 	error = uvm_map_inherit(&p->p_vmspace->vm_map, addr, addr + size,
 	    inherit);
 	return error;
+#endif
+	return (0);
 }
 
 /*
@@ -654,6 +685,10 @@ int
 sys_madvise(struct lwp *l, const struct sys_madvise_args *uap,
    register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(void *) addr;
 		syscallarg(size_t) len;
@@ -733,6 +768,8 @@ sys_madvise(struct lwp *l, const struct sys_madvise_args *uap,
 	}
 
 	return error;
+#endif
+	return (0);
 }
 
 /*
@@ -742,6 +779,10 @@ sys_madvise(struct lwp *l, const struct sys_madvise_args *uap,
 int
 sys_mlock(struct lwp *l, const struct sys_mlock_args *uap, register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(const void *) addr;
 		syscallarg(size_t) len;
@@ -773,6 +814,8 @@ sys_mlock(struct lwp *l, const struct sys_mlock_args *uap, register_t *retval)
 	if (error == EFAULT)
 		error = ENOMEM;
 	return error;
+#endif
+	return 0;
 }
 
 /*
@@ -783,6 +826,10 @@ int
 sys_munlock(struct lwp *l, const struct sys_munlock_args *uap,
     register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(const void *) addr;
 		syscallarg(size_t) len;
@@ -803,7 +850,7 @@ sys_munlock(struct lwp *l, const struct sys_munlock_args *uap,
 
 	if (uvm_map_pageable(&p->p_vmspace->vm_map, addr, addr+size, true, 0))
 		return ENOMEM;
-
+#endif
 	return 0;
 }
 
@@ -815,6 +862,10 @@ int
 sys_mlockall(struct lwp *l, const struct sys_mlockall_args *uap,
     register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	/* {
 		syscallarg(int) flags;
 	} */
@@ -829,6 +880,8 @@ sys_mlockall(struct lwp *l, const struct sys_mlockall_args *uap,
 	error = uvm_map_pageable_all(&p->p_vmspace->vm_map, flags,
 	    p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
 	return error;
+#endif
+	return (0);
 }
 
 /*
@@ -838,9 +891,14 @@ sys_mlockall(struct lwp *l, const struct sys_mlockall_args *uap,
 int
 sys_munlockall(struct lwp *l, const void *v, register_t *retval)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	struct proc *p = l->l_proc;
 
 	(void) uvm_map_pageable_all(&p->p_vmspace->vm_map, 0, 0);
+#endif
 	return 0;
 }
 
@@ -860,6 +918,10 @@ uvm_mmap(struct vm_map *map, vaddr_t *addr, vsize_t size, vm_prot_t prot,
     vm_prot_t maxprot, int flags, int advice, struct uvm_object *uobj,
     voff_t foff, vsize_t locklimit)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	vaddr_t align = 0;
 	int error;
 	uvm_flag_t uvmflag = 0;
@@ -969,7 +1031,7 @@ uvm_mmap(struct vm_map *map, vaddr_t *addr, vsize_t size, vm_prot_t prot,
 		return 0;
 	}
 	if ((flags & MAP_WIRED) != 0 || (map->flags & VM_MAP_WIREFUTURE) != 0) {
-		vm_map_lock(map);
+		//vm_map_lock(map);
 		if (atop(size) + uvmexp.wired > uvmexp.wiredmax ||
 		    (locklimit != 0 &&
 		     size + ptoa(pmap_wired_count(vm_map_pmap(map))) >
@@ -991,6 +1053,7 @@ uvm_mmap(struct vm_map *map, vaddr_t *addr, vsize_t size, vm_prot_t prot,
 		}
 		return 0;
 	}
+#endif
 	return 0;
 }
 

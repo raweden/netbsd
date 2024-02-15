@@ -143,6 +143,9 @@ setgdt(int slot, const void *base, size_t limit, int type, int dpl, int def32,
 void
 gdt_init(void)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	union descriptor *old_gdt;
 	struct vm_page *pg;
 	vaddr_t va;
@@ -175,6 +178,7 @@ gdt_init(void)
 	    sizeof(struct cpu_info) - 1, SDT_MEMRWA, SEL_KPL, 1, 0);
 
 	gdt_init_cpu(ci);
+#endif
 }
 
 /*
@@ -184,6 +188,9 @@ gdt_init(void)
 void
 gdt_alloc_cpu(struct cpu_info *ci)
 {
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	struct vm_page *pg;
 	vaddr_t va;
 
@@ -204,6 +211,7 @@ gdt_alloc_cpu(struct cpu_info *ci)
 
 	setsegment(&ci->ci_gdt[GCPU_SEL].sd, ci,
 	    sizeof(struct cpu_info) - 1, SDT_MEMRWA, SEL_KPL, 1, 0);
+#endif
 }
 
 /*

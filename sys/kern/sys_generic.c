@@ -140,7 +140,11 @@ dofileread(int fd, struct file *fp, void *buf, size_t nbyte,
 	auio.uio_iovcnt = 1;
 	auio.uio_resid = nbyte;
 	auio.uio_rw = UIO_READ;
+#ifdef __wasm__
+	auio.uio_vmspace = l->l_proc->p_md.md_umem;
+#else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 
 	/*
 	 * Reads return ssize_t because -1 is returned on error.  Therefore
@@ -245,7 +249,11 @@ do_filereadv(int fd, const struct iovec *iovp, int iovcnt,
 	auio.uio_iov = iov;
 	auio.uio_iovcnt = iovcnt;
 	auio.uio_rw = UIO_READ;
+#ifdef __wasm__
+	auio.uio_vmspace = (void *)curproc->p_md.md_umem;
+#else
 	auio.uio_vmspace = curproc->p_vmspace;
+#endif
 
 	auio.uio_resid = 0;
 	for (i = 0; i < iovcnt; i++, iov++) {
@@ -336,7 +344,11 @@ dofilewrite(int fd, struct file *fp, const void *buf,
 	auio.uio_iovcnt = 1;
 	auio.uio_resid = nbyte;
 	auio.uio_rw = UIO_WRITE;
+#ifdef __wasm__
+	auio.uio_vmspace = curproc->p_md.md_umem;
+#else
 	auio.uio_vmspace = curproc->p_vmspace;
+#endif
 
 	/*
 	 * Writes return ssize_t because -1 is returned on error.  Therefore
@@ -447,7 +459,11 @@ do_filewritev(int fd, const struct iovec *iovp, int iovcnt,
 	auio.uio_iov = iov;
 	auio.uio_iovcnt = iovcnt;
 	auio.uio_rw = UIO_WRITE;
+#ifdef __wasm__
+	auio.uio_vmspace = curproc->p_md.md_umem;
+#else
 	auio.uio_vmspace = curproc->p_vmspace;
+#endif
 
 	auio.uio_resid = 0;
 	for (i = 0; i < iovcnt; i++, iov++) {

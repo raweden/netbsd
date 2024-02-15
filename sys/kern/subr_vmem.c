@@ -199,7 +199,7 @@ static void vmem_xfree_bt(vmem_t *, bt_t *);
 static void
 vmem_kick_pdaemon(void)
 {
-#if defined(_KERNEL)
+#if defined(_KERNEL) && !defined(__WASM)
 	uvm_kick_pdaemon();
 #endif
 }
@@ -679,6 +679,7 @@ vmem_bootstrap(void)
 	vmem_bootstrapped = TRUE;
 }
 
+#if 0
 void
 vmem_subsystem_init(vmem_t *vm)
 {
@@ -696,6 +697,7 @@ vmem_subsystem_init(vmem_t *vm)
 	pool_init(&vmem_btag_pool, sizeof(bt_t), coherency_unit, 0,
 	    PR_PHINPAGE, "vmembt", &pool_allocator_vmem_meta, IPL_VM);
 }
+#endif
 #endif /* defined(_KERNEL) */
 
 static int

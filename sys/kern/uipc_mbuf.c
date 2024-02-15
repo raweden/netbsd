@@ -209,7 +209,10 @@ mbinit(void)
 	 */
 	pool_cache_sethardlimit(mcl_cache, nmbclusters, mclpool_warnmsg, 60);
 
+#if 0
+	// TODO: WASM FIXME
 	mbstat_percpu = percpu_alloc(sizeof(struct mbstat_cpu));
+#endif
 
 	/*
 	 * Set a low water mark for both mbufs and clusters.  This should
@@ -392,12 +395,14 @@ mbstat_type_add(int type, int diff)
 {
 	struct mbstat_cpu *mb;
 	int s;
-
+#if 0
+	// TODO: WASM FIXME
 	s = splvm();
 	mb = percpu_getref(mbstat_percpu);
 	mb->m_mtypes[type] += diff;
 	percpu_putref(mbstat_percpu);
 	splx(s);
+#endif
 }
 
 static void
@@ -418,7 +423,10 @@ mbstat_convert_to_user(struct mbstat *mbs)
 
 	memset(mbs, 0, sizeof(*mbs));
 	mbs->m_drain = mbstat.m_drain;
+#if 0
+	// TODO: WASM FIXME
 	percpu_foreach(mbstat_percpu, mbstat_convert_to_user_cb, mbs);
+#endif
 }
 
 static int

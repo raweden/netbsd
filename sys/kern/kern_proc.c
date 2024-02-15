@@ -497,7 +497,7 @@ proc0_init(void)
 	cv_init(&p->p_waitcv, "wait");
 	cv_init(&p->p_lwpcv, "lwpwait");
 
-#ifdef __WASM
+#ifndef __WASM
 	struct cpu_info *cpu = lwp0.l_cpu;
 	cpu->ci_pmap = kernel_pmap_ptr;
 #endif
@@ -558,6 +558,8 @@ proc0_init(void)
 	/* Initialize file descriptor table for proc0. */
 	fd_init(&filedesc0);
 
+	// TODO: might want to fix this for wasm!
+#if 0
 	/*
 	 * Initialize proc0's vmspace, which uses the kernel pmap.
 	 * All kernel processes (which never have user space mappings)
@@ -571,6 +573,7 @@ proc0_init(void)
 	    false
 #endif
 	    );
+#endif
 
 	/* Initialize signal state for proc0. XXX IPL_SCHED */
 	mutex_init(&p->p_sigacts->sa_mutex, MUTEX_DEFAULT, IPL_SCHED);
@@ -2719,7 +2722,11 @@ fill_eproc(struct proc *p, struct eproc *ep, bool zombie, bool allowaddr)
 	if (p->p_stat != SIDL && !P_ZOMBIE(p) && !zombie) {
 		struct vmspace *vm = p->p_vmspace;
 
+#ifndef __WASM
 		ep->e_vm.vm_rssize = vm_resident_count(vm);
+#else
+		ep->e_vm.vm_rssize = 0;
+#endif
 		ep->e_vm.vm_tsize = vm->vm_tsize;
 		ep->e_vm.vm_dsize = vm->vm_dsize;
 		ep->e_vm.vm_ssize = vm->vm_ssize;
@@ -2832,7 +2839,11 @@ fill_kproc2(struct proc *p, struct kinfo_proc2 *ki, bool zombie, bool allowaddr)
 
 	if (p->p_stat != SIDL && !P_ZOMBIE(p) && !zombie) {
 		vm = p->p_vmspace;
+#ifndef __WASM
 		ki->p_vm_rssize = vm_resident_count(vm);
+#else
+		ki->p_vm_rssize = 0;
+#endif
 		ki->p_vm_tsize = vm->vm_tsize;
 		ki->p_vm_dsize = vm->vm_dsize;
 		ki->p_vm_ssize = vm->vm_ssize;

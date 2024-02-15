@@ -155,7 +155,7 @@
  * together at the start of the structure to reduce cache misses.
  * XXX This entire thing should be shrunk to fit in one cache line.
  */
-
+#ifndef __WASM
 struct vm_page {
 	/* _LP64: first cache line */
 	union {
@@ -187,6 +187,32 @@ struct vm_page {
 	const char		*owner_tag;	/* why it was set busy */
 #endif
 };
+#else
+struct vm_page {
+	/* _LP64: first cache line */
+	union {
+		TAILQ_ENTRY(vm_page) queue;	/* w: wired page queue or uvm_pglistalloc output */
+        struct {
+            struct vm_page *li_next;
+            struct vm_page *li_prev;
+        } list;
+        struct {
+            struct vm_page *li_next;
+            struct mm_rangelist *rb_tree;
+        } tree;
+	} pageq;
+	uint32_t		flags;		/* o: object flags */
+    uint8_t         pgsz;       /* index into mm_pgsztbl */
+	paddr_t			phys_addr;	/* o: physical address of pg */
+	uint32_t		wire_count;	/* o,i: wired down map refs */
+	//struct vm_anon		*uanon;		/* o,i: anon */
+	struct uvm_object	*uobject;	/* o,i: object */
+    voff_t			offset;		/* o: offset into object */
+
+	/* _LP64: second cache line */
+	kmutex_t		interlock;	/* s: lock on identity */
+};
+#endif
 
 /*
  * Overview of UVM page flags, stored in pg->flags.
@@ -326,6 +352,8 @@ struct vm_page {
 
 #ifdef _KERNEL
 
+struct mm_page;
+
 /*
  * prototypes: the following prototypes define the interface to pages
  */
@@ -361,8 +389,8 @@ bool uvm_pageismanaged(paddr_t);
 bool uvm_page_owner_locked_p(struct vm_page *, bool);
 void uvm_pgfl_lock(void);
 void uvm_pgfl_unlock(void);
-unsigned int uvm_pagegetdirty(struct vm_page *);
-void uvm_pagemarkdirty(struct vm_page *, unsigned int);
+unsigned int uvm_pagegetdirty(struct mm_page *);
+void uvm_pagemarkdirty(struct mm_page *, unsigned int);
 bool uvm_pagecheckdirty(struct vm_page *, bool);
 bool uvm_pagereadonly_p(struct vm_page *);
 bool uvm_page_locked_p(struct vm_page *);

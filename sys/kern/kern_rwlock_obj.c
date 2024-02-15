@@ -89,6 +89,9 @@ rw_obj_alloc(void)
 	struct krwobj *ro;
 
 	ro = pool_cache_get(rw_obj_cache, PR_WAITOK);
+	if (ro == NULL) {
+		printf("%s ERROR ro == NULL!\n");
+	}
 	_rw_init(&ro->ro_lock, (uintptr_t)__builtin_return_address(0));
 	ro->ro_refcnt = 1;
 

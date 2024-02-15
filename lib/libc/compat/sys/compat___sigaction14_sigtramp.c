@@ -47,7 +47,16 @@ __RCSID("$NetBSD: compat___sigaction14_sigtramp.c,v 1.1 2021/11/01 05:53:45 thor
 #define __SIGTRAMP_SIGINFO  \
     C(__sigtramp_siginfo_,__SIGTRAMP_SIGINFO_VERSION)
 
+#ifndef __wasm__
 __weak_alias(__sigaction14, __libc_sigaction14)
+#else
+int __sigaction14(int, const struct sigaction *, struct sigaction *) __attribute__((weak, alias("__libc_sigaction14")));
+int _sigaction(int, const struct sigaction *, struct sigaction *) __attribute__((weak, alias("__libc_sigaction14")));
+int sigaction(int, const struct sigaction *, struct sigaction *) __attribute__((weak, alias("__libc_sigaction14")));
+
+int 
+__sys_sigaction(int signum, const struct sigaction *nsa, struct sigaction *osa) __attribute__((weak, alias("__libc_sigaction14")));
+#endif
 
 #define __LIBC12_SOURCE__
 
@@ -60,7 +69,11 @@ int	__libc_sigaction14(int, const struct sigaction *, struct sigaction *);
 int
 __libc_sigaction14(int sig, const struct sigaction *act, struct sigaction *oact)
 {
+#ifdef __wasm__
+	extern void(*__SIGTRAMP_SIGINFO)(void);
+#else
 	extern const char __SIGTRAMP_SIGINFO[];
+#endif
 
 	/*
 	 * If no sigaction, use the "default" trampoline since it won't
@@ -75,7 +88,11 @@ __libc_sigaction14(int sig, const struct sigaction *act, struct sigaction *oact)
 	 * set in the sigaction.
 	 */
 	if ((act->sa_flags & SA_SIGINFO) == 0) {
+#ifdef __wasm__
+		extern void(*__SIGTRAMP_SIGCONTEXT)(void);
+#else
 		extern const char __SIGTRAMP_SIGCONTEXT[];
+#endif
 		int sav = errno;
 		int rv =  __sigaction_sigtramp(sig, act, oact,
 		    __SIGTRAMP_SIGCONTEXT, __SIGTRAMP_SIGCONTEXT_VERSION);

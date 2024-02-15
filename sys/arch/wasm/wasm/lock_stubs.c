@@ -93,6 +93,11 @@ int __cpu_simple_lock_try(__cpu_simple_lock_t *lockp);
 void
 mutex_enter(kmutex_t *mtx)
 {
+	if (mtx == NULL) {
+		printf("%s ERROR called with mtx == NULL\n", __func__);
+		return;
+	}
+
 	if ((mtx->u.mtxa_owner & MUTEX_BIT_SPIN) != 0) {
 		__cpu_simple_lock(&mtx->u.s.mtxs_lock);
 		return;
@@ -114,7 +119,8 @@ mutex_enter(kmutex_t *mtx)
 1:
 	jmp	_C_LABEL(mutex_vector_enter)
 #endif
-    __panic_abort();
+	mutex_vector_enter(mtx);
+    //__panic_abort();
 }
 
 /*
@@ -129,6 +135,11 @@ mutex_enter(kmutex_t *mtx)
 void
 mutex_exit(kmutex_t *mtx)
 {
+	if (mtx == NULL) {
+		printf("%s ERROR called with mtx == NULL\n", __func__);
+		return;
+	}
+
 	if ((mtx->u.mtxa_owner & MUTEX_BIT_SPIN) != 0) {
 		__cpu_simple_unlock(&mtx->u.s.mtxs_lock);
 		return;
@@ -150,7 +161,8 @@ mutex_exit(kmutex_t *mtx)
 1:
 	jmp	_C_LABEL(mutex_vector_exit)
 #endif
-    __panic_abort();
+	mutex_vector_exit(mtx);
+    //__panic_abort();
 }
 
 void rw_vector_enter(krwlock_t *, const krw_t);
@@ -165,6 +177,10 @@ int	rw_vector_tryenter(krwlock_t *, const krw_t);
 void
 rw_enter(krwlock_t *rwl, krw_t op)
 {
+	if (rwl == NULL) {
+		printf("%s ERROR called with rwl == NULL\n", __func__);
+		return;
+	}
 	// TODO: WASM once wat-parse.js is ready this might be better to impl. directly in wat
 	u_int32_t rw_owner, rw_val, rw_new;
 	if (op == RW_READER) {
@@ -245,6 +261,11 @@ rw_enter(krwlock_t *rwl, krw_t op)
 void
 rw_exit(krwlock_t *rwl)
 {
+	if (rwl == NULL) {
+		printf("%s ERROR called with rwl == NULL\n", __func__);
+		return;
+	}
+
 	// TODO: wasm; implement real rw locking..
 	uint32_t rw_owner, rw_val, rw_new;
 
@@ -344,6 +365,11 @@ restart:
 int
 rw_tryenter(krwlock_t *rwl, krw_t op)
 {
+	if (rwl == NULL) {
+		printf("%s called with rwl == NULL\n", __func__);
+		return (0);
+	}
+
 	uint32_t rw_owner, rw_val, rw_new;
 	// TODO: wasm; implement real rw locking..
 	if (op != RW_READER) {

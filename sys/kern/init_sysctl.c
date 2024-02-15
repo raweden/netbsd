@@ -718,8 +718,12 @@ sysctl_kern_maxvnodes(SYSCTLFN_ARGS)
 		return (EINVAL);
 
 	/* Limits: 75% of kmem and physical memory. */
+#ifdef __WASM
+	new_max = calc_cache_size(0, 75, 0) / VNODE_COST;
+#else
 	new_max = calc_cache_size(vmem_size(kmem_arena, VMEM_FREE|VMEM_ALLOC),
 	    75, 75) / VNODE_COST;
+#endif
 	if (new_vnodes > new_max)
 		new_vnodes = new_max;
 

@@ -72,7 +72,7 @@ void uvmpdpol_sysctlsetup(void);
  * uvmpdpol_set_intent: set an intended state for the page, taking care not
  * to overwrite any of the other flags.
  */
-
+#if 0
 static inline void
 uvmpdpol_set_intent(struct vm_page *pg, uint32_t i)
 {
@@ -80,5 +80,6 @@ uvmpdpol_set_intent(struct vm_page *pg, uint32_t i)
 	KASSERT(mutex_owned(&pg->interlock));
 	pg->pqflags = PQ_INTENT_SET | (pg->pqflags & ~PQ_INTENT_MASK) | i;
 }
+#endif
 
 #endif /* !_UVM_PDPOLICY_H_ */

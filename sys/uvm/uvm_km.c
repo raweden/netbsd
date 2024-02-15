@@ -259,7 +259,7 @@ kmeminit_nkmempages(void)
  *    we assume that [vmin -> start] has already been allocated and that
  *    "end" is the end.
  */
-
+#if 0
 void
 uvm_km_bootstrap(vaddr_t start, vaddr_t end)
 {
@@ -369,6 +369,7 @@ uvm_km_bootstrap(vaddr_t start, vaddr_t end)
 
 	UVMHIST_LOG(maphist, "<- done", 0,0,0,0);
 }
+#endif
 
 /*
  * uvm_km_init: init the kernel maps virtual memory caches
@@ -493,7 +494,7 @@ uvm_km_pgremove(vaddr_t startva, vaddr_t endva)
 	}
 }
 
-
+#if 0
 /*
  * uvm_km_pgremove_intrsafe: like uvm_km_pgremove(), but for non object backed
  *    regions.
@@ -549,6 +550,7 @@ uvm_km_pgremove_intrsafe(struct vm_map *map, vaddr_t start, vaddr_t end)
 	}
 #undef __PGRM_BATCH
 }
+#endif
 
 #if defined(DEBUG)
 void
@@ -787,7 +789,7 @@ uvm_km_free(struct vm_map *map, vaddr_t addr, vsize_t size, uvm_flag_t flags)
     !defined(PMAP_MAP_POOLPAGE) && !defined(PMAP_UNMAP_POOLPAGE)
 #error Must specify ALLOC with MAP and UNMAP
 #endif
-
+#if 0
 int
 uvm_km_kmem_alloc(vmem_t *vm, vmem_size_t size, vm_flag_t flags,
     vmem_addr_t *addr)
@@ -897,6 +899,7 @@ uvm_km_kmem_free(vmem_t *vm, vmem_addr_t addr, size_t size)
 
 	vmem_free(vm, addr, size);
 }
+#endif
 
 bool
 uvm_km_va_starved_p(void)

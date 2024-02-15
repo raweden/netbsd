@@ -100,6 +100,8 @@ __KERNEL_RCSID(0, "$NetBSD: tmpfs_subr.c,v 1.117 2023/04/29 08:15:13 riastradh E
 #include <fs/tmpfs/tmpfs_specops.h>
 #include <fs/tmpfs/tmpfs_vnops.h>
 
+#include <wasm/../mm/mm.h>
+
 static void	tmpfs_dir_putseq(tmpfs_node_t *, tmpfs_dirent_t *);
 
 /*
@@ -652,7 +654,7 @@ uint32_t
 tmpfs_dir_getseq(tmpfs_node_t *dnode, tmpfs_dirent_t *de)
 {
 	uint32_t seq = de->td_seq;
-	vmem_t *seq_arena;
+	struct mm_arena *seq_arena;
 	vmem_addr_t off;
 	int error __diagused;
 
@@ -688,13 +690,13 @@ tmpfs_dir_getseq(tmpfs_node_t *dnode, tmpfs_dirent_t *de)
 	 * vmem(9) arena for the directory first.
 	 */
 	if ((seq_arena = dnode->tn_spec.tn_dir.tn_seq_arena) == NULL) {
-		seq_arena = vmem_create("tmpfscoo", 0,
+		seq_arena = mm_arena_create("tmpfscoo", 0,
 		    TMPFS_DIRSEQ_END - 1, 1, NULL, NULL, NULL, 0,
 		    VM_SLEEP, IPL_NONE);
 		dnode->tn_spec.tn_dir.tn_seq_arena = seq_arena;
 		KASSERT(seq_arena != NULL);
 	}
-	error = vmem_alloc(seq_arena, 1, VM_SLEEP | VM_BESTFIT, &off);
+	error = mm_arena_alloc(seq_arena, 1, VM_SLEEP | VM_BESTFIT, &off);
 	KASSERT(error == 0);
 
 	KASSERT(off < TMPFS_DIRSEQ_END);
@@ -705,7 +707,7 @@ tmpfs_dir_getseq(tmpfs_node_t *dnode, tmpfs_dirent_t *de)
 static void
 tmpfs_dir_putseq(tmpfs_node_t *dnode, tmpfs_dirent_t *de)
 {
-	vmem_t *seq_arena = dnode->tn_spec.tn_dir.tn_seq_arena;
+	struct mm_arena *seq_arena = dnode->tn_spec.tn_dir.tn_seq_arena;
 	uint32_t seq = de->td_seq;
 
 	TMPFS_VALIDATE_DIR(dnode);
@@ -718,7 +720,7 @@ tmpfs_dir_putseq(tmpfs_node_t *dnode, tmpfs_dirent_t *de)
 		KASSERT(seq_arena != NULL);
 		KASSERT(seq >= TMPFS_DIRSEQ_END);
 		seq &= ~TMPFS_DIRSEQ_END;
-		vmem_free(seq_arena, seq, 1);
+		mm_arena_free(seq_arena, seq, 1);
 	}
 	de->td_seq = TMPFS_DIRSEQ_NONE;
 
@@ -726,7 +728,7 @@ tmpfs_dir_putseq(tmpfs_node_t *dnode, tmpfs_dirent_t *de)
 	if (seq_arena && dnode->tn_size == 0) {
 		dnode->tn_spec.tn_dir.tn_seq_arena = NULL;
 		dnode->tn_spec.tn_dir.tn_next_seq = TMPFS_DIRSEQ_START;
-		vmem_destroy(seq_arena);
+		mm_arena_destroy(seq_arena);
 	}
 }
 

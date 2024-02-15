@@ -40,6 +40,7 @@ void uvmfault_update_stats(struct uvm_faultinfo *);
  * uvmfault_unlockmaps: unlock the maps
  */
 
+#if 0
 static __inline void
 uvmfault_unlockmaps(struct uvm_faultinfo *ufi, bool write_locked)
 {
@@ -58,9 +59,10 @@ uvmfault_unlockmaps(struct uvm_faultinfo *ufi, bool write_locked)
 	if (write_locked) {
 		vm_map_unlock(ufi->map);
 	} else {
-		vm_map_unlock_read(ufi->map);
+		//vm_map_unlock_read(ufi->map);
 	}
 }
+
 
 /*
  * uvmfault_unlockall: unlock everything passed in.
@@ -79,6 +81,7 @@ uvmfault_unlockall(struct uvm_faultinfo *ufi, struct vm_amap *amap,
 		amap_unlock(amap);
 	uvmfault_unlockmaps(ufi, false);
 }
+
 
 /*
  * uvmfault_lookup: lookup a virtual address in a map
@@ -146,7 +149,7 @@ uvmfault_lookup(struct uvm_faultinfo *ufi, bool write_lock)
 			if (write_lock) {
 				vm_map_unlock(ufi->map);
 			} else {
-				vm_map_unlock_read(ufi->map);
+				//vm_map_unlock_read(ufi->map);
 			}
 			ufi->map = tmpmap;
 			continue;
@@ -163,6 +166,7 @@ uvmfault_lookup(struct uvm_faultinfo *ufi, bool write_lock)
 
 	/*NOTREACHED*/
 }
+#endif
 
 /*
  * uvmfault_relock: attempt to relock the same version of the map
@@ -192,7 +196,7 @@ uvmfault_relock(struct uvm_faultinfo *ufi)
 
 	vm_map_lock_read(ufi->map);
 	if (ufi->mapv != ufi->map->timestamp) {
-		vm_map_unlock_read(ufi->map);
+		//vm_map_unlock_read(ufi->map);
 		return(false);
 	}
 

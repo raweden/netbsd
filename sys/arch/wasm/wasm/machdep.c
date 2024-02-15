@@ -103,7 +103,6 @@ __KERNEL_RCSID(0, "$NetBSD: machdep.c,v 1.840 2023/07/16 19:55:43 riastradh Exp 
 #include <machine/pmap_private.h>
 #include <wasm/wasm/tsc.h>
 
-#include <wasm/bootspace.h>
 #include <wasm/fpu.h>
 #include <wasm/dbregs.h>
 #include <wasm/machdep.h>
@@ -194,8 +193,6 @@ paddr_t ldt_paddr;
 
 vaddr_t pentium_idt_vaddr;
 
-struct vm_map *phys_map = NULL;
-
 extern struct bootspace bootspace;
 
 extern paddr_t lowmem_rsvd;
@@ -206,13 +203,6 @@ void hypervisor_callback(void);
 void failsafe_callback(void);
 #endif
 
-/*
- * Size of memory segments, before any memory is stolen.
- */
-phys_ram_seg_t mem_clusters[VM_PHYSSEG_MAX];
-int mem_cluster_cnt = 0;
-
-void init_bootspace(void);
 void init386(paddr_t);
 void initgdt(union descriptor *);
 
@@ -256,94 +246,6 @@ extern trap_fn wa_exceptions_traps[32];
 void wasm_syscall(void);
 void wasm_tss_trap08(void);
 
-/* Only called by locore.S; no need to be in a header file. */
-void native_loader(int, int, struct bootinfo_source *, paddr_t, int, int);
-
-/*
- * Called as one of the very first things during system startup (just after
- * the boot loader gave control to the kernel image), this routine is in
- * charge of retrieving the parameters passed in by the boot loader and
- * storing them in the appropriate kernel variables.
- *
- * WARNING: Because the kernel has not yet relocated itself to KERNBASE,
- * special care has to be taken when accessing memory because absolute
- * addresses (referring to kernel symbols) do not work.  So:
- *
- *     1) Avoid jumps to absolute addresses (such as gotos and switches).
- *     2) To access global variables use their physical address, which
- *        can be obtained using the RELOC macro.
- */
-void
-native_loader(int bl_boothowto, int bl_bootdev,
-    struct bootinfo_source *bl_bootinfo, paddr_t bl_esym,
-    int bl_biosextmem, int bl_biosbasemem)
-{
-#define RELOC(type, x) ((type)((vaddr_t)(x) - KERNBASE))
-
-	*RELOC(int *, &boothowto) = bl_boothowto;
-
-	/*
-	 * The boot loader provides a physical, non-relocated address
-	 * for the symbols table's end.  We need to convert it to a
-	 * virtual address.
-	 */
-	if (bl_esym != 0)
-		*RELOC(int **, &esym) = (int *)((vaddr_t)bl_esym + KERNBASE);
-	else
-		*RELOC(int **, &esym) = 0;
-
-	/*
-	 * Copy bootinfo entries (if any) from the boot loader's
-	 * representation to the kernel's bootinfo space.
-	 */
-	if (bl_bootinfo != NULL) {
-		size_t i;
-		uint8_t *data;
-		struct bootinfo *bidest;
-		struct btinfo_modulelist *bi;
-
-		bidest = RELOC(struct bootinfo *, &bootinfo);
-
-		data = &bidest->bi_data[0];
-
-		for (i = 0; i < bl_bootinfo->bs_naddrs; i++) {
-			struct btinfo_common *bc;
-
-			bc = bl_bootinfo->bs_addrs[i];
-
-			if ((data + bc->len) >
-			    (&bidest->bi_data[0] + BOOTINFO_MAXSIZE))
-				break;
-
-			memcpy(data, bc, bc->len);
-			/*
-			 * If any modules were loaded, record where they
-			 * end.  We'll need to skip over them.
-			 */
-			bi = (struct btinfo_modulelist *)data;
-			if (bi->common.type == BTINFO_MODULELIST) {
-				*RELOC(int **, &eblob) =
-				    (int *)(bi->endpa + KERNBASE);
-			}
-			data += bc->len;
-		}
-		bidest->bi_nentries = i;
-	}
-
-	/*
-	 * Configure biosbasemem and biosextmem only if they were not
-	 * explicitly given during the kernel's build.
-	 */
-	if (*RELOC(int *, &biosbasemem) == 0) {
-		*RELOC(int *, &biosbasemem) = bl_biosbasemem;
-		*RELOC(int *, &biosmem_implicit) = 1;
-	}
-	if (*RELOC(int *, &biosextmem) == 0) {
-		*RELOC(int *, &biosextmem) = bl_biosextmem;
-		*RELOC(int *, &biosmem_implicit) = 1;
-	}
-#undef RELOC
-}
 
 #endif /* XENPV */
 
@@ -366,27 +268,14 @@ cpu_startup(void)
 	/*
 	 * Initialize error message buffer (et end of core).
 	 */
-	if (msgbuf_p_cnt == 0)
+	if (msgbuf_p_cnt == 0) {
 		panic("msgbuf paddr map has not been set up");
-	for (x = 0, sz = 0; x < msgbuf_p_cnt; sz += msgbuf_p_seg[x++].sz)
-		continue;
-
-	msgbuf_vaddr = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_VAONLY);
-	if (msgbuf_vaddr == 0)
-		panic("failed to valloc msgbuf_vaddr");
-
-	for (y = 0, sz = 0; y < msgbuf_p_cnt; y++) {
-		for (x = 0; x < btoc(msgbuf_p_seg[y].sz); x++, sz += PAGE_SIZE)
-			pmap_kenter_pa((vaddr_t)msgbuf_vaddr + sz,
-			    msgbuf_p_seg[y].paddr + x * PAGE_SIZE,
-			    VM_PROT_READ|VM_PROT_WRITE, 0);
 	}
-
-	pmap_update(pmap_kernel());
-
-#ifndef __WASM // TODO: wasm; fixme
+	if (msgbuf_vaddr == 0)
+		panic("failed to alloc msgbuf_vaddr");
+	
+	sz = msgbuf_p_cnt * PAGE_SIZE;
 	initmsgbuf((void *)msgbuf_vaddr, sz);
-#endif
 
 #ifdef MULTIBOOT
 	multiboot1_print_info();
@@ -399,12 +288,6 @@ cpu_startup(void)
 #endif
 
 	minaddr = 0;
-
-	/*
-	 * Allocate a submap for physio
-	 */
-	phys_map = uvm_km_suballoc(kernel_map, &minaddr, &maxaddr,
-	    VM_PHYS_SIZE, 0, false, NULL);
 
 	/* Say hello. */
 	banner();
@@ -446,8 +329,8 @@ i386_proc0_pcb_ldt_init(void)
 	pcb->pcb_esp0 = uvm_lwp_getuarea(l) + USPACE - 16;
 	pcb->pcb_iopl = IOPL_KPL;
 	l->l_md.md_regs = (struct trapframe *)pcb->pcb_esp0 - 1;
-	memcpy(&pcb->pcb_fsd, &gdtstore[GUDATA_SEL], sizeof(pcb->pcb_fsd));
-	memcpy(&pcb->pcb_gsd, &gdtstore[GUDATA_SEL], sizeof(pcb->pcb_gsd));
+	//memcpy(&pcb->pcb_fsd, &gdtstore[GUDATA_SEL], sizeof(pcb->pcb_fsd));
+	//memcpy(&pcb->pcb_gsd, &gdtstore[GUDATA_SEL], sizeof(pcb->pcb_gsd));
 	pcb->pcb_dbregs = NULL;
 
 #ifndef XENPV
@@ -510,8 +393,6 @@ static void	tss_init(struct i386tss *, void *, void *);
 static void
 tss_init(struct i386tss *tss, void *stack, void *func)
 {
-	KASSERT(curcpu()->ci_pmap == pmap_kernel());
-
 	memset(tss, 0, sizeof *tss);
 	tss->tss_esp0 = tss->tss_esp = (int)((char *)stack + USPACE - 16);
 	tss->tss_ss0 = GSEL(GDATA_SEL, SEL_KPL);
@@ -536,6 +417,7 @@ extern int ddb_vec;
 void
 cpu_set_tss_gates(struct cpu_info *ci)
 {
+#if 0
 	struct segment_descriptor sd;
 	void *doubleflt_stack;
 	idt_descriptor_t *idt;
@@ -574,6 +456,7 @@ cpu_set_tss_gates(struct cpu_info *ci)
 	set_idtgate(&idt[ddb_vec], NULL, 0, SDT_SYSTASKGT, SEL_KPL,
 	    GSEL(GIPITSS_SEL, SEL_KPL));
 #endif
+#endif
 }
 #endif /* XENPV */
 
@@ -585,8 +468,7 @@ cpu_init_tss(struct cpu_info *ci)
 {
 	struct cpu_tss *cputss;
 
-	cputss = (struct cpu_tss *)uvm_km_alloc(kernel_map,
-	    sizeof(struct cpu_tss), 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	cputss = (struct cpu_tss *)kmem_zalloc(sizeof(struct cpu_tss), 0);
 
 	cputss->tss.tss_iobase = IOMAP_INVALOFF << 16;
 #ifndef XENPV
@@ -949,114 +831,6 @@ cpu_init_idt(struct cpu_info *ci)
 	lidt(&region);
 }
 
-/*
- * initgdt(tgdt)
- *
- *	Initialize a temporary Global Descriptor Table (GDT) using
- *	storage space at tgdt.
- *
- *	1. Set up segment descriptors for our purposes, including a
- *	   CPU-local segment descriptor pointing at &cpu_info_primary.
- *
- *	2. Load the address into the Global Descriptor Table Register.
- *
- *	3. Set up segment selectors for all the segment registers using
- *	   it so that %fs-relative addressing works for the CPU-local
- *	   data.
- *
- *	After this put, CPUVAR(...), curcpu(), and curlwp will work.
- *
- *	Eventually the kernel will switch to a second temporary GDT
- *	allocated with pmap_bootstrap_valloc in pmap_bootstrap, and
- *	then to permanent GDT allocated with uvm_km(9) in gdt_init.
- *	But the first temporary GDT is needed now to get us going with
- *	early access to curcpu() and curlwp before we enter kernel
- *	main.
- *
- *	XXX The purpose of each of the segment descriptors should be
- *	written down somewhere in a single place that can be cross-
- *	referenced.
- *
- *	References:
- *
- *	- Intel 64 and IA-32 Architectures Software Developer's Manual,
- *	  Volume 3: System Programming Guide, Order Number 325384,
- *	  April 2022, Sec. 3.5.1 `Segment Descriptor Tables',
- *	  pp. 3-14 through 3-16.
- */
-void
-initgdt(union descriptor *tgdt)
-{
-	KASSERT(tgdt != NULL);
-
-	gdtstore = tgdt;
-#ifdef XENPV
-	u_long	frames[16];
-#else
-	struct region_descriptor region;
-	memset(gdtstore, 0, NGDT * sizeof(*gdtstore));
-#endif
-
-	/* make gdt gates and memory segments */
-	setsegment(&gdtstore[GCODE_SEL].sd, 0, 0xfffff,
-	    SDT_MEMERA, SEL_KPL, 1, 1);
-	setsegment(&gdtstore[GDATA_SEL].sd, 0, 0xfffff,
-	    SDT_MEMRWA, SEL_KPL, 1, 1);
-	setsegment(&gdtstore[GUCODE_SEL].sd, 0, x86_btop(I386_MAX_EXE_ADDR) - 1,
-	    SDT_MEMERA, SEL_UPL, 1, 1);
-	setsegment(&gdtstore[GUCODEBIG_SEL].sd, 0, 0xfffff,
-	    SDT_MEMERA, SEL_UPL, 1, 1);
-	setsegment(&gdtstore[GUDATA_SEL].sd, 0, 0xfffff,
-	    SDT_MEMRWA, SEL_UPL, 1, 1);
-#if NBIOSCALL > 0 && !defined(XENPV)
-	/* bios trampoline GDT entries */
-	setsegment(&gdtstore[GBIOSCODE_SEL].sd, 0, 0xfffff,
-	    SDT_MEMERA, SEL_KPL, 0, 0);
-	setsegment(&gdtstore[GBIOSDATA_SEL].sd, 0, 0xfffff,
-	    SDT_MEMRWA, SEL_KPL, 0, 0);
-#endif
-	setsegment(&gdtstore[GCPU_SEL].sd, &cpu_info_primary,
-	    sizeof(struct cpu_info) - 1, SDT_MEMRWA, SEL_KPL, 1, 0);
-
-#ifndef XENPV
-	setregion(&region, gdtstore, NGDT * sizeof(gdtstore[0]) - 1);
-	lgdt(&region);
-#else /* !XENPV */
-	/*
-	 * We jumpstart the bootstrap process a bit so we can update
-	 * page permissions. This is done redundantly later from
-	 * x86_xpmap.c:xen_locore() - harmless.
-	 */
-	xpmap_phys_to_machine_mapping =
-	    (unsigned long *)xen_start_info.mfn_list;
-
-	frames[0] = xpmap_ptom((uint32_t)gdtstore - KERNBASE) >> PAGE_SHIFT;
-	{	/*
-		 * Enter the gdt page RO into the kernel map. We can't
-		 * use pmap_kenter_pa() here, because %fs is not
-		 * usable until the gdt is loaded, and %fs is used as
-		 * the base pointer for curcpu() and curlwp(), both of
-		 * which are in the callpath of pmap_kenter_pa().
-		 * So we mash up our own - this is MD code anyway.
-		 */
-		extern pt_entry_t xpmap_pg_nx;
-		pt_entry_t pte;
-
-		pte = pmap_pa2pte((vaddr_t)gdtstore - KERNBASE);
-		pte |= xpmap_pg_nx | PTE_P;
-
-		if (HYPERVISOR_update_va_mapping((vaddr_t)gdtstore, pte,
-		    UVMF_INVLPG) < 0) {
-			panic("gdt page RO update failed.\n");
-		}
-	}
-
-	if (HYPERVISOR_set_gdt(frames, NGDT /* XXX is it right ? */))
-		panic("HYPERVISOR_set_gdt failed!\n");
-
-	lgdt_finish();
-#endif /* !XENPV */
-}
 
 #if !defined(XENPV)  && NBIOSCALL > 0
 static void
@@ -1106,46 +880,6 @@ init386_ksyms(void)
 }
 #endif /* XENPV */
 
-void
-init_bootspace(void)
-{
-	extern char __rodata_start;
-	extern char __data_start;
-	extern char __kernel_end;
-	size_t i = 0;
-
-	memset(&bootspace, 0, sizeof(bootspace));
-
-	bootspace.head.va = KERNTEXTOFF;
-	bootspace.head.pa = KERNTEXTOFF - KERNBASE;
-	bootspace.head.sz = 0;
-
-	bootspace.segs[i].type = BTSEG_TEXT;
-	bootspace.segs[i].va = KERNTEXTOFF;
-	bootspace.segs[i].pa = KERNTEXTOFF - KERNBASE;
-	bootspace.segs[i].sz = (size_t)&__rodata_start - KERNTEXTOFF;
-	i++;
-
-	bootspace.segs[i].type = BTSEG_RODATA;
-	bootspace.segs[i].va = (vaddr_t)&__rodata_start;
-	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__rodata_start - KERNBASE;
-	bootspace.segs[i].sz = (size_t)&__data_start - (size_t)&__rodata_start;
-	i++;
-
-	bootspace.segs[i].type = BTSEG_DATA;
-	bootspace.segs[i].va = (vaddr_t)&__data_start;
-	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__data_start - KERNBASE;
-	bootspace.segs[i].sz = (size_t)&__kernel_end - (size_t)&__data_start;
-	i++;
-
-	bootspace.boot.va = (vaddr_t)&__kernel_end;
-	bootspace.boot.pa = (paddr_t)(vaddr_t)&__kernel_end - KERNBASE;
-	bootspace.boot.sz = (size_t)(atdevbase + IOM_SIZE) -
-	    (size_t)&__kernel_end;
-
-	/* Virtual address of the top level page */
-	bootspace.pdir = (vaddr_t)(PDPpaddr + KERNBASE);
-}
 
 // initlize early console (prints to console.log for WebAssembly)
 
@@ -1196,6 +930,7 @@ init_earlycons(void)
 }
 
 void wasm_fixup_physseg(void);
+void init_wasm_memory(void);
 
 void
 init_wasm32(paddr_t first_avail)
@@ -1229,6 +964,8 @@ init_wasm32(paddr_t first_avail)
 
 	// initilize simple hocks to printing to console.
 	init_earlycons();
+
+	init_wasm_memory();
 
 	uvm_lwp_setuarea(&lwp0, lwp0uarea);
 
@@ -1266,8 +1003,6 @@ init_wasm32(paddr_t first_avail)
 	cpu_info_primary.ci_pae_l3_pdir = (pd_entry_t *)(rcr3() + KERNBASE);
 #endif
 
-	uvm_md_init();
-
 	/*
 	 * Start with 2 color bins -- this is just a guess to get us
 	 * started.  We'll recolor when we determine the largest cache
@@ -1275,7 +1010,7 @@ init_wasm32(paddr_t first_avail)
 	 */
 	uvmexp.ncolors = 2;
 
-	avail_start = first_avail;
+	//avail_start = first_avail;
 
 	/*
 	 * Low memory reservations:
@@ -1287,7 +1022,7 @@ init_wasm32(paddr_t first_avail)
 	 * Page 5:	Temporary page directory
 	 */
 	//lowmem_rsvd = 6 * PAGE_SIZE;
-	lowmem_rsvd = 0;
+	//lowmem_rsvd = 0;
 
 #if NISA > 0 || NPCI > 0
 	x86_bus_space_init();
@@ -1305,35 +1040,6 @@ init_wasm32(paddr_t first_avail)
 	cpu_rng_init();
 	x86_rndseed();
 
-#ifdef DEBUG_MEMLOAD
-	printf("mem_cluster_count: %d\n", mem_cluster_cnt);
-#endif
-
-	/*
-	 * Call pmap initialization to make new kernel address space.
-	 * We must do this before loading pages into the VM system.
-	 */
-	pmap_bootstrap((vaddr_t)atdevbase + IOM_SIZE);
-
-	printf("avail_start: %lu avail_end: %lu", avail_start, avail_end);
-	/* Initialize the memory clusters. */
-	init_x86_clusters();
-
-	printf("avail_start: %lu avail_end: %lu", avail_start, avail_end);
-
-	/* Internalize the physical pages into the VM system. */
-	init_x86_vm(avail_start);
-	printf("avail_start: %lu avail_end: %lu", avail_start, avail_end);
-
-	wasm_fixup_physseg();
-	
-	// debug; how does the memory look before init_x86_msgbuf() call
-	uvm_physseg_t bank;
-	for (bank = uvm_physseg_get_first(); uvm_physseg_valid_p(bank); bank = uvm_physseg_get_next(bank)) {
-		printf("%s uvm_physseg (start: %lu end: %lu )", __func__, uvm_physseg_get_start(bank), uvm_physseg_get_end(bank));
-	}
-
-	init_x86_msgbuf();
 
 #if !defined(XENPV) && NBIOSCALL > 0
 	/*
@@ -1353,102 +1059,6 @@ init_wasm32(paddr_t first_avail)
 	/* Needed early, for bioscall() */
 	cpu_info_primary.ci_pmap = pmap_kernel();
 #endif
-
-#ifndef XENPV
-	pmap_kenter_pa(local_apic_va, local_apic_pa,
-	    VM_PROT_READ|VM_PROT_WRITE, 0);
-	pmap_update(pmap_kernel());
-	memset((void *)local_apic_va, 0, PAGE_SIZE);
-#endif
-
-	pmap_kenter_pa(idt_vaddr, idt_paddr, VM_PROT_READ|VM_PROT_WRITE, 0);
-	pmap_kenter_pa(gdt_vaddr, gdt_paddr, VM_PROT_READ|VM_PROT_WRITE, 0);
-	pmap_kenter_pa(ldt_vaddr, ldt_paddr, VM_PROT_READ|VM_PROT_WRITE, 0);
-	pmap_update(pmap_kernel());
-	memset((void *)idt_vaddr, 0, PAGE_SIZE);
-	memset((void *)gdt_vaddr, 0, PAGE_SIZE);
-	memset((void *)ldt_vaddr, 0, PAGE_SIZE);
-
-	pmap_kenter_pa(pentium_idt_vaddr, idt_paddr, VM_PROT_READ, 0);
-	pmap_update(pmap_kernel());
-	iv = &(cpu_info_primary.ci_idtvec);
-	idt_vec_init_cpu_md(iv, cpu_index(&cpu_info_primary));
-	idt = (idt_descriptor_t *)iv->iv_idt;
-
-#ifndef XENPV
-	/*
-	 * Switch from the initial temporary GDT that was allocated on
-	 * the stack by our caller, start.  That temporary GDT will be
-	 * popped off the stack when init386 returns before start calls
-	 * main, so we need to use a second temporary GDT allocated in
-	 * pmap_bootstrap with pmap_bootstrap_valloc/palloc to make
-	 * sure at least the CPU-local data area, used by CPUVAR(...),
-	 * curcpu(), and curlwp via %fs-relative addressing, will
-	 * continue to work.
-	 *
-	 * Later, in gdt_init via cpu_startup, we will finally allocate
-	 * a permanent GDT with uvm_km(9).
-	 *
-	 * The content of the second temporary GDT is the same as the
-	 * content of the initial GDT, initialized in initgdt, except
-	 * for the address of the LDT, which is also that we are also
-	 * switching to a new temporary LDT at a new address.
-	 */
-	tgdt = gdtstore;
-	gdtstore = (union descriptor *)gdt_vaddr;
-	ldtstore = (union descriptor *)ldt_vaddr;
-
-	memcpy(gdtstore, tgdt, NGDT * sizeof(*gdtstore));
-
-	setsegment(&gdtstore[GLDT_SEL].sd, ldtstore,
-	    NLDT * sizeof(ldtstore[0]) - 1, SDT_SYSLDT, SEL_KPL, 0, 0);
-#else
-	HYPERVISOR_set_callbacks(
-	    GSEL(GCODE_SEL, SEL_KPL), (unsigned long)hypervisor_callback,
-	    GSEL(GCODE_SEL, SEL_KPL), (unsigned long)failsafe_callback);
-
-	ldtstore = (union descriptor *)ldt_vaddr;
-#endif /* XENPV */
-
-	/* make ldt gates and memory segments */
-	ldtstore[LUCODE_SEL] = gdtstore[GUCODE_SEL];
-	ldtstore[LUCODEBIG_SEL] = gdtstore[GUCODEBIG_SEL];
-	ldtstore[LUDATA_SEL] = gdtstore[GUDATA_SEL];
-
-	/* exceptions */
-	for (x = 0; x < 32; x++) {
-		/* Reset to default. Special cases below */
-		int sel;
-#ifdef XENPV		
-		sel = SEL_XEN;
-#else
-		sel = SEL_KPL;
-#endif /* XENPV */
-
-		idt_vec_reserve(iv, x);
-
- 		switch (x) {
-#ifdef XENPV
-		case 2:  /* NMI */
-		case 18: /* MCA */
-			sel |= 0x4; /* Auto EOI/mask */
-			break;
-#endif /* XENPV */
-		case 3:
-		case 4:
-			sel = SEL_UPL;
-			break;
-		default:
-			break;
-		}
-		set_idtgate(&idt[x], wa_exceptions_traps[x], 0, SDT_SYS386IGT,
-		    sel, GSEL(GCODE_SEL, SEL_KPL));
-	}
-
-	/* new-style interrupt gate for syscalls */
-	idt_vec_reserve(iv, 128);
-	set_idtgate(&idt[128], wasm_syscall, 0, SDT_SYS386IGT, SEL_UPL,
-	    GSEL(GCODE_SEL, SEL_KPL));
 
 #ifndef XENPV
 	/*
@@ -1765,41 +1375,6 @@ mm_md_open(dev_t dev, int flag, int mode, struct lwp *l)
 	return 0;
 }
 
-#ifdef PAE
-void
-cpu_alloc_l3_page(struct cpu_info *ci)
-{
-	int ret;
-	struct pglist pg;
-	struct vm_page *vmap;
-
-	KASSERT(ci != NULL);
-	/*
-	 * Allocate a page for the per-CPU L3 PD. cr3 being 32 bits, PA musts
-	 * resides below the 4GB boundary.
-	 */
-	ret = uvm_pglistalloc(PAGE_SIZE, 0, 0x100000000ULL, 32, 0, &pg, 1, 0);
-	vmap = TAILQ_FIRST(&pg);
-
-	if (ret != 0 || vmap == NULL)
-		panic("%s: failed to allocate L3 pglist for CPU %d (ret %d)\n",
-			__func__, cpu_index(ci), ret);
-
-	ci->ci_pae_l3_pdirpa = VM_PAGE_TO_PHYS(vmap);
-
-	ci->ci_pae_l3_pdir = (paddr_t *)uvm_km_alloc(kernel_map, PAGE_SIZE, 0,
-		UVM_KMF_VAONLY | UVM_KMF_NOWAIT);
-	if (ci->ci_pae_l3_pdir == NULL)
-		panic("%s: failed to allocate L3 PD for CPU %d\n",
-			__func__, cpu_index(ci));
-
-	pmap_kenter_pa((vaddr_t)ci->ci_pae_l3_pdir, ci->ci_pae_l3_pdirpa,
-		VM_PROT_READ | VM_PROT_WRITE, 0);
-
-	pmap_update(pmap_kernel());
-}
-#endif /* PAE */
-
 static void
 idt_vec_copy(struct idt_vec *dst, struct idt_vec *src)
 {
@@ -1808,41 +1383,4 @@ idt_vec_copy(struct idt_vec *dst, struct idt_vec *src)
 	idt_dst = dst->iv_idt;
 	memcpy(idt_dst, src->iv_idt, PAGE_SIZE);
 	memcpy(dst->iv_allocmap, src->iv_allocmap, sizeof(dst->iv_allocmap));
-}
-
-void
-idt_vec_init_cpu_md(struct idt_vec *iv, cpuid_t cid)
-{
-	vaddr_t va_idt, va_pentium_idt;
-	struct vm_page *pg;
-
-	if (idt_vec_is_pcpu() &&
-	    cid != cpu_index(&cpu_info_primary)) {
-		va_idt = uvm_km_alloc(kernel_map, PAGE_SIZE,
-		    0, UVM_KMF_VAONLY);
-		pg = uvm_pagealloc(NULL, 0, NULL, UVM_PGA_ZERO);
-		if (pg == NULL) {
-			panic("failed to allocate pcpu idt PA");
-		}
-		pmap_kenter_pa(va_idt, VM_PAGE_TO_PHYS(pg),
-		    VM_PROT_READ|VM_PROT_WRITE, 0);
-		pmap_update(pmap_kernel());
-
-		memset((void *)va_idt, 0, PAGE_SIZE);
-
-		/* pentium f00f bug stuff */
-		va_pentium_idt = uvm_km_alloc(kernel_map, PAGE_SIZE,
-		    0, UVM_KMF_VAONLY);
-		pmap_kenter_pa(va_pentium_idt, VM_PAGE_TO_PHYS(pg),
-		    VM_PROT_READ, 0);
-		pmap_update(pmap_kernel());
-
-		iv->iv_idt = (void *)va_idt;
-		iv->iv_idt_pentium = (void *)va_pentium_idt;
-
-		idt_vec_copy(iv, &(cpu_info_primary.ci_idtvec));
-	} else {
-		iv->iv_idt = (void *)idt_vaddr;
-		iv->iv_idt_pentium = (void *)pentium_idt_vaddr;
-	}
 }

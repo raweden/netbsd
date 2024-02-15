@@ -298,6 +298,8 @@ rw_vector_enter(krwlock_t *rw, const krw_t op)
 	RW_ASSERT(rw, curthread != 0);
 	RW_WANTLOCK(rw, op);
 
+	printf("%s rw = %p rw->rw_owner %p\n", __func__, rw, rw_owner);
+
 	if (__predict_true(panicstr == NULL)) {
 		KDASSERT(pserialize_not_in_read_section());
 		LOCKDEBUG_BARRIER(&kernel_lock, 1);

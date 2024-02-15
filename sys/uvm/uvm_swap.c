@@ -69,6 +69,8 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_swap.c,v 1.208 2023/04/09 09:00:56 riastradh Exp
 #include <crypto/aes/aes.h>
 #include <crypto/aes/aes_cbc.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * uvm_swap.c: manage configuration and i/o to swap space.
  */
@@ -285,6 +287,7 @@ uvm_swap_init(void)
 		panic("%s: can't open swap device", __func__);
 	VOP_UNLOCK(swapdev_vp);
 
+#if 0
 	/*
 	 * create swap block resource map to map /dev/drum.   the range
 	 * from 1 to INT_MAX allows 2 gigablocks of swap space.  note
@@ -301,6 +304,7 @@ uvm_swap_init(void)
 	    NULL, IPL_BIO);
 	pool_init(&vndbuf_pool, sizeof(struct vndbuf), 0, 0, 0, "swp vnd",
 	    NULL, IPL_BIO);
+#endif
 
 	uvm_swap_init_done = true;
 
@@ -837,6 +841,10 @@ uvm_swap_stats(char *ptr, int misc,
 static int
 swap_on(struct lwp *l, struct swapdev *sdp)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	struct vnode *vp;
 	int error, npages, nblocks, size;
 	long addr;
@@ -1046,6 +1054,8 @@ bad:
 		(void)VOP_CLOSE(vp, FREAD|FWRITE, l->l_cred);
 	}
 	return (error);
+#endif
+	return 0;
 }
 
 /*
@@ -1056,6 +1066,10 @@ bad:
 static int
 swap_off(struct lwp *l, struct swapdev *sdp)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	int npages = sdp->swd_npages;
 	int error = 0;
 
@@ -1138,6 +1152,7 @@ swap_off(struct lwp *l, struct swapdev *sdp)
 	explicit_memset(&sdp->swd_enckey, 0, sizeof sdp->swd_enckey);
 	explicit_memset(&sdp->swd_deckey, 0, sizeof sdp->swd_deckey);
 	kmem_free(sdp, sizeof(*sdp));
+#endif
 	return (0);
 }
 
@@ -1856,6 +1871,10 @@ uvm_swap_get(struct vm_page *page, int swslot, int flags)
 static int
 uvm_swap_io(struct vm_page **pps, int startslot, int npages, int flags)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	daddr_t startblk;
 	struct	buf *bp;
 	vaddr_t kva;
@@ -2080,6 +2099,8 @@ out:
 	UVMHIST_LOG(pdhist, "<- done (sync)  error=%jd", error, 0, 0, 0);
 
 	return (error);
+#endif
+	return (0);
 }
 
 /*

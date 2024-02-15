@@ -64,6 +64,10 @@ __KERNEL_RCSID(0, "$NetBSD: sysv_msg.c,v 1.76 2019/10/04 23:20:22 kamil Exp $");
 #include <sys/syscallargs.h>
 #include <sys/kauth.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 #define MSG_DEBUG
 #undef MSG_DEBUG_OK
 
@@ -226,14 +230,14 @@ msgrealloc(int newmsgmni, int newmsgseg)
 	    ALIGN(msginfo.msgtql * sizeof(struct __msg)) +
 	    ALIGN(newmsgmni * sizeof(kmsq_t));
 	sz = round_page(sz);
-	v = uvm_km_alloc(kernel_map, sz, 0, UVM_KMF_WIRED|UVM_KMF_ZERO);
+	v = (vaddr_t)kmem_page_zalloc(sz, UVM_KMF_ZERO);
 	if (v == 0)
 		return ENOMEM;
 
 	mutex_enter(&msgmutex);
 	if (msg_realloc_state) {
 		mutex_exit(&msgmutex);
-		uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+		kmem_page_free((void *)v, sz);
 		return EBUSY;
 	}
 	msg_realloc_state = true;
@@ -262,7 +266,7 @@ msgrealloc(int newmsgmni, int newmsgseg)
 	}
 	if (i >= newmsgmni || (msginfo.msgseg - nfree_msgmaps) > newmsgseg) {
 		mutex_exit(&msgmutex);
-		uvm_km_free(kernel_map, v, sz, UVM_KMF_WIRED);
+		kmem_page_free((void *)v, sz);
 		return EBUSY;
 	}
 
@@ -411,7 +415,7 @@ msgrealloc(int newmsgmni, int newmsgseg)
 	cv_broadcast(&msg_realloc_cv);
 	mutex_exit(&msgmutex);
 
-	uvm_km_free(kernel_map, (vaddr_t)old_msgpool, sz, UVM_KMF_WIRED);
+	kmem_page_free((void *)old_msgpool, sz);
 	return 0;
 }
 

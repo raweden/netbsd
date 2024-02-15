@@ -94,6 +94,8 @@ extern int ddb_vec;
 #include <dev/vmt/vmtreg.h>	/* for vmt_hvcall() */
 #include <dev/vmt/vmtvar.h>	/* for vmt_hvcall() */
 
+#include <wasm/wasm-extra.h>
+
 /* Referenced from vector.S */
 void		lapic_clockintr(void *, struct intrframe *);
 
@@ -137,13 +139,24 @@ static bool lapic_broken_periodic __read_mostly;
 static uint32_t
 i82489_readreg(u_int reg)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	return *((volatile uint32_t *)(local_apic_va + reg));
+#endif
+	return 0;
 }
 
 static void
 i82489_writereg(u_int reg, uint32_t val)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	*((volatile uint32_t *)(local_apic_va + reg)) = val;
+#endif
 }
 
 static uint32_t
@@ -365,6 +378,10 @@ lapic_setup_bsp(paddr_t lapic_base)
 static void
 lapic_map(paddr_t lapic_base)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	pt_entry_t *pte;
 	vaddr_t va = local_apic_va;
 
@@ -405,6 +422,7 @@ lapic_map(paddr_t lapic_base)
 
 	lapic_write_tpri(0);
 	x86_enable_intr();
+#endif
 }
 
 /*

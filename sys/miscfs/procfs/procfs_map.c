@@ -137,7 +137,9 @@ procfs_domap(struct lwp *curl, struct proc *p, struct pfsnode *pfs,
 		goto out;
 
 	map = &vm->vm_map;
+#ifndef __wasm__
 	vm_map_lock_read(map);
+#endif
 
 again:
 	buffer = malloc(bufsize, M_TEMP, M_WAITOK);
@@ -199,7 +201,9 @@ again:
 			bufsize <<= 1;
 			if (bufsize > MAXBUFFERSIZE) {
 				error = ENOMEM;
+#ifndef __wasm__
 				vm_map_unlock_read(map);
+#endif
 				uvmspace_free(vm);
 				goto out;
 			}
@@ -208,7 +212,9 @@ again:
 		}
 	}
 
+#ifndef __wasm__
 	vm_map_unlock_read(map);
+#endif
 	uvmspace_free(vm);
 
 	/*

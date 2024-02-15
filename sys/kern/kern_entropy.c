@@ -406,6 +406,8 @@ entropy_init(void)
 	if (!E->seeded)
 		aprint_debug("entropy: no seed from bootloader\n");
 
+	// TODO: wasm find a way to manange this on WebAssembly, cannot use percpu subrutine.
+//#ifndef __WASM
 	/* Allocate the per-CPU records for all early entropy sources.  */
 	LIST_FOREACH(rs, &E->sources, list)
 		rs->state = percpu_alloc(sizeof(struct rndsource_cpu));
@@ -413,6 +415,7 @@ entropy_init(void)
 	/* Allocate and initialize the per-CPU state.  */
 	entropy_percpu = percpu_create(sizeof(struct entropy_cpu),
 	    entropy_init_cpu, entropy_fini_cpu, NULL);
+//#endif
 
 	/* Enter the boot cycle count to get started.  */
 	extra[i++] = entropy_timer();
@@ -1759,6 +1762,8 @@ rnd_attach_source(struct krndsource *rs, const char *name, uint32_t type,
 {
 	uint32_t extra[4];
 	unsigned i = 0;
+
+	printf("%s adding %s\n", __func__, name);
 
 	KASSERTMSG(name[0] != '\0', "rndsource must have nonempty name");
 

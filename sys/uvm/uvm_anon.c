@@ -44,6 +44,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_anon.c,v 1.80 2020/10/25 00:05:26 chs Exp $");
 #include <uvm/uvm_swap.h>
 #include <uvm/uvm_pdpolicy.h>
 
+#ifdef __wasm__
+#include <wasm/../mm/mm.h>
+#endif
+
 static struct pool_cache	uvm_anon_cache;
 
 static int			uvm_anon_ctor(void *, void *, int);
@@ -163,7 +167,7 @@ uvm_anfree(struct vm_anon *anon)
 				rw_obj_hold(anon->an_lock);
 				return;
 			}
-			uvm_pagefree(pg);
+			kmem_page_free((void *)pg->phys_addr, 1);
 			UVMHIST_LOG(maphist, "anon %#jx, page %#jx: "
 			    "freed now!", (uintptr_t)anon, (uintptr_t)pg,
 			    0, 0);
@@ -376,7 +380,7 @@ uvm_anon_release(struct vm_anon *anon)
 		uvm_pageout_done(1);
 	}
 
-	uvm_pagefree(pg);
+	kmem_page_free((void *)pg->phys_addr, 1);
 	KASSERT(anon->an_page == NULL);
 	lock = anon->an_lock;
 	uvm_anfree(anon);

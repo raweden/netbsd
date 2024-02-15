@@ -80,6 +80,7 @@
  */
 
 
+#include "arch/wasm/include/vmparam.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: vm_machdep.c,v 1.45 2021/03/28 10:29:05 skrll Exp $");
 
@@ -109,6 +110,8 @@ __KERNEL_RCSID(0, "$NetBSD: vm_machdep.c,v 1.45 2021/03/28 10:29:05 skrll Exp $"
 #include <wasm/fpu.h>
 #include <wasm/dbregs.h>
 
+
+#include <wasm/../mm/mm.h>
 
 
 extern struct pool x86_dbregspl;
@@ -187,10 +190,15 @@ cpu_lwp_fork(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize,
 #endif
 	tf = (struct trapframe *)pcb2->pcb_rsp0 - 1;
 #else
+#ifndef __WASM
 	pcb2->pcb_esp0 = (uv + USPACE - 16);
 	tf = (struct trapframe *)pcb2->pcb_esp0 - 1;
-
-	printf("trapframe of lwp2 is %p", tf);
+#else 
+	// FIXME: wasm.. would be great if we could have setup for various stack-sizes (since housekeeping might not need that much..)
+	pcb2->pcb_esp0 = (uv + (PAGE_SIZE * 32) - 16);
+	tf = (struct trapframe *)pcb2->pcb_esp0 - 1;
+	printf("%s lwp2 trapframe = %p pcb = %p pcb_esp0 = %p ", __func__, tf, pcb2, (void *)pcb2->pcb_esp0);
+#endif
 
 	pcb2->pcb_iomap = NULL;
 #endif
@@ -217,6 +225,18 @@ cpu_lwp_fork(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize,
 	l2->l_md.md_flags = l1->l_md.md_flags;
 	l2->l_md.md_astpending = 0;
 
+	l2->l_md.md_kmem = l1->l_md.md_kmem;
+	
+	if (l1->l_proc == l2->l_proc) {
+		l2->l_md.md_umem = l1->l_md.md_umem;
+	} else {
+		l2->l_proc->p_md.md_kmem = l1->l_proc->p_md.md_kmem;
+
+		struct vm_space_wasm *new_addrspace = new_uvmspace();
+		l2->l_md.md_umem = new_addrspace;
+		l2->l_proc->p_md.md_umem = new_addrspace;
+	}
+
 	sf = (struct switchframe *)tf - 1;
 
 #ifdef __x86_64__
@@ -226,7 +246,7 @@ cpu_lwp_fork(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize,
 	pcb2->pcb_rsp = (uint64_t)sf;
 	pcb2->pcb_rbp = (uint64_t)l2;
 #else
-	printf("switchframe of lwp2 is %p", sf);
+	printf("%s switchframe of lwp2 (%p) is %p func = %p arg = %p\n", __func__, l2, sf, func, arg);
 	/*
 	 * XXX Is there a reason sf->sf_edi isn't initialized here?
 	 * Could this leak potentially sensitive information to new
@@ -284,19 +304,6 @@ cpu_lwp_free2(struct lwp *l)
 #endif
 }
 
-/*
- * Convert kernel VA to physical address
- */
-paddr_t
-kvtop(void *addr)
-{
-	paddr_t pa;
-	bool ret __diagused;
-
-	ret = pmap_extract(pmap_kernel(), (vaddr_t)addr, &pa);
-	KASSERT(ret == true);
-	return pa;
-}
 
 /*
  * Map a user I/O request into kernel virtual address space.
@@ -306,6 +313,8 @@ kvtop(void *addr)
 int
 vmapbuf(struct buf *bp, vsize_t len)
 {
+	panic("%s not impelemented", __func__);
+#if 0
 	vaddr_t faddr, taddr, off;
 	paddr_t fpa;
 
@@ -338,7 +347,7 @@ vmapbuf(struct buf *bp, vsize_t len)
 		len -= PAGE_SIZE;
 	}
 	pmap_update(pmap_kernel());
-
+#endif
 	return 0;
 }
 
@@ -348,6 +357,8 @@ vmapbuf(struct buf *bp, vsize_t len)
 void
 vunmapbuf(struct buf *bp, vsize_t len)
 {
+	panic("%s not impelemented", __func__);
+#if 0
 	vaddr_t addr, off;
 
 	KASSERT((bp->b_flags & B_PHYS) != 0);
@@ -360,6 +371,7 @@ vunmapbuf(struct buf *bp, vsize_t len)
 	uvm_km_free(phys_map, addr, len, UVM_KMF_VAONLY);
 	bp->b_data = bp->b_saveaddr;
 	bp->b_saveaddr = 0;
+#endif
 }
 
 #ifdef __HAVE_CPU_UAREA_ROUTINES

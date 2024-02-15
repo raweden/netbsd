@@ -129,6 +129,8 @@ __KERNEL_RCSID(0, "$NetBSD: sys_futex.c,v 1.19 2023/02/24 11:02:27 riastradh Exp
 
 #include <uvm/uvm_extern.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * Lock order:
  *
@@ -258,11 +260,16 @@ static const rb_tree_ops_t futex_rb_ops = {
 static int
 compare_futex_shared_key(void *cookie, const void *n, const void *k)
 {
+	// TODO: wasm fixme, we need to figure out how to handle this based on the input from user thread
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	const struct futex *fa = n;
 	const union futex_key *fka = &fa->fx_key;
 	const union futex_key *fkb = k;
 
 	return uvm_voaddr_compare(&fka->fk_shared, &fkb->fk_shared);
+#endif
 }
 
 static int
@@ -415,6 +422,10 @@ futex_queue_fini(struct futex *f)
 static int
 futex_key_init(union futex_key *fk, struct vmspace *vm, vaddr_t va, bool shared)
 {
+	// TODO: wasm fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	int error = 0;
 
 	if (__predict_false(shared)) {
@@ -426,6 +437,8 @@ futex_key_init(union futex_key *fk, struct vmspace *vm, vaddr_t va, bool shared)
 	}
 
 	return error;
+#endif
+	return (0);
 }
 
 /*
@@ -436,9 +449,14 @@ futex_key_init(union futex_key *fk, struct vmspace *vm, vaddr_t va, bool shared)
 static void
 futex_key_fini(union futex_key *fk, bool shared)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	if (__predict_false(shared))
 		uvm_voaddr_release(&fk->fk_shared);
 	memset(fk, 0, sizeof(*fk));
+#endif
 }
 
 /*

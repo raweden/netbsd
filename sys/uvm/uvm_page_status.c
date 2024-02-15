@@ -34,6 +34,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_page_status.c,v 1.6 2020/08/14 09:06:15 chs Exp 
 
 #include <uvm/uvm.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 /*
  * page dirtiness status tracking
  *
@@ -57,7 +61,7 @@ __CTASSERT(UVM_PAGE_STATUS_CLEAN == PG_CLEAN);
  */
 
 unsigned int
-uvm_pagegetdirty(struct vm_page *pg)
+uvm_pagegetdirty(struct mm_page *pg)
 {
 	struct uvm_object * const uobj __diagused = pg->uobject;
 
@@ -81,7 +85,7 @@ uvm_pagegetdirty(struct vm_page *pg)
  */
 
 void
-uvm_pagemarkdirty(struct vm_page *pg, unsigned int newstatus)
+uvm_pagemarkdirty(struct mm_page *pg, unsigned int newstatus)
 {
 	struct uvm_object * const uobj = pg->uobject;
 	const unsigned int oldstatus = uvm_pagegetdirty(pg);
@@ -117,12 +121,14 @@ uvm_pagemarkdirty(struct vm_page *pg, unsigned int newstatus)
 			uvm_obj_page_set_dirty(pg);
 		}
 	}
+#if 0
 	if (newstatus == UVM_PAGE_STATUS_UNKNOWN) {
 		/*
 		 * start relying on pmap-level dirtiness tracking.
 		 */
 		pmap_clear_modify(pg);
 	}
+#endif
 	pg->flags &= ~(PG_CLEAN|PG_DIRTY);
 	pg->flags |= newstatus;
 	KASSERT(uobj == NULL || ((pg->flags & PG_CLEAN) == 0) ==
@@ -182,7 +188,7 @@ uvm_pagecheckdirty(struct vm_page *pg, bool pgprotected)
 	} else {
 		const unsigned int newstatus = pgprotected ?
 		    UVM_PAGE_STATUS_CLEAN : UVM_PAGE_STATUS_UNKNOWN;
-
+#if 0
 		if (oldstatus == UVM_PAGE_STATUS_DIRTY) {
 			modified = true;
 			if (newstatus == UVM_PAGE_STATUS_UNKNOWN) {
@@ -192,6 +198,7 @@ uvm_pagecheckdirty(struct vm_page *pg, bool pgprotected)
 			KASSERT(oldstatus == UVM_PAGE_STATUS_UNKNOWN);
 			modified = pmap_clear_modify(pg);
 		}
+#endif
 		uvm_pagemarkdirty(pg, newstatus);
 	}
 	return modified;

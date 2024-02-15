@@ -85,6 +85,8 @@ __KERNEL_RCSID(0, "$NetBSD: dumpsys.c,v 1.17 2022/08/20 23:48:50 riastradh Exp $
 
 #include <uvm/uvm_extern.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * Exports, needed by savecore, the debugger or elsewhere in the kernel.
  */
@@ -141,12 +143,6 @@ static int	dump_header_finish(void);
 static int	dump_seg_count_range(paddr_t, paddr_t);
 static int	dumpsys_seg(paddr_t, paddr_t);
 
-/*
- * From machdep.c.
- */
- 
-extern phys_ram_seg_t	mem_clusters[VM_PHYSSEG_MAX];
-extern int	mem_cluster_cnt;
 
 void
 dodumpsys(void)
@@ -323,6 +319,8 @@ reserve_dumppages(vaddr_t p)
 static void
 dump_misc_init(void)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	int i;
 
 	if (dump_headerbuf != NULL)
@@ -344,6 +342,7 @@ dump_misc_init(void)
 	    dump_headerbuf_size,
 	    PAGE_SIZE, UVM_KMF_WIRED|UVM_KMF_ZERO);
 	/* XXXjld should check for failure here, disable dumps if so. */
+#endif
 }
 
 /*
@@ -379,6 +378,9 @@ sparse_dump_mark(vaddr_t vbegin, vaddr_t vend, int includep)
 		vend = rounddown(vend, PAGE_SIZE);
 	}
 
+	// TODO: fixme
+	printf("%s fixme!", __func__);
+#if 0
 	pmap = pmap_kernel();
 	for (v = vbegin; v != vend; v += PAGE_SIZE) {
 		if (pmap_extract(pmap, v, &p)) {
@@ -388,6 +390,7 @@ sparse_dump_mark(vaddr_t vbegin, vaddr_t vend, int includep)
 				clrbit(sparse_dump_physmap, p/PAGE_SIZE);
 		}
 	}
+#endif
 }
 
 /*
@@ -415,6 +418,8 @@ cpu_dump_prep_sparse(void)
 static int
 dump_seg_iter(int (*callback)(paddr_t, paddr_t))
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	int error, i;
 
 #define CALLBACK(start,size) do {     \
@@ -458,6 +463,8 @@ dump_seg_iter(int (*callback)(paddr_t, paddr_t))
 	}
 	return 0;
 #undef CALLBACK
+#endif
+	return 0;
 }
 
 /*
@@ -570,13 +577,15 @@ dump_header_finish(void)
 static int
 cpu_dumpsize(void)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	int size;
 
 	size = ALIGN(sizeof(kcore_seg_t)) + ALIGN(sizeof(cpu_kcore_hdr_t)) +
 	    ALIGN(mem_cluster_cnt * sizeof(phys_ram_seg_t));
 	if (roundup(size, dbtob(1)) != dbtob(1))
 		return (-1);
-
+#endif
 	return (1);
 }
 
@@ -587,12 +596,15 @@ cpu_dumpsize(void)
 static u_long
 cpu_dump_mempagecnt(void)
 {
+	printf("unimplemented %s called\n", __func__);
+#if 0
 	u_long i, n;
 
 	n = 0;
 	for (i = 0; i < mem_cluster_cnt; i++)
 		n += atop(mem_clusters[i].size);
 	return (n);
+#endif
 }
 
 /*
@@ -634,6 +646,10 @@ cpu_dump(void)
 static int
 dumpsys_seg(paddr_t maddr, paddr_t bytes)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	u_long i, m, n;
 	daddr_t blkno;
 	const struct bdevsw *bdev;
@@ -673,6 +689,6 @@ dumpsys_seg(paddr_t maddr, paddr_t bytes)
 #endif
 	}
 	dump_header_blkno = blkno;
-
+#endif
 	return 0;
 }

@@ -97,7 +97,12 @@ sysctl_vm_uvmexp2(SYSCTLFN_ARGS)
 	struct uvmexp_sysctl u;
 	int active, inactive;
 
+#ifndef __WASM
 	uvm_estimatepageable(&active, &inactive);
+#else
+	active = 0;
+	inactive = 0;
+#endif
 
 	memset(&u, 0, sizeof(u));
 
@@ -380,7 +385,11 @@ uvm_total(struct vmtotal *totalp)
 	 * Calculate object memory usage statistics.
 	 */
 	freepg = uvm_availmem(true);
+#ifndef __WASM
 	uvm_estimatepageable(&active, NULL);
+#else
+	active = 0;
+#endif
 	totalp->t_free = freepg;
 	totalp->t_vm = uvmexp.npages - freepg + uvmexp.swpginuse;
 	totalp->t_avm = active + uvmexp.swpginuse;	/* XXX */

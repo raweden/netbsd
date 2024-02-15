@@ -188,6 +188,10 @@ __KERNEL_RCSID(0, "$NetBSD: kern_softint.c,v 1.73 2023/04/09 09:18:09 riastradh 
 
 #include <uvm/uvm_extern.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 /* This could overlap with signal info in struct lwp. */
 typedef struct softint {
 	SIMPLEQ_HEAD(, softhand) si_q;
@@ -310,8 +314,7 @@ softint_init(struct cpu_info *ci)
 	}
 
 	/* Use uvm_km(9) for persistent, page-aligned allocation. */
-	sc = (softcpu_t *)uvm_km_alloc(kernel_map, softint_bytes, 0,
-	    UVM_KMF_WIRED | UVM_KMF_ZERO);
+	sc = (softcpu_t *)kmem_zalloc(softint_bytes, UVM_KMF_ZERO);
 	if (sc == NULL)
 		panic("softint_init_cpu: cannot allocate memory");
 

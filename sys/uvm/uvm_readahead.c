@@ -128,6 +128,7 @@ ra_startio(struct uvm_object *uobj, off_t off, size_t sz)
 
 	KASSERT(rw_write_held(uobj->vmobjlock));
 
+#ifndef __WASM
 	/*
 	 * Don't issue read-ahead if the last page of the range is already cached.
 	 * The assumption is that since the access is sequential, the intermediate
@@ -141,6 +142,7 @@ ra_startio(struct uvm_object *uobj, off_t off, size_t sz)
 		    __func__, off, sz));
 		return endoff;
 	}
+#endif
 
 	off = trunc_page(off);
 	while (off < endoff) {

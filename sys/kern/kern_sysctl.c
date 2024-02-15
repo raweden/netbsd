@@ -398,6 +398,15 @@ sysctl_dispatch(SYSCTLFN_ARGS)
 		error = EINVAL;
 		goto out;
 	}
+#ifdef __WASM_KERN_DEBUG_PRINT
+	if (namelen == 1) {
+		printf("%s (1) name = %d", __func__, name[0]);
+	} else if (namelen == 2) {
+		printf("%s (2) name[0] = %d name[1] = %d", __func__, name[0], name[1]);
+	} else {
+		printf("%s (%d)", __func__, namelen);
+	}
+#endif
 
 	fn = NULL;
 	error = sysctl_locate(l, name, namelen, &rnode, &ni);
@@ -1172,6 +1181,10 @@ sysctl_create(SYSCTLFN_ARGS)
 	}
 	node = &node[at];
 	pnode->sysctl_clen++;
+
+#if __WASM_KERN_DEBUG_PRINT
+	printf("%s node->sysctl_num = %d node = %p\n", __func__, nm, node);
+#endif
 
 	strlcpy(node->sysctl_name, nnode.sysctl_name,
 		sizeof(node->sysctl_name));
@@ -2697,7 +2710,7 @@ sysctl_alloc(struct sysctlnode *p, int x)
 	return (0);
 }
 
-static int
+static int __noinline
 sysctl_realloc(struct sysctlnode *p)
 {
 	int i, j, olen;
@@ -2733,6 +2746,10 @@ sysctl_realloc(struct sysctlnode *p)
 				n[i].sysctl_child[j].sysctl_parent = &n[i];
 		}
 	}
+
+#if __WASM_KERN_DEBUG_PRINT
+	printf("%s sysctlnode parent %p old-vector: %p, new-vector: %p\n", __func__, p, p->sysctl_child, n);
+#endif
 
 	/*
 	 * get out with the old and in with the new

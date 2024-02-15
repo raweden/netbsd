@@ -119,7 +119,7 @@ uvm_obj_setlock(struct uvm_object *uo, krwlock_t *lockptr)
 	}
 	uo->vmobjlock = lockptr;
 }
-
+#if 0
 /*
  * uvm_obj_wirepages: wire the pages of entire UVM object.
  *
@@ -205,6 +205,7 @@ error:
 
 	return error;
 }
+#endif
 
 /*
  * uvm_obj_unwirepages: unwire the pages of entire UVM object.
@@ -216,6 +217,7 @@ error:
 void
 uvm_obj_unwirepages(struct uvm_object *uobj, off_t start, off_t end)
 {
+#if 0
 	struct vm_page *pg;
 	off_t offset;
 
@@ -231,6 +233,7 @@ uvm_obj_unwirepages(struct uvm_object *uobj, off_t start, off_t end)
 		uvm_pageunlock(pg);
 	}
 	rw_exit(uobj->vmobjlock);
+#endif
 }
 
 static inline bool

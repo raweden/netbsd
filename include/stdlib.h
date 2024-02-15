@@ -101,7 +101,7 @@ extern size_t __mb_cur_max;
 __BEGIN_DECLS
 __dead	 void _Exit(int);
 __dead	 void abort(void);
-__constfunc	int abs(int); __WASM_BUILTIN(i32_abs);
+__constfunc	int abs(int) __WASM_BUILTIN(i32_abs);
 int	 atexit(void (*)(void));
 double	 atof(const char *);
 int	 atoi(const char *);

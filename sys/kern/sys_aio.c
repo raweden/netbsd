@@ -373,7 +373,11 @@ aio_process(struct aio_job *a_job)
 		auio.uio_iov = &aiov;
 		auio.uio_iovcnt = 1;
 		auio.uio_resid = aiocbp->aio_nbytes;
+#if __wasm__
+		auio.uio_vmspace = (struct vmspace *)p->p_md.md_umem;
+#else
 		auio.uio_vmspace = p->p_vmspace;
+#endif
 
 		if (a_job->aio_op & AIO_READ) {
 			/*

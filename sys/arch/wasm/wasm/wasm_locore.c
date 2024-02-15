@@ -63,9 +63,11 @@ paddr_t __data_start = WASM_UNINIT_ADDR;
 paddr_t __rodata_start = WASM_UNINIT_ADDR;
 paddr_t physical_start = WASM_UNINIT_ADDR;        // set at locore initialization at JavaScript side.
 paddr_t physical_end = WASM_UNINIT_ADDR;
+#if 0
 paddr_t bootstrap_pde = WASM_UNINIT_ADDR;
 paddr_t l1_pte = WASM_UNINIT_ADDR;
 paddr_t __fdt_base = WASM_UNINIT_ADDR;
+#endif
 paddr_t atdevbase = WASM_UNINIT_ADDR;
 paddr_t __KERNBASE = WASM_UNINIT_ADDR;
 paddr_t __IOM_SIZE = WASM_UNINIT_ADDR;
@@ -80,7 +82,7 @@ extern struct bootspace bootspace;
 extern psize_t physmem;
 
 struct wasm_boot_meminfo __wasm_meminfo = {
-	.bootspace = &bootspace,
+	.bootspace = NULL,
 	.physmem = &physmem,
 	.iomem_start = IOM_BEGIN,
 	.iomem_end = IOM_END,
@@ -95,7 +97,6 @@ static uint8_t gdt[16] = {
 	0xff, 0xff, 0x00, 0x00, 0x00, 0x93, 0xcf, 0x00
 };
 
-static void init_bootspace(void);
 void main(void);
 
 #define	PDE_SIZE	sizeof(pd_entry_t)
@@ -120,11 +121,7 @@ void global_start(void)
         __kernel_text == WASM_UNINIT_ADDR || 
         _end == WASM_UNINIT_ADDR || 
         __data_start == WASM_UNINIT_ADDR || 
-        __rodata_start == WASM_UNINIT_ADDR || 
-        //physical_start == WASM_UNINIT_ADDR || 
-        //physical_end == WASM_UNINIT_ADDR || 
-        bootstrap_pde == WASM_UNINIT_ADDR || 
-        l1_pte == WASM_UNINIT_ADDR) {
+        __rodata_start == WASM_UNINIT_ADDR) {
         // post-editing not applied..
         __panic_abort();
     }
@@ -135,51 +132,10 @@ void global_start(void)
 	fill_pg_tables();
 
     register_t hartid = 0;
-    paddr_t dtb = __fdt_base;
 
-    init_bootspace();
     init_wasm32(__first_avail);
     main();
 }
 
 #undef WASM_UNINIT_ADDR
 
-void
-init_bootspace(void)
-{
-	extern paddr_t __rodata_start;
-	extern paddr_t __data_start;
-	extern paddr_t __kernel_end;
-	size_t i = 0;
-
-	memset(&bootspace, 0, sizeof(bootspace));
-
-	bootspace.head.va = physmem;
-	bootspace.head.pa = physmem;	// is this mapped top-down?
-	bootspace.head.sz = 0;
-
-	bootspace.segs[i].type = BTSEG_TEXT;
-	bootspace.segs[i].va = 0;
-	bootspace.segs[i].pa = 0;
-	bootspace.segs[i].sz = 0;
-	i++;
-
-	bootspace.segs[i].type = BTSEG_RODATA;
-	bootspace.segs[i].va = (vaddr_t)&__rodata_start;
-	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__rodata_start - KERNBASE;
-	bootspace.segs[i].sz = (size_t)&__data_start - (size_t)&__rodata_start;
-	i++;
-
-	bootspace.segs[i].type = BTSEG_DATA;
-	bootspace.segs[i].va = (vaddr_t)&__data_start;
-	bootspace.segs[i].pa = (paddr_t)(vaddr_t)&__data_start - KERNBASE;
-	bootspace.segs[i].sz = (size_t)&__kernel_end - (size_t)&__data_start;
-	i++;
-
-	bootspace.boot.va = (vaddr_t)&__kernel_end;
-	bootspace.boot.pa = (paddr_t)(vaddr_t)&__kernel_end - KERNBASE;
-	bootspace.boot.sz = (size_t)(atdevbase + IOM_SIZE);
-
-	/* Virtual address of the top level page */
-	bootspace.pdir = (vaddr_t)(PDPpaddr);
-}

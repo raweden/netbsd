@@ -2,14 +2,13 @@
 
 #include <sys/cdefs.h>
 #include <wasm/wasm_inst.h>
-#include <wasm/wasm_module.h>
+
+#include <wasm/wasm-extra.h>
 
 // The role of this source file is not to provide a actual implementation but to act as placeholders for atomic
 // operations ensuring that call sites for atomic methods are not inlined. The concept is that if the call instruction
 // uses the same register set as the instruction used in wasm then the call instruction can be more or less replaced
 // with the instruction for the same atomic operations.
-
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 
 /**
  * @return Returns the number of woken up agents

@@ -550,7 +550,11 @@ vn_rdwr(enum uio_rw rw, struct vnode *vp, void *base, int len, off_t offset,
 	if (segflg == UIO_SYSSPACE) {
 		UIO_SETUP_SYSSPACE(&auio);
 	} else {
+#ifdef __wasm__
+		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 	}
 
 	if ((error = enforce_rlimit_fsize(vp, &auio, ioflg)) != 0)
@@ -599,7 +603,11 @@ unionread:
 		UIO_SETUP_SYSSPACE(&auio);
 	} else {
 		KASSERT(l == curlwp);
+#ifdef __wasm__
+		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 	}
 	auio.uio_resid = count;
 	vn_lock(vp, LK_SHARED | LK_RETRY);

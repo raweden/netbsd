@@ -69,6 +69,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_vnode.c,v 1.120 2023/04/09 12:37:12 riastradh Ex
 #include <uvm/uvm_readahead.h>
 #include <uvm/uvm_page_array.h>
 
+#ifdef __WASM
+#include <wasm/../mm/mm.h>
+#endif
+
 #ifdef UVMHIST
 UVMHIST_DEFINE(ubchist);
 #endif
@@ -288,7 +292,8 @@ static int
 uvn_findpage(struct uvm_object *uobj, voff_t offset, struct vm_page **pgp,
     unsigned int flags, struct uvm_page_array *a, unsigned int nleft)
 {
-	struct vm_page *pg;
+	struct mm_page *pg;
+	void *addr;
 	UVMHIST_FUNC(__func__);
 	UVMHIST_CALLARGS(ubchist, "vp %#jx off %#jx", (uintptr_t)uobj, offset,
 	    0, 0);
@@ -333,9 +338,11 @@ uvn_findpage(struct uvm_object *uobj, voff_t offset, struct vm_page **pgp,
 				UVMHIST_LOG(ubchist, "noalloc", 0,0,0,0);
 				return 0;
 			}
-			pg = uvm_pagealloc(uobj, offset, NULL,
-			    UVM_FLAG_COLORMATCH);
-			if (pg == NULL) {
+			addr = kmem_page_alloc(1, 0);
+#if __WASM_KERN_DEBUG_PRINT
+			printf("%s allocated new page with phys_addr: %p\n", __func__, addr);
+#endif
+			if (addr == NULL) {
 				if (flags & UFP_NOWAIT) {
 					UVMHIST_LOG(ubchist, "nowait",0,0,0,0);
 					return 0;
@@ -345,6 +352,9 @@ uvn_findpage(struct uvm_object *uobj, voff_t offset, struct vm_page **pgp,
 				uvm_page_array_clear(a);
 				rw_enter(uobj->vmobjlock, RW_WRITER);
 				continue;
+			} else {
+				pg = paddr_to_page(addr);
+				pg->uobject = uobj;
 			}
 			UVMHIST_LOG(ubchist, "alloced %#jx (color %ju)",
 			    (uintptr_t)pg, VM_PGCOLOR(pg), 0, 0);

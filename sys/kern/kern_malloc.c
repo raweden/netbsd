@@ -126,7 +126,7 @@ kern_malloc(unsigned long reqsize, int flags)
 		hdroffset = 0;
 	}
 
-	p = kmem_intr_alloc(allocsize, kmflags);
+	p = kmem_alloc(allocsize, kmflags);
 	if (p == NULL)
 		return NULL;
 
@@ -163,11 +163,11 @@ kern_free(void *addr)
 		kmsan_mark((char *)addr - PAGE_SIZE,
 		    mh->mh_size + PAGE_SIZE - sizeof(struct malloc_header),
 		    KMSAN_STATE_INITED);
-		kmem_intr_free((char *)addr - PAGE_SIZE,
+		kmem_free((char *)addr - PAGE_SIZE,
 		    mh->mh_size + PAGE_SIZE - sizeof(struct malloc_header));
 	} else {
 		kmsan_mark(mh, mh->mh_size, KMSAN_STATE_INITED);
-		kmem_intr_free(mh, mh->mh_size);
+		kmem_free(mh, mh->mh_size);
 	}
 }
 

@@ -1079,9 +1079,15 @@ spec_read(void *v)
 	int nrablks, ratogo;
 
 	KASSERT(uio->uio_rw == UIO_READ);
+#ifdef __wasm__
+		KASSERTMSG((uio->uio_vmspace == (void *)curproc->p_md.md_kmem ||
+		uio->uio_vmspace == (void *)curproc->p_md.md_umem),
+	    "vmspace belongs to neither kernel nor curproc");
+#else
 	KASSERTMSG((VMSPACE_IS_KERNEL_P(uio->uio_vmspace) ||
 		uio->uio_vmspace == curproc->p_vmspace),
 	    "vmspace belongs to neither kernel nor curproc");
+#endif
 
 	if (uio->uio_resid == 0)
 		return 0;

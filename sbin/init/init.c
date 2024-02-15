@@ -83,6 +83,21 @@ __RCSID("$NetBSD: init.c,v 1.109 2021/10/11 20:23:25 jmcneill Exp $");
 
 #include "pathnames.h"
 
+#ifdef __WASM
+#include <spawn.h>
+#ifndef __WASM_IMPORT
+#define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
+#endif
+#ifndef __WASM_EXPORT
+#define __WASM_EXPORT(name) __attribute__((export_name(#name)))
+#endif
+int init_did_finish(void) __WASM_IMPORT(env, init_did_finish);
+
+int 
+__sys_posix_spawn(pid_t *, const char *, const struct posix_spawn_file_actions *, const struct posix_spawnattr *, char *, char *);
+#endif
+
+
 #define XSTR(x) #x
 #define STR(x) XSTR(x)
 
@@ -217,6 +232,15 @@ static state_t requested_transition = single_user;
 
 static int mfs_dev(void);
 
+#endif
+
+#if defined(__WASM) && __WASM == 32
+#  define USE_BRK
+#ifndef __WASM_IMPORT
+#define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
+#endif
+
+void usr_stderr_stdout_write(int fd, void *buf, uint32_t bufsz) __WASM_IMPORT(kern, usr_stderr_stdout_write);
 #endif
 
 /*
@@ -1481,6 +1505,19 @@ transition_handler(int sig)
 	}
 }
 
+#ifdef __WASM
+/**
+ * Custom implementation for wasm variant which allows JavaScript to spawn a new lwp/proc as a child of init proc.
+ */
+int
+__spawn_user_lwp(pid_t *pid, const char *execpath, int argc, const char **argv, const char **envp) __WASM_EXPORT(__spawn_user_lwp)
+{
+	// pid_t *pid, const char *path, const struct posix_spawn_file_actions *file_actions, const struct posix_spawnattr *attrp, char *argv, char *envp
+	return __sys_posix_spawn(pid, execpath, NULL, NULL, argv, envp);
+}
+
+#endif
+
 #ifndef LETS_GET_SMALL
 /*
  * Take the system multiuser.
@@ -1515,6 +1552,10 @@ multi_user(void)
 		(void)gettimeofday(&sp->se_started, NULL);
 		add_session(sp);
 	}
+
+#ifdef __WASM
+	init_did_finish();
+#endif
 
 	while (!requested_transition)
 		if ((pid = waitpid(-1, &status, 0)) != -1)

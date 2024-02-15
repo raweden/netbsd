@@ -33,7 +33,7 @@ config("kern_config") {
         "EXEC_WASM32=1",
         "_KERNEL_OPT=1",
         "DEBUG_MEMLOAD=1",
-        "__WASM_KERN_DEBUG_PRINT=1",    # enables extra debug prints.
+        #"__WASM_KERN_DEBUG_PRINT=1",    # enables extra debug prints.
         "__WASM_KERN_DIAGNOSTIC=1",     # enables extra assertion 
     ]
 
@@ -114,10 +114,10 @@ common_src = [
     "../sys/arch/wasm/wasm/isa_machdep.c",
     "../sys/arch/wasm/wasm/lock_stubs.c",
     "../sys/arch/wasm/wasm/tsc.c",
-    "../sys/arch/wasm/wasm/pmap.c",
+    #"../sys/arch/wasm/wasm/pmap.c",
     "../sys/arch/wasm/wasm/process_machdep.c",
     "../sys/arch/wasm/wasm/procfs_machdep.c",
-    "../sys/arch/wasm/wasm/wasm_tlb.c",
+    #"../sys/arch/wasm/wasm/wasm_tlb.c",
     #"../sys/arch/wasm/wasm/wasm_generic_dma.c",
     "../sys/arch/wasm/wasm/machdep.c",
     #"../sys/arch/wasm/wasm/sbi.c",             # TODO: i386 base remove
@@ -140,7 +140,19 @@ common_src = [
     "../sys/arch/wasm/wasm/mpbios.c",
     "../sys/arch/wasm/wasm/lapic.c",
     "../sys/arch/wasm/wasm/consinit.c",
-    "../sys/arch/wasm/wasm/wasm_bio.c",
+    #"../sys/arch/wasm/wasm/wasm_bio.c",
+    
+    "../sys/arch/wasm/mm/mm.c",
+    "../sys/arch/wasm/mm/malloc.c",
+    "../sys/arch/wasm/mm/mm_uarea.c",
+    #"../sys/arch/wasm/mm/mm_bio.c",
+    "../sys/arch/wasm/mm/mm_map.c",
+    "../sys/arch/wasm/mm/mm_sysctl.c",
+    "../sys/arch/wasm/mm/mm-test.c",
+    "../sys/arch/wasm/libwasm/lib128.c",
+    "../sys/arch/wasm/libwasm/wasm_loader.c",
+    "../sys/arch/wasm/wasm/superentropy.c",
+    "../sys/arch/wasm/wasm/wasm_log.c",
 
     # devices 
     "../sys/dev/cons.c",
@@ -297,35 +309,35 @@ common_src = [
     #"../sys/uvm/pmap/pmap_synci.c",
     #"../sys/uvm/pmap/pmap_tlb.c",
     "../sys/uvm/pmap/pmap_pvt.c",
-    "../sys/uvm/uvm_amap.c",
-    "../sys/uvm/uvm_anon.c",
+    #"../sys/uvm/uvm_amap.c",
+    #"../sys/uvm/uvm_anon.c",
     "../sys/uvm/uvm_aobj.c",
-    #"../sys/uvm/uvm_bio.c",                        # replaced by wasm_bio.c
+    "../sys/uvm/uvm_bio.c",                        # replaced by wasm_bio.c
     "../sys/uvm/uvm_coredump.c",
     "../sys/uvm/uvm_device.c",
-    "../sys/uvm/uvm_fault.c",
+    #"../sys/uvm/uvm_fault.c",
     "../sys/uvm/uvm_glue.c",
     "../sys/uvm/uvm_init.c",
     "../sys/uvm/uvm_io.c",
-    "../sys/uvm/uvm_km.c",
-    "../sys/uvm/uvm_loan.c",
-    "../sys/uvm/uvm_map.c",
+    #"../sys/uvm/uvm_km.c",
+    #"../sys/uvm/uvm_loan.c",
+    #"../sys/uvm/uvm_map.c",
     "../sys/uvm/uvm_meter.c",
     "../sys/uvm/uvm_mmap.c",
-    "../sys/uvm/uvm_mremap.c",
+    #"../sys/uvm/uvm_mremap.c",
     "../sys/uvm/uvm_object.c",
-    "../sys/uvm/uvm_page.c",
+    #"../sys/uvm/uvm_page.c",
     "../sys/uvm/uvm_page_array.c",
     "../sys/uvm/uvm_page_status.c",
-    "../sys/uvm/uvm_pager.c",
-    "../sys/uvm/uvm_pdaemon.c",
-    "../sys/uvm/uvm_pdpolicy_clock.c",
+    #"../sys/uvm/uvm_pager.c",
+    #"../sys/uvm/uvm_pdaemon.c",
+    #"../sys/uvm/uvm_pdpolicy_clock.c",
     "../sys/uvm/uvm_pgflcache.c",
-    "../sys/uvm/uvm_pglist.c",
-    "../sys/uvm/uvm_physseg.c",
+    #"../sys/uvm/uvm_pglist.c",
+    #"../sys/uvm/uvm_physseg.c",
     "../sys/uvm/uvm_readahead.c",
     "../sys/uvm/uvm_stat.c",
-    "../sys/uvm/uvm_swap.c",
+    "../sys/uvm/uvm_swap.c",    # we need this for a dummy swap-dev.
     "../sys/uvm/uvm_unix.c",
     "../sys/uvm/uvm_user.c",
     "../sys/uvm/uvm_vnode.c",
@@ -452,7 +464,7 @@ common_src = [
     "../sys/kern/subr_time.c",
     "../sys/kern/subr_thmap.c",
     "../sys/kern/subr_userconf.c",
-    "../sys/kern/subr_vmem.c",
+    #"../sys/kern/subr_vmem.c",          # phase-out
     "../sys/kern/subr_workqueue.c",
     "../sys/kern/subr_xcall.c",
     "../sys/kern/sys_aio.c",
@@ -695,6 +707,8 @@ common_src = [
     "../sys/ufs/ufs/ufs_rename.c",
     "../sys/ufs/ufs/ufs_vfsops.c",
     "../sys/ufs/ufs/ufs_vnops.c"
+
+    # todo add support for hfs + fat files systems
 ]
 
 

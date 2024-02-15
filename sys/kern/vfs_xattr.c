@@ -259,7 +259,11 @@ extattr_set_vp(struct vnode *vp, int attrnamespace, const char *attrname,
 	auio.uio_resid = nbytes;
 	auio.uio_rw = UIO_WRITE;
 	KASSERT(l == curlwp);
+#ifdef __wasm__
+	auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 	cnt = nbytes;
 
 	ktr_xattr_name(attrname);
@@ -312,7 +316,11 @@ extattr_get_vp(struct vnode *vp, int attrnamespace, const char *attrname,
 		auio.uio_resid = nbytes;
 		auio.uio_rw = UIO_READ;
 		KASSERT(l == curlwp);
+#ifdef __wasm__
+		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 		auiop = &auio;
 		cnt = nbytes;
 	} else
@@ -393,7 +401,11 @@ extattr_list_vp(struct vnode *vp, int attrnamespace, void *data, size_t nbytes,
 		auio.uio_resid = nbytes;
 		auio.uio_rw = UIO_READ;
 		KASSERT(l == curlwp);
+#ifdef __wasm__
+		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+#else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 		auiop = &auio;
 		cnt = nbytes;
 	} else

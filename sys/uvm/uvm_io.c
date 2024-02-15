@@ -41,6 +41,8 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_io.c,v 1.29 2020/09/21 18:41:59 chs Exp $");
 
 #include <uvm/uvm.h>
 
+#include <wasm/wasm-extra.h>
+
 /*
  * functions
  */
@@ -55,6 +57,10 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_io.c,v 1.29 2020/09/21 18:41:59 chs Exp $");
 int
 uvm_io(struct vm_map *map, struct uio *uio, int flags)
 {
+	// TODO: fixme
+	printf("%s fixme!\n", __func__);
+	__panic_abort();
+#if 0
 	vaddr_t baseva, endva, pageoffset, kva;
 	vsize_t chunksz, togo, sz;
 	struct vm_map_entry *dead_entries;
@@ -142,4 +148,6 @@ uvm_io(struct vm_map *map, struct uio *uio, int flags)
 			break;
 	}
 	return (error);
+#endif
+	return 0;
 }

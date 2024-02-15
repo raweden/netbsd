@@ -37,9 +37,7 @@ __KERNEL_RCSID(0, "$NetBSD: busfunc.S,v 1.9 2013/06/22 05:20:57 uebayasi Exp $")
 #include <machine/types.h>
 #include <machine/bus_defs.h>
 
-#include <wasm/wasm_module.h>
-
-void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
+#include <wasm/wasm-extra.h>
 
 /*
  * uint8_t bus_space_read_1(bus_space_tag_t tag, bus_space_handle_t bsh,

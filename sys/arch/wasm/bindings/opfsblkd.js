@@ -1,3 +1,5 @@
+// opfsblkd.js
+// sys/arch/wasm/bindings/opfsblkd.js
 
 // TODO:
 // - to optimize allocation, use a layer of indirection for mapping blocks in the image file
@@ -36,37 +38,71 @@ function blkdevOnError(err) {
 function blkdevRunLoop(wkret) {
 
 	const seqaddr = (rblkdev_head + 44) / 4;
-	let seqval, reqslot = (rblkdev_head + 48) / 4;
-	let arr = [];
+	const firstslot = (rblkdev_head + 48) / 4;
+	let seqval, newseq, reqslot = firstslot;
+	let reqs = [];
+	let guard = 0;
 
 	seqval = Atomics.load(kmem_32, seqaddr);
 
-	for (let i = 0; i < NO_REQ_SLOT; i++) {
-		let old = Atomics.exchange(kmem_32, reqslot, 0);
-		if (old !== 0) {
-			arr.push(old);
+	while (true) {
+		
+		guard++;
+		if (guard > 10000) {
+			throw "RUNLOOP_STUCK?"
 		}
-		reqslot++;
+		
+		for (let i = 0; i < NO_REQ_SLOT; i++) {
+			let old = Atomics.exchange(kmem_32, reqslot, 0);
+			if (old !== 0) {
+				reqs.push(old);
+			}
+			// TODO: read seq value from request, to ensure that we update seqval if less than, since we it can update while we read..
+			reqslot++;
+		}
+
+		let len = reqs.length;
+
+		if (len > 0) {
+			//
+			for (let i = 0; i < len; i++) {
+				let ptr = reqs[i];
+				let op = kmem.getInt32(ptr, true);
+				let reqseq = kmem.getUint32(ptr, true);
+				if (reqseq > seqval) {
+					seqval = reqseq;
+				}
+
+				if (op === BIO_READ) {
+					opfs_bio_read(op, ptr);
+				} else {
+					throw new Error("other operations not implemented..");
+				}
+			}
+			//console.log(reqs);
+			//exec_bio_ops(reqs);
+		}
+
+		newseq = Atomics.load(kmem_32, seqaddr);
+		if (newseq != seqval) {
+			console.log("could re-run to fetch more..");
+		}
+
+		let result = Atomics.waitAsync(kmem_32, seqaddr, seqval)
+		//console.log(result);
+
+		if (result.async) {
+			result.value.then(blkdevRunLoop, blkdevOnError);
+			return;
+		} else {
+			if (newseq == seqval) {
+				newseq = Atomics.load(kmem_32, seqaddr);
+			}
+			//console.error("result.async is not true oldseq = %d newseq = %d", seqval, newseq);
+			reqslot = firstslot;
+			seqval = newseq;
+		}
 	}
-
-	if (arr.length > 0) {
-
-		//console.log(arr);
-		exec_bio_ops(arr);
-	}
-
-	if (Atomics.load(kmem_32, seqaddr) != seqval) {
-		console.log("could re-run to fetch more..");
-	}
-
-	let result = Atomics.waitAsync(kmem_32, seqaddr, seqval)
-    //console.log(result);
-
-    if (result.async) {
-        result.value.then(blkdevRunLoop, blkdevOnError);
-    } else {
-    	console.error("result.async is not true");
-    }
 }
 
 
@@ -116,6 +152,37 @@ function blkbuf_get(sz) {
 	}
 }
 
+function opfs_bio_read(op, ptr) {
+	let blksz = kmem.getUint32(ptr + 20, true);
+	let blkno = Number(kmem.getBigInt64(ptr + 24, true));
+	let daddr = kmem.getUint32(ptr + 16, true);
+
+	if (daddr === 0)
+		throw new RangeError("cannot read/write from/to NULL");
+
+	let buf = blkbuf_get(blksz);
+	let off = blkno << DEV_BSHIFT;
+
+	//console.log("ptr = %d op = %d blkno = %d (off %d) blksz = %d data-addr = %d", ptr, op, blkno, off, blksz, daddr);
+
+	// TODO: check memory before copying
+
+	fhandle.read(buf, {at: off});
+	kmem_u8.set(buf, daddr);
+
+	let waddr = (ptr + 4) / 4;
+	Atomics.store(kmem_32, waddr, READY_STATE_DONE);
+	Atomics.notify(kmem_32, waddr);
+}
+
+function opfs_bio_write(ptr) {
+
+}
+
+function opfs_bio_sync(ptr) {
+
+} 
+
 function exec_bio_ops(reqs) {
 
 	let len = reqs.length;
@@ -136,10 +203,8 @@ function exec_bio_ops(reqs) {
 		let buf = blkbuf_get(blksz);
 		let off = blkno << DEV_BSHIFT;
 
-		console.log("ptr = %d op = %d blkno = %d (off %d) blksz = %d data-addr = %d", ptr, op, blkno, off, blksz, daddr);
+		//console.log("ptr = %d op = %d blkno = %d (off %d) blksz = %d data-addr = %d", ptr, op, blkno, off, blksz, daddr);
 
-		if (daddr == 6205440)
-			debugger;
 
 		fhandle.read(buf, {at: off});
 		kmem_u8.set(buf, daddr);
@@ -245,7 +310,7 @@ async function init_blkdev(rblkdev_head, init_cmd) {
 		reqslot++;
 	}
 
-    let file, filepath = "netbsd-wasm.image";
+    let file, filepath = "netbsd-wasm-128.image";
 
     try {
     	file = await opfs_simple_namei(filepath);

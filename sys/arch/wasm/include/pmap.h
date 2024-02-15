@@ -79,6 +79,7 @@
  * macros
  */
 
+#ifndef __WASM
 #define pmap_clear_modify(pg)		pmap_clear_attrs(pg, PP_ATTRS_D)
 #define pmap_clear_reference(pg)	pmap_clear_attrs(pg, PP_ATTRS_A)
 #define pmap_copy(DP,SP,D,L,S)		__USE(L)
@@ -87,6 +88,18 @@
 #define pmap_move(DP,SP,D,L,S)
 #define pmap_phys_address(ppn)		(x86_ptob(ppn) & ~X86_MMAP_FLAG_MASK)
 #define pmap_mmap_flags(ppn)		x86_mmap_flags(ppn)
+#else
+#if 0
+#define pmap_clear_modify(pg) 		(true)
+#define pmap_clear_reference(pg)	(true)
+#define pmap_copy(DP,SP,D,L,S)
+#define pmap_is_modified(pg) 		(false)
+#define pmap_is_referenced(pg) 		(false)
+#define pmap_move(DP,SP,D,L,S)
+#define pmap_phys_address(ppn)
+#define pmap_mmap_flags(ppn)
+#endif
+#endif
 
 #if defined(__x86_64__) || defined(PAE)
 #define X86_MMAP_FLAG_SHIFT	(64 - PGSHIFT)
@@ -144,6 +157,7 @@ u_int		x86_mmap_flags(paddr_t);
 __inline static void __unused
 pmap_page_protect(struct vm_page *pg, vm_prot_t prot)
 {
+#ifndef __WASM
 	if ((prot & VM_PROT_WRITE) == 0) {
 		if (prot & (VM_PROT_READ|VM_PROT_EXECUTE)) {
 			(void)pmap_clear_attrs(pg, PP_ATTRS_W);
@@ -151,6 +165,7 @@ pmap_page_protect(struct vm_page *pg, vm_prot_t prot)
 			pmap_page_remove(pg);
 		}
 	}
+#endif
 }
 
 /*
@@ -205,7 +220,7 @@ paddr_t pmap_get_physpage(void);
 /*
  * Hooks for the pool allocator.
  */
-#define	POOL_VTOPHYS(va)	vtophys((vaddr_t) (va))
+#define	POOL_VTOPHYS(va)	((vaddr_t) (va))
 
 #ifdef __HAVE_DIRECT_MAP
 

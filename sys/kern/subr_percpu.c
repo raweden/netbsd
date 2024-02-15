@@ -43,6 +43,8 @@ __KERNEL_RCSID(0, "$NetBSD: subr_percpu.c,v 1.25 2020/05/11 21:37:31 riastradh E
 #include <sys/vmem.h>
 #include <sys/xcall.h>
 
+#include <wasm/../mm/mm.h>
+
 #define	PERCPU_QUANTUM_SIZE	(ALIGNBYTES + 1)
 #define	PERCPU_QCACHE_MAX	0
 #define	PERCPU_IMPORT_SIZE	2048
@@ -56,8 +58,8 @@ struct percpu {
 	LIST_ENTRY(percpu)	pc_list;
 };
 
-static krwlock_t	percpu_swap_lock	__cacheline_aligned;
-static vmem_t *		percpu_offset_arena	__read_mostly;
+static krwlock_t	    percpu_swap_lock	__cacheline_aligned;
+static struct mm_arena *percpu_offset_arena	__read_mostly;
 static struct {
 	kmutex_t	lock;
 	unsigned int	nextoff;
@@ -226,7 +228,7 @@ percpu_init(void)
 	percpu_allocation.busy = NULL;
 	cv_init(&percpu_allocation.cv, "percpu");
 
-	percpu_offset_arena = vmem_xcreate("percpu", 0, 0, PERCPU_QUANTUM_SIZE,
+	percpu_offset_arena = mm_arena_xcreate("percpu", 0, 0, PERCPU_QUANTUM_SIZE,
 	    percpu_backend_alloc, NULL, NULL, PERCPU_QCACHE_MAX, VM_SLEEP,
 	    IPL_NONE);
 }
@@ -315,7 +317,7 @@ percpu_create(size_t size, percpu_callback_t ctor, percpu_callback_t dtor,
 	percpu_t *pc;
 
 	ASSERT_SLEEPABLE();
-	(void)vmem_alloc(percpu_offset_arena, size, VM_SLEEP | VM_BESTFIT,
+	(void)mm_arena_alloc(percpu_offset_arena, size, VM_SLEEP | VM_BESTFIT,
 	    &offset);
 
 	pc = kmem_alloc(sizeof(*pc), KM_SLEEP);
@@ -422,7 +424,7 @@ percpu_free(percpu_t *pc, size_t size)
 		kmem_free(buf, size);
 	}
 
-	vmem_free(percpu_offset_arena, (vmem_addr_t)percpu_offset(pc), size);
+	mm_arena_free(percpu_offset_arena, (vmem_addr_t)percpu_offset(pc), size);
 	kmem_free(pc, sizeof(*pc));
 }
 
