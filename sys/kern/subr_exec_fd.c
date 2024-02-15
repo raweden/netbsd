@@ -39,6 +39,11 @@ __KERNEL_RCSID(0, "$NetBSD: subr_exec_fd.c,v 1.12 2021/06/29 22:40:53 dholland E
 #include <sys/vnode.h>
 #include <sys/ktrace.h>
 
+#ifdef __WASM
+bool wasm_auto_print2stdout = true;
+int wasm_logdev_init(struct file *fd, int log_level);
+#endif
+
 void
 fd_ktrexecfd(void)
 {
@@ -94,6 +99,9 @@ fd_checkstd(void)
 	if ((fdp = p->p_fd) == NULL)
 		return (0);
 	dt = atomic_load_consume(&fdp->fd_dt);
+#ifdef __WASM
+	if (wasm_auto_print2stdout == false) {
+#endif
 	for (i = 0; i < CHECK_UPTO; i++) {
 		KASSERT(i >= NDFDFILE ||
 		    dt->dt_ff[i] == (fdfile_t *)fdp->fd_dfdfile[i]);
@@ -122,6 +130,47 @@ fd_checkstd(void)
 		fd_affix(p, fp, fd);
 		pathbuf_destroy(pb);
 	}
+#if __wasm__
+	} else {
+		for (i = 0; i < CHECK_UPTO; i++) {
+			KASSERT(i >= NDFDFILE ||
+				dt->dt_ff[i] == (fdfile_t *)fdp->fd_dfdfile[i]);
+			if (dt->dt_ff[i]->ff_file != NULL)
+				continue;
+			snprintf(which, sizeof(which), ",%d", i);
+			strlcat(closed, which, sizeof(closed));
+			if ((error = fd_allocfile(&fp, &fd)) != 0)
+				return (error);
+			KASSERT(fd < CHECK_UPTO);
+			if (fd == 0 || fd == 1 || fd == 2) { // TODO: should only be dev 1 & 2 (but null dev returns errno 2)
+				error = wasm_logdev_init(fp, fd == 1 ? 3 : 5);
+				if (error != 0) {
+					fd_abort(p, fp, fd);
+					return (error);
+				}
+				fd_affix(p, fp, fd);
+			} else {
+				pb = pathbuf_create("/dev/null");
+				if (pb == NULL) {
+					return ENOMEM;
+				}
+				error = vn_open(NULL, pb, 0, flags, 0, &vp, NULL, NULL);
+				if (error != 0) {
+					pathbuf_destroy(pb);
+					fd_abort(p, fp, fd);
+					return (error);
+				}
+				fp->f_type = DTYPE_VNODE;
+				fp->f_vnode = vp;
+				fp->f_flag = flags;
+				fp->f_ops = &vnops;
+				VOP_UNLOCK(vp);
+				fd_affix(p, fp, fd);
+				pathbuf_destroy(pb);
+			}
+		}
+	}
+#endif
 	if (closed[0] != '\0') {
 		mutex_enter(&proc_lock);
 		pp = p->p_pptr;

@@ -408,12 +408,20 @@ function kern_panic() {
 	throw new Error("kernel_panic");
 }
 
-// void kern.random_source(i32, i32)
-function kern_random_source(buf, bufsz) {
+// int kern.random_source(i32, i32, i32)
+function kern_random_source(buf, size, nread) {
+	let bufsz = Math.min(size, 4096);
 	let tmp = new Uint8Array(bufsz);
-    crypto.getRandomValues(tmp);
-    u8_memcpy(tmp, 0, bufsz, kheapu8, buf);
-    return bufsz;
+	try {
+		crypto.getRandomValues(tmp);
+	} catch (err) {
+		return 7;
+	}
+	
+	u8_memcpy(tmp, 0, bufsz, kheap32, buf);
+	if (nread !== 0)
+		kmemdata.setInt32(nread, bufsz, true);
+	return 0;
 }
 
 // i32 emscripten.memcpy_big(i32, i32, i32)
@@ -799,10 +807,16 @@ function kexec_ioctl(cmd, argp) {
 			});
 			break;
 		}
+		case 537: {
+			console.warn("kmem_alloc() large chunk %d", argp);
+			break;
+		}
 	}
 
 	return -1;
 }
+
+
 
 
 function bootstrap_kern(kmodule) {
@@ -844,12 +858,6 @@ function bootstrap_kern(kmodule) {
 		//RUMPUSER_PARAM_NCPU
 		//RUMPUSER_PARAM_HOSTNAME
 	};
-
-	function l1map(ptr) {
-		//let s5 = (VM_KERNEL_SIZE >> SEGSHIFT); 			// # of megapages
-		//let s6 = (NBSEG >> (PGSHIFT - PTE_PPN_SHIFT))	// load for ease
-		//let s7 = PTE_KERN | PTE_HARDWIRED | PTE_R | PTE_W | PTE_X;
-	}
 
 	// invoked after memory has been setup
 	function __netbsd_locore() {
@@ -932,28 +940,6 @@ function bootstrap_kern(kmodule) {
 		console.log(sysrsvd);
 		// doing this rem computation is slower than the bitshift approach, but we only do this memory setup once..
 		
-	
-		// 4096 bytes for L2 pde table for boot process.
-		let size, ptr = alignUp(PAGE_SIZE);
-		size = PAGE_SIZE;
-		if (memptr < iomem_end && memptr + size >= iomem_start) {
-			memptr = iomem_end;
-		}
-		boot_pde = ptr;
-		rsvdmem.push({addr: ptr, size: size});
-		memptr += size;
-
-		// pages for L1 pte tables (for now mapping the entire kernel memory)
-		let pte_cnt = Math.ceil((kmemdata.byteLength / 4096) / 1024);
-		size = PAGE_SIZE * pte_cnt;
-		if (memptr < iomem_end && memptr + size >= iomem_start) {
-			memptr = iomem_end;
-		}
-		ptr = alignUp(PAGE_SIZE);
-		l1_addr = ptr;
-		rsvdmem.push({addr: ptr, size: size});
-		memptr += size;
-		
 		// hint_min_stacksz rounded to whole WebAssembly page-size
 		size = Math.ceil(info.hint_min_stacksz / wasm_pgsz) * wasm_pgsz;
 		if (memptr < iomem_end && memptr + size >= iomem_start) {
@@ -967,13 +953,8 @@ function bootstrap_kern(kmodule) {
 
 
 		kmemdata.setUint32(info.__stop__init_memory, initmem_hi, true);
-		kmemdata.setUint32(info.bootstrap_pde, boot_pde, true);
-		kmemdata.setUint32(info.l1_pte, l1_addr, true);
-		//kmemdata.setUint32(info.fdt_base, fdt_base, true);
 		kmemdata.setUint32(info.__start_kern, 0, true);
 		kmemdata.setUint32(info.__stop_kern, memptr, true);
-		info.pte_cnt = pte_cnt;
-		info.boot_pde = boot_pde;
 
 		console.log("after init-locore");
 		console.log("first_avail: %d", memptr);
@@ -996,10 +977,6 @@ function bootstrap_kern(kmodule) {
 			kmemdata.setUint32(info.lwp0uarea, lwp0_stackp, true);
 		}
 
-		if (info.l2_addr) {
-			kmemdata.setUint32(info.l2_addr, boot_pde, true);
-		}
-
 		rsvdmem.sort(function(a, b) {
 			if (a.addr > b.addr) {
 				return 1;
@@ -1015,10 +992,6 @@ function bootstrap_kern(kmodule) {
 		if (info.bootinfo) {
 			__netbsd_bootinfo(info.bootinfo);
 		}
-
-		let pte = l1_addr;
-		//let pgcnt = 
-		//l1_addr.setUint32(pte, );
 	}
 
 	function __netbsd_bootinfo(addr) {
@@ -1248,105 +1221,6 @@ function bootstrap_kern(kmodule) {
 		//
 		kmemdata.setInt32(nent_ptr, cnt, true);
 	}
-	
-	// 
-	function __netbsd_init_pgtbl_vm() {
-
-		const PTE_P = 0x00000001;		/* Present */
-		const PTE_W = 0x00000002;		/* Write */
-		const PTE_U = 0x00000004;		/* User */
-		const PTE_PWT = 0x00000008;		/* Write-Through */
-		const PTE_PCD = 0x00000010;		/* Cache-Disable */
-		const PTE_A = 0x00000020;		/* Accessed */
-		const PTE_D = 0x00000040;		/* Dirty */
-		const PTE_PAT = 0x00000080;		/* PAT on 4KB Pages */
-		const PTE_PS = 0x00000080;		/* Large Page Size */
-		const PTE_G = 0x00000100;		/* Global Translation */
-		const PTE_AVL1 = 0x00000200;	/* Ignored by Hardware */
-		const PTE_AVL2 = 0x00000400;	/* Ignored by Hardware */
-		const PTE_AVL3 = 0x00000800;	/* Ignored by Hardware */
-		const PTE_LGPAT = 0x00001000;	/* PAT on Large Pages */
-		const PTE_NX = 0;		/* Dummy */
-
-		const PGSHIFT = 12;
-		const PAGE_SIZE = 4096;
-		const PDE_SIZE = 4;
-		let eax = 0;
-		let ebx = kmemdata.getUint32(netbsd_wakern_info.l1_pte, true);
-		let ecx = 0;
-
-		function fillkpt() {
-			if (ecx === 0)
-				return;
-
-			do {
-				// from high to low
-				kmemdata.setUint32(ebx, eax, true);
-				ebx += PDE_SIZE;
-				eax += PAGE_SIZE;
-			} while (--ecx !== 0);
-		}
-
-		function fillkpt_blank() {
-			if (ecx === 0)
-				return;
-
-			do {
-				// from high to low
-				kmemdata.setUint32(ebx, 0, true);
-				ebx += PDE_SIZE;
-			} while (--ecx !== 0);
-		}
-
-		// map page 0-131072 to physical
-		ecx = 32;
-		eax = 0;
-		fillkpt();
-
-		let start = kmemdata.getUint32(netbsd_wakern_info.__start__init_memory, true);
-		let end = kmemdata.getUint32(netbsd_wakern_info.__stop__init_memory, true);
-		ecx = Math.ceil((end - start) / PAGE_SIZE);
-		eax = start;
-		fillkpt();
-
-		// IOMEM_START = 0x0a0000
-		// IOMEM_END = 0x100000
-
-	}
-
-	function __netbsd_init_pgtbl() {
-
-		const PTE_P = 0x00000001;
-
-		const PGSHIFT = 12;
-		const PAGE_SIZE = 4096;
-		const PDE_SIZE = 4;
-		let pde = kmemdata.getUint32(netbsd_wakern_info.l2_addr, true);
-		let pte = kmemdata.getUint32(netbsd_wakern_info.l1_pte, true);
-		let ptr1 = pte;
-		let ptr2 = 0;
-		let cnt = kmemdata.byteLength / 4096;
-
-		// for now we simply map all memory so that virtual address = physical address
-		for (let i = 0; i < cnt; i++) {
-			// from high to low
-			kmemdata.setUint32(ptr1, ptr2 | PTE_P, true);
-			ptr1 += PDE_SIZE;
-			ptr2 += PAGE_SIZE;
-		}
-
-		ptr1 = pde;
-		ptr2 = pte;
-		cnt = netbsd_wakern_info.pte_cnt
-
-		for (let i = 0; i < cnt; i++) {
-			// from high to low
-			kmemdata.setUint32(ptr1, ptr2, true);
-			ptr1 += PDE_SIZE;
-			ptr2 += PAGE_SIZE;
-		}
-
-	}
 
 	function preBootstrapCheck() {
 		let addresses = netbsd_wakern_info.addresses;
@@ -1416,6 +1290,17 @@ function bootstrap_kern(kmodule) {
 	function exec_entrypoint() {
 		throw new Error("do not use this in main kernel thread");
 	}
+	function exec_rtld(fp, sp, base) {
+		throw new Error("do not use this in main kernel thread");
+	}
+
+	function exec_start(__start, cleanup, psarg) {
+		throw new Error("do not use this in main kernel thread");
+	}
+
+	function __dlsym_early(a1, a2, a3, a4, a5, a6) {
+		throw new Error("do not use this in main kernel thread");
+	}
 
 	function __lock_debug(lockp, action) {
 		/*let action_name = ["INIT", "LOCK", "UNLOCK", "FAILED"];
@@ -1442,7 +1327,6 @@ function bootstrap_kern(kmodule) {
 			let dataparams = setupInitWasmData(data);
 
 			__netbsd_locore();
-			__netbsd_init_pgtbl();
 
 			let __lwp0 = netbsd_wakern_info.lwp0;
 			let __lwp0_stackp = netbsd_wakern_info.lwp0_stackp;
@@ -1491,6 +1375,7 @@ function bootstrap_kern(kmodule) {
 					ucas32: kern_ucas32,
 					spawn_blkdev_worker: kspawn_blkdev_worker,
 					__lock_debug: __lock_debug,
+					kexec_ualloca: __kexec_ualloca,				// TODO: phase out khost_ioctl()
 					gettimespec64_clock: kgettimespec64_clock,
 					gettimespec64_monotomic: kgettimespec64_monotomic,
 					// kern_exec
@@ -1498,6 +1383,8 @@ function bootstrap_kern(kmodule) {
 					execbuf_copy: kexecbuf_copy,
 					exec_finish: kexec_finish,
 					exec_entrypoint: exec_entrypoint,
+					exec_rtld: exec_rtld,
+					exec_start: exec_start,
 					exec_ioctl: kexec_ioctl,
 				},
 				wasm_imgact: {
@@ -1508,6 +1395,9 @@ function bootstrap_kern(kmodule) {
 					setstackptr: __wasm_imgact_setstackptr,
 					get_heap_base: __wasm_imgact_get_heap_base,
 					set_heap_base: __wasm_imgact_set_heap_base
+				},
+				dlfcn: {
+					__dlsym_early: __dlsym_early
 				},
 				emscripten: {
 					memcpy_big: emscripten_memcpy_big,
