@@ -6,7 +6,7 @@
 #define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
 #endif
 
-void __panic_abort(void) __WASM_IMPORT(kern, __panic_abort);
+void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
 
 __dead void
 abort(void)

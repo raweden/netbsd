@@ -610,7 +610,7 @@ fname_print(const char *inname)
 	for (i = 0; i < n; i++) {
 		unsigned char c = CAST(unsigned char, inname[i]);
 		if (isprint(c)) {
-			putc(c);
+			putchar(c);
 			continue;
 		}
 		file_octal(c);

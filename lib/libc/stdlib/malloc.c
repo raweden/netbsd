@@ -19,6 +19,7 @@
  * any good unless you fiddle with the internals of malloc or want
  * to catch random pointer corruption as early as possible.
  */
+#include <stdint.h>
 #ifndef MALLOC_EXTRA_SANITY
 #undef MALLOC_EXTRA_SANITY
 #endif
@@ -139,6 +140,19 @@ static mutex_t thread_lock = MUTEX_INITIALIZER;
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#ifdef __WASM
+#define __WASM_BUILTIN(symbol) __attribute__((import_module("__builtin"), import_name(#symbol)))
+#ifndef WASM_PAGE_SIZE
+#define WASM_PAGE_SIZE 65536
+#endif
+int wasm_memory_grow(int pgcnt) __WASM_BUILTIN(memory_grow);
+int wasm_memory_size(void) __WASM_BUILTIN(memory_size);
+
+#ifndef howmany
+#define	howmany(x, y)	(((x)+((y)-1))/(y))
+#endif
+#endif
 
 /*
  * This structure describes a page worth of chunks.
@@ -339,6 +353,7 @@ wrtwarning(const char *p)
 	    wrterror(p);
 }
 
+#ifndef __WASM
 /*
  * Allocate a number of pages from the OS
  */
@@ -385,6 +400,46 @@ map_pages(size_t pages)
 
     return rresult;
 }
+#else
+/*
+ * Allocate a number of pages from the OS
+ */
+static void *
+map_pages(size_t pages)
+{
+    uintptr_t result, rresult, tail;
+    intptr_t bytes = pages << malloc_pageshift;
+    int32_t growret, wapgs;
+
+    if (bytes < 0 || (size_t)bytes < pages) {
+	    errno = ENOMEM;
+	    return NULL;
+    }
+
+    wapgs = howmany(bytes, WASM_PAGE_SIZE);
+    growret = wasm_memory_grow(wapgs);
+    if (growret == -1) {
+        return NULL;
+    }
+
+    result = growret * WASM_PAGE_SIZE;
+    tail = (wapgs * WASM_PAGE_SIZE) + result;
+
+    last_idx = ptr2idx(tail) - 1;
+    malloc_brk = tail;
+
+    if ((last_idx + 1) >= malloc_ninfo && !extend_pgdir(last_idx)) {
+        malloc_brk = result;
+        last_idx = ptr2idx(malloc_brk) - 1;
+        /* Put back break point since we failed. */
+        //if (brk(malloc_brk))
+        //    wrterror("brk(2) failed [internal error]\n");
+        return NULL;
+    }
+
+    return result;
+}
+#endif
 
 /*
  * Extend page directory
@@ -454,6 +509,7 @@ malloc_init(void)
     ssize_t j;
     int serrno = errno;
 
+#ifndef __WASM
     /*
      * Compute page-size related variables.
      */
@@ -463,6 +519,13 @@ malloc_init(void)
 	 (1UL << malloc_pageshift) != malloc_pagesize;
 	 malloc_pageshift++)
 	/* nothing */ ;
+#else
+    int32_t growret, pgdirsz;
+    // mapping smaller size is possible but requires underlaying mapping
+    malloc_pageshift = 16;
+    malloc_pagesize = (1 << 16);
+    malloc_pagemask = malloc_pagesize - 1;
+#endif
 
     INIT_MMAP();
 
@@ -523,8 +586,9 @@ malloc_init(void)
      * the user asked for.
      */
     if (malloc_zero)
-	malloc_junk = 1;
+	    malloc_junk = 1;
 
+#ifndef __WASM
     /* Allocate one page for the page directory */
     page_dir = MMAP(malloc_pagesize);
 
@@ -539,11 +603,26 @@ malloc_init(void)
     malloc_origo -= malloc_pageshift;
 
     malloc_ninfo = malloc_pagesize / sizeof *page_dir;
+#else
+    page_dir = NULL;
+    growret = wasm_memory_grow(1);
+    if (growret == -1) {
+        wrterror("mmap(2) failed, check limits.\n");
+        errno = ENOMEM;
+        return;
+    }
+    page_dir = (growret * WASM_PAGE_SIZE);
+    // if (malloc_pagesize > 8192) {
+    
+    malloc_origo = pageround((size_t)((growret + 1) * WASM_PAGE_SIZE)) >> malloc_pageshift;
+    malloc_origo -= malloc_pageshift;
 
+    malloc_ninfo = malloc_pagesize / sizeof *page_dir;
+#endif
     /* Recalculate the cache size in bytes, and make sure it's nonzero */
 
     if (!malloc_cache)
-	malloc_cache++;
+	    malloc_cache++;
 
     malloc_cache <<= malloc_pageshift;
 
@@ -1004,6 +1083,7 @@ free_pages(void *ptr, size_t idx, struct pginfo *info)
         }
     }
     
+#ifndef __WASM
     /* Return something to OS ? */
     if (pf->next == NULL &&			/* If we're the last one, */
         pf->size > malloc_cache &&		/* ..and the cache is full, */
@@ -1029,6 +1109,7 @@ free_pages(void *ptr, size_t idx, struct pginfo *info)
 
         /* XXX: We could realloc/shrink the pagedir here I guess. */
     }
+#endif
     if (pt != NULL)
 	    ifree(pt);
 }

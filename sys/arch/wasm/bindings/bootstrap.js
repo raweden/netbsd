@@ -33,6 +33,10 @@ let commands = {
 	}
 }
 
+function lwp_error_handler(evt) {
+    console.error("There is an error with your worker! %o", evt);
+}
+
 function lwp0_message_handler(evt) {
 
 	let msg = evt.data;
@@ -43,14 +47,16 @@ function lwp0_message_handler(evt) {
 		let worker = new Worker("lwp.js", options);
 		let fmsg = Object.assign({}, msg);
 		fmsg.cmd = "lwp_ctor";
+        workers.push({addr: null, name: msg.name, worker: worker});
 		worker.addEventListener("message", lwp_message_handler);
+        worker.addEventListener("error", lwp_error_handler);
 		worker.postMessage(fmsg);
 		workercnt++;
 		return;
 	} else if (cmd == "rblkdev_init_signal") {
 		let worker = new Worker("./opfsblkd.js");
 		worker.postMessage(msg);
-		workers.push(worker);
+		workers.push({addr: null, name: "opfsblkd", worker: worker});
 		return;
 	} else if (cmd == "rblkdev_kill_signal") {
 
@@ -81,6 +87,9 @@ function lwp_message_handler(evt) {
 		let worker = new Worker("lwp.js", options);
 		let fmsg = Object.assign({}, msg);
 		fmsg.cmd = "lwp_ctor";
+        workers.push({addr: null, name: msg.name, worker: worker});
+		worker.addEventListener("message", lwp_message_handler);
+        worker.addEventListener("error", lwp_error_handler);
 		worker.postMessage(fmsg);
 		workercnt++;
 		return true;
@@ -115,12 +124,26 @@ function lwp_message_handler(evt) {
 
 		mmblkd_worker.postMessage(msg);
 		return true;
+	} else if (cmd == "lwp_died") {
+
+        let target = evt.target;
+        let len = workers.length;
+        for (let i = 0; i < len; i++) {
+            if (target == workers[i].worker) {
+                console.log("found self killed lwp %s", workers[i].name);
+                workers.splice(i, 1);
+                break;
+            }
+        }
+
+		return true;
 	}
 
 	return false;
 }
 
 worker.addEventListener("message", lwp0_message_handler);
+worker.addEventListener("error", lwp_error_handler);
 
 function setup_mmblkd_worker(msg) {
 
@@ -128,6 +151,7 @@ function setup_mmblkd_worker(msg) {
 		return;
 
 	mmblkd_worker = new Worker("mmblkd.js");
+    workers.push({addr: null, name: "mmblkd", worker: worker});
 	mmblkd_head = msg.mmblkd_head;
 
 	if (msg.kmemory && msg.mmblkd_head) {
@@ -811,7 +835,13 @@ function setupDisplayServer() {
 
 setupDisplayServer();
 
+function launchQueue_handler(launchParam) {
+    console.log(launchParam);
+}
 
+if (window.launchQueue) {
+    window.launchQueue.setConsumer(launchQueue_handler);
+}
 
 
 

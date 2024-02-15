@@ -218,8 +218,10 @@ struct exception {
 
 #endif /* _NETBSD_SOURCE */
 
-#ifdef __WASM
+#ifdef __wasm__
+#ifndef __WASM_BUILTIN
 #define __WASM_BUILTIN(symbol) __attribute__((import_module("__builtin"), import_name(#symbol)))
+#endif
 #else
 __WASM_BUILTIN(x)
 #endif
@@ -582,10 +584,17 @@ int	__fpclassifyf(float);
 int	__fpclassifyd(double);
 int	__isfinitef(float);
 int	__isfinited(double);
+#ifndef __wasm__
 int	__isinff(float);
 int	__isinfd(double);
 int	__isnanf(float);
 int	__isnand(double);
+#else
+int	__isinff(float) __WASM_BUILTIN(f32_isinf);
+int	__isinfd(double) __WASM_BUILTIN(f64_isinf);
+int	__isnanf(float) __WASM_BUILTIN(f32_isnan);
+int	__isnand(double) __WASM_BUILTIN(f64_isnan);
+#endif
 int	__signbitf(float);
 int	__signbitd(double);
 

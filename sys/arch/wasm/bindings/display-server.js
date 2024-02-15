@@ -44,6 +44,8 @@ async function display_server_init(target, params, transfer) {
 		global_ipc_port = options.global_ipc_port;
 	}
 
+    // TODO: setup listeners to the iosurfaceIPCHead
+
 	primaryViewport = createViewport(params.offscreenCanvas);
 	//viewports.push(primaryViewport);
 	
