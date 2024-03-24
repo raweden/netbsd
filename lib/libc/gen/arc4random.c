@@ -79,6 +79,13 @@ __weak_alias(arc4random_stir,_arc4random_stir)
 __weak_alias(arc4random_uniform,_arc4random_uniform)
 #endif
 
+#ifdef __wasm__
+#ifndef __WASM_IMPORT
+#define __WASM_IMPORT(module, symbol) __attribute__((import_module(#module), import_name(#symbol)))
+#endif
+int __sys_random_source(char *buf, uint32_t bufsz) __WASM_IMPORT(sys, random_source);
+#endif
+
 /*
  * For standard ChaCha, use le32dec/le32enc.  We don't need that for
  * the purposes of a nondeterministic random number generator -- we
@@ -520,6 +527,8 @@ arc4random_tsd_destructor(void *p)
 }
 #endif
 
+
+
 static void
 arc4random_initialize(void)
 {
@@ -587,6 +596,7 @@ arc4random_prng_put(struct arc4random_prng *prng)
 uint32_t
 arc4random(void)
 {
+#ifndef __wasm__
 	struct arc4random_prng *prng;
 	uint32_t v;
 
@@ -595,11 +605,19 @@ arc4random(void)
 	arc4random_prng_put(prng);
 
 	return v;
+#else
+	uint32_t v;
+
+	__sys_random_source((char *)&v, sizeof(uint32_t));
+	
+	return v;
+#endif
 }
 
 void
 arc4random_buf(void *buf, size_t len)
 {
+#ifndef __wasm__
 	struct arc4random_prng *prng;
 
 	if (len <= crypto_prng_MAXOUTPUTBYTES) {
@@ -616,11 +634,15 @@ arc4random_buf(void *buf, size_t len)
 		crypto_onetimestream(seed, buf, len);
 		(void)explicit_memset(seed, 0, sizeof seed);
 	}
+#else
+	__sys_random_source(buf, len);
+#endif
 }
 
 uint32_t
 arc4random_uniform(uint32_t bound)
 {
+#ifndef __wasm__
 	struct arc4random_prng *prng;
 	uint32_t minimum, r;
 
@@ -647,6 +669,18 @@ arc4random_uniform(uint32_t bound)
 	arc4random_prng_put(prng);
 
 	return (r % bound);
+#else
+	double r;
+	uint32_t v = 0;
+
+	__sys_random_source((char *)&v, sizeof(uint32_t));
+	if (v == 0)
+		return 0;
+	r = (double)v;
+	r = r / (double)(UINT32_MAX);
+	r = r * bound;
+	return (uint32_t)(r);
+#endif
 }
 
 void
