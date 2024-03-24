@@ -30,6 +30,13 @@
 #define WASM_TYPE_FUNCREF 0x70
 #define WASM_TYPE_EXTERNREF 0x67
 
+// linking/reloc produced by clang/llvm
+#define R_WASM_TABLE_INDEX_SLEB 0x01
+#define R_WASM_TABLE_INDEX_I32  0x02
+#define R_WASM_MEMORY_ADDR_LEB  0x03
+#define R_WASM_MEMORY_ADDR_SLEB 0x04
+#define R_WASM_MEMORY_ADDR_I32  0x05
+
 
 unsigned encodeSLEB128(int64_t, uint8_t *, unsigned);
 unsigned encodeULEB128(uint64_t, uint8_t *, unsigned);

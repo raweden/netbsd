@@ -93,10 +93,30 @@ struct rtld_segment {
     uint32_t src_offset;    // might not be needed (since address is NULL until its location is determined, until then src could be stored there)
 };
 
+struct rtld_memory_descriptor {
+    uint8_t shared;
+    uint8_t flags;
+    uint8_t module_namesz;
+    uint8_t namesz;
+    const char *module_name;
+    const char *name;
+    int32_t initial;        // -1 indicates not set
+    int32_t maximum;        // -1 indicates not set
+};
+
 struct _rtld_search_path {
 	struct _rtld_search_path *sp_next;
 	const char     *sp_path;
 	uint32_t        sp_pathlen;
+};
+
+struct _rtld_needed_entry {
+    struct _rtld_needed_entry *next;
+    struct wasm_module_rt *obj;     // the shared object which is the dependency (not the dependant)
+    uint8_t namesz;
+    uint8_t verssz;
+    const char *name;
+    const char *vers;
 };
 
 /**
@@ -107,8 +127,10 @@ struct wasm_module_rt {
     uint32_t flags;
     uint32_t ld_state;
     int32_t ld_refcount;
+    int32_t fd;
     const char *filepath;
     struct _rtld_search_path *rpaths;
+    struct rtld_memory_descriptor *memdesc;  // TODO: need support for replicating more complex multi-memory layout
     struct dlsym *dlsym_start;
     struct dlsym *dlsym_end;
     struct dlsym *dlsym_func_start;
@@ -126,6 +148,8 @@ struct wasm_module_rt {
     uint16_t elem_segments_count;
     struct rtld_segment *data_segments;
     struct rtld_segment *elem_segments;
+    struct wash_exechdr_rt *exechdr;        // holds section map etc.
+    struct _rtld_needed_entry *needed;
     uint16_t dso_pathlen;
     uint8_t dso_namesz;
     uint8_t dso_verssz;
@@ -133,6 +157,11 @@ struct wasm_module_rt {
     const char *dso_vers;
     uint64_t ld_dev;
     uint64_t ld_ino;
+    uintptr_t membase;
+    uintptr_t memsize;
+    uintptr_t tblbase;
+    uintptr_t tblend;
+    int obj_execdesc;       // like a fd that links against a object in JavaScript land that holds reference to the WebAssembly.Instance
 };
 
 #endif /* _WASM_WASMEXEC_H_*/
