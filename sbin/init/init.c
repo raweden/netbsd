@@ -241,6 +241,7 @@ static int mfs_dev(void);
 #endif
 
 void usr_stderr_stdout_write(int fd, void *buf, uint32_t bufsz) __WASM_IMPORT(kern, usr_stderr_stdout_write);
+void finalize_mountroot_fstab(void);
 #endif
 
 /*
@@ -343,9 +344,11 @@ main(int argc, char **argv)
 	/*
 	 * Paranoia.
 	 */
+#ifndef __wasm__
 	(void)close(0);
 	(void)close(1);
 	(void)close(2);
+#endif
 
 #if !defined(LETS_GET_SMALL) && defined(CHROOT)
 	/* Create "init.root" sysctl node. */
@@ -1506,6 +1509,7 @@ transition_handler(int sig)
 }
 
 #ifdef __WASM
+
 /**
  * Custom implementation for wasm variant which allows JavaScript to spawn a new lwp/proc as a child of init proc.
  */
@@ -1528,6 +1532,10 @@ multi_user(void)
 	pid_t pid;
 	int status;
 	session_t *sp;
+
+#ifdef __wasm__
+	finalize_mountroot_fstab();
+#endif
 
 	requested_transition = 0;
 
