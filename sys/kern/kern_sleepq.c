@@ -177,7 +177,7 @@ sleepq_remove(sleepq_t *sq, lwp_t *l)
 	sched_setrunnable(l);
 	l->l_stat = LSRUN;
 	l->l_slptime = 0;
-#ifndef __WASM
+#ifndef __wasm__
 	sched_enqueue(l);
 	sched_resched_lwp(l, true);
 #else

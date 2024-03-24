@@ -2126,7 +2126,7 @@ getiobuf(struct vnode *vp, bool waitok)
 	} else {
 		KASSERT(bp->b_objlock == &buffer_lock);
 	}
-
+	
 	return bp;
 }
 

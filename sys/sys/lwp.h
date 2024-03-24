@@ -90,11 +90,7 @@ struct lwp {
 	kmutex_t * volatile l_mutex;	/* l: ptr to mutex on sched state */
 	struct turnstile *l_ts;		/* l: current turnstile */
 	int		l_stat;		/* l: overall LWP status */
-#ifndef __WASM
 	int		l__reserved;	/*  : padding - reuse as needed */
-#else
-	int 	l_wa_wakesig;		/* 	: address used with the memory.atomic.wait32 and memory.atomic.notify instruction used for sleep & awake of thread. */
-#endif
 
 	/* Scheduling and overall state. */
 #define	l_startzero l_runq

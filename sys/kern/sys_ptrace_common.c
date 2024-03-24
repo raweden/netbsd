@@ -929,7 +929,7 @@ ptrace_regs(struct lwp *l, struct lwp **lt, int rq, struct ptrace_methods *ptm,
 	uio.uio_offset = 0;
 	uio.uio_resid = iov.iov_len;
 	uio.uio_rw = dir;
-	uio.uio_vmspace = vm;
+	uio.uio_vmspace = vm; // FIXME: 
 
 	error = (*func)(l, *lt, &uio);
 	uvmspace_free(vm);
@@ -1058,7 +1058,7 @@ ptrace_doio(struct lwp *l, struct proc *t, struct lwp *lt,
 		return error;
 
 	if (sysspace) {
-		uio.uio_vmspace = vmspace_kernel();
+		uio.uio_vmspace = vmspace_kernel(); // FIXME: 
 	} else {
 		error = proc_vmspace_getref(l->l_proc, &uio.uio_vmspace);
 		if (error)

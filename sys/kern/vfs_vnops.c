@@ -551,7 +551,7 @@ vn_rdwr(enum uio_rw rw, struct vnode *vp, void *base, int len, off_t offset,
 		UIO_SETUP_SYSSPACE(&auio);
 	} else {
 #ifdef __wasm__
-		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+		auio.uio_vmspace = l->l_md.md_umem;
 #else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
 #endif
@@ -604,7 +604,7 @@ unionread:
 	} else {
 		KASSERT(l == curlwp);
 #ifdef __wasm__
-		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+		auio.uio_vmspace = l->l_md.md_umem;
 #else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
 #endif

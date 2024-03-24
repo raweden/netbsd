@@ -877,7 +877,7 @@ dkwedge_list(struct disk *pdk, struct dkwedge_list *dkwl, struct lwp *l)
 	uio.uio_rw = UIO_READ;
 	KASSERT(l == curlwp);
 #ifdef __wasm__
-	uio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+	uio.uio_vmspace = l->l_md.md_umem;
 #else
 	uio.uio_vmspace = l->l_proc->p_vmspace;
 #endif

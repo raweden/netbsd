@@ -1,8 +1,11 @@
 /*	$NetBSD: proc.h,v 1.48 2020/06/13 23:58:52 ad Exp $	*/
 
 /*
- * Copyright (c) 1991 Regents of the University of California.
+ * Copyright (c) 2024 The NetBSD Foundation, Inc.
  * All rights reserved.
+ *
+ * This code is derived from software contributed to The NetBSD Foundation
+ * by Raweden @github 2024.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,6 +49,15 @@ struct vm_space_wasm;
 
 #define	MDL_FPU_IN_CPU		0x0020	/* the FPU state is in the CPU */
 
+#define RUNTIME_ABI_PATH_URL 1
+#define RUNTIME_ABI_PATH_FILESYSTEM 2
+
+struct runtime_abi {
+	uint8_t ra_path_type;
+	uint16_t ra_abi_pathlen;
+	const char *abi_path;
+};
+
 struct mdlwp {
 	volatile uint64_t md_tsc;	/* last TSC reading */
 	struct	trapframe *md_regs;	/* registers on current frame */
@@ -54,6 +66,7 @@ struct mdlwp {
 	volatile int md_wakesig; 	/* 	: address used with the memory.atomic.wait32 and memory.atomic.notify instruction used for sleep & awake of thread. */
 	struct vm_space_wasm *md_kmem;
 	struct vm_space_wasm *md_umem;
+	struct runtime_abi *md_abi;
 };
 
 /* md_flags */

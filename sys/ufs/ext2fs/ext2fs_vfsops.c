@@ -669,6 +669,12 @@ ext2fs_mountfs(struct vnode *devvp, struct mount *mp)
 
 	ronly = (mp->mnt_flag & MNT_RDONLY) != 0;
 
+	if (ronly) {
+		printf("%s mp is read-only\n", __func__);
+	} else {
+		printf("%s mp should be r/w\n", __func__);
+	}
+
 	bp = NULL;
 	ump = NULL;
 

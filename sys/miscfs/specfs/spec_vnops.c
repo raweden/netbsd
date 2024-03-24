@@ -1080,9 +1080,9 @@ spec_read(void *v)
 
 	KASSERT(uio->uio_rw == UIO_READ);
 #ifdef __wasm__
-		KASSERTMSG((uio->uio_vmspace == (void *)curproc->p_md.md_kmem ||
-		uio->uio_vmspace == (void *)curproc->p_md.md_umem),
-	    "vmspace belongs to neither kernel nor curproc");
+	KASSERTMSG((VMSPACE_IS_KERNEL_P(uio->uio_vmspace) ||
+		uio->uio_vmspace == curlwp->l_md.md_umem),
+	    "vmspace belongs to neither kernel nor curlwp");
 #else
 	KASSERTMSG((VMSPACE_IS_KERNEL_P(uio->uio_vmspace) ||
 		uio->uio_vmspace == curproc->p_vmspace),
@@ -1203,9 +1203,15 @@ spec_write(void *v)
 	int error = 0;
 
 	KASSERT(uio->uio_rw == UIO_WRITE);
+#ifdef __wasm__
+	KASSERTMSG((VMSPACE_IS_KERNEL_P(uio->uio_vmspace) ||
+		uio->uio_vmspace == curlwp->l_md.md_umem),
+	    "vmspace belongs to neither kernel nor curlwp");
+#else
 	KASSERTMSG((VMSPACE_IS_KERNEL_P(uio->uio_vmspace) ||
 		uio->uio_vmspace == curproc->p_vmspace),
 	    "vmspace belongs to neither kernel nor curproc");
+#endif
 
 	switch (vp->v_type) {
 

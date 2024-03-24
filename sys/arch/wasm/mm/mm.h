@@ -17,6 +17,10 @@
 #define WASM_PAGE_SIZE 65536
 #endif
 
+#ifndef UBC_WIN_PAGES_PREALLOC
+#define UBC_WIN_PAGES_PREALLOC 1
+#endif
+
 #define WASM_MEMORY_UNLIMITED -1
 
 typedef unsigned int km_flag_t;
@@ -91,6 +95,7 @@ struct mm_page *paddr_to_page(void *);
 
 struct mm_rangelist;
 
+// TODO: use a uint8_t after pgsz which indicates the index of the bucket to which the page belongs.
 struct mm_page {
 	/* _LP64: first cache line */
 	union {
@@ -106,6 +111,7 @@ struct mm_page {
 	} pageq;
 	uint32_t		flags;		/* o: object flags */
     uint8_t         pgsz;       /* index into mm_pgsztbl */
+    uint8_t         bucket_index;   // TODO: implemenent buckets!
 	paddr_t			phys_addr;	/* o: physical address of pg */
 	uint32_t		wire_count;	/* o,i: wired down map refs */
 	//struct vm_anon		*uanon;		/* o,i: anon */

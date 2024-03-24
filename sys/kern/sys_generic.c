@@ -69,6 +69,7 @@
  * System calls relating to files.
  */
 
+#include "arch/wasm/include/cpu.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: sys_generic.c,v 1.134 2022/07/10 23:12:12 riastradh Exp $");
 
@@ -141,7 +142,7 @@ dofileread(int fd, struct file *fp, void *buf, size_t nbyte,
 	auio.uio_resid = nbyte;
 	auio.uio_rw = UIO_READ;
 #ifdef __wasm__
-	auio.uio_vmspace = l->l_proc->p_md.md_umem;
+	auio.uio_vmspace = l->l_md.md_umem;
 #else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
 #endif
@@ -250,7 +251,7 @@ do_filereadv(int fd, const struct iovec *iovp, int iovcnt,
 	auio.uio_iovcnt = iovcnt;
 	auio.uio_rw = UIO_READ;
 #ifdef __wasm__
-	auio.uio_vmspace = (void *)curproc->p_md.md_umem;
+	auio.uio_vmspace = curlwp->l_md.md_umem;
 #else
 	auio.uio_vmspace = curproc->p_vmspace;
 #endif
@@ -345,7 +346,7 @@ dofilewrite(int fd, struct file *fp, const void *buf,
 	auio.uio_resid = nbyte;
 	auio.uio_rw = UIO_WRITE;
 #ifdef __wasm__
-	auio.uio_vmspace = curproc->p_md.md_umem;
+	auio.uio_vmspace = curlwp->l_md.md_umem;
 #else
 	auio.uio_vmspace = curproc->p_vmspace;
 #endif
@@ -460,7 +461,7 @@ do_filewritev(int fd, const struct iovec *iovp, int iovcnt,
 	auio.uio_iovcnt = iovcnt;
 	auio.uio_rw = UIO_WRITE;
 #ifdef __wasm__
-	auio.uio_vmspace = curproc->p_md.md_umem;
+	auio.uio_vmspace = curlwp->l_md.md_umem;
 #else
 	auio.uio_vmspace = curproc->p_vmspace;
 #endif

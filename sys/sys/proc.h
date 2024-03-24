@@ -485,7 +485,13 @@ struct proclist_desc {
 extern struct proc	proc0;		/* Process slot for swapper */
 extern u_int		nprocs;		/* Current number of procs */
 extern int		maxproc;	/* Max number of procs */
+#ifdef __wasm__
+struct vm_space_wasm;
+extern struct vm_space_wasm *__wasm_kmeminfo;
+#define	vmspace_kernel()	(__wasm_kmeminfo)
+#else
 #define	vmspace_kernel()	(proc0.p_vmspace)
+#endif
 
 extern kmutex_t		proc_lock;
 extern struct proclist	allproc;	/* List of all processes */

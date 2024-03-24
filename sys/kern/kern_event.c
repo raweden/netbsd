@@ -1884,7 +1884,7 @@ kevent1(register_t *retval, int fd,
 /*
  * Register a given kevent kev onto the kqueue
  */
-static int
+static int __noinline
 kqueue_register(struct kqueue *kq, struct kevent *kev)
 {
 	struct kfilter *kfilter;

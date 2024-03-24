@@ -63,7 +63,6 @@ enum LOCK_ACTION {
 };
 
 void __panic_abort(void) __WASM_IMPORT(kern, panic_abort);
-void __lock_debug(void *ptr, int action) __WASM_IMPORT(kern, __lock_debug);
 
 void __cpu_simple_lock(__cpu_simple_lock_t *lockp);
 void __cpu_simple_unlock(__cpu_simple_lock_t *lockp);
@@ -584,7 +583,6 @@ void
 __cpu_simple_lock_init(__cpu_simple_lock_t *lockp)
 {
 	*lockp = 0;
-	__lock_debug(lockp, CPU_LOCK_INIT);
 }
 
 void
@@ -601,11 +599,9 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 		wasm_inst_nop();
 		old = atomic_cmpxchg8(lockp, 0, 1);
 		if (old == 0) {
-			__lock_debug(lockp, CPU_LOCK_LOCK);
 			return;
 		}
 		if (count > 0xf00000) {
-			__lock_debug(lockp, CPU_LOCK_FAILED);
 			__panic_abort();
 		}
 		count++;
@@ -634,7 +630,6 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 void
 __cpu_simple_unlock(__cpu_simple_lock_t *lockp)
 {
-	__lock_debug(lockp, CPU_LOCK_UNLOCK);
 	atomic_store8(lockp, 0);
 }
 

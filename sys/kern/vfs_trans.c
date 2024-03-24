@@ -668,7 +668,8 @@ state_change_done(const struct fstrans_mount_info *fmi)
 	struct fstrans_lwp_info *fli;
 
 	KASSERT(mutex_owned(&fstrans_lock));
-
+	// WASM FIXME: this is skipped to not get stuck..
+#ifndef __wasm__
 	LIST_FOREACH(fli, &fstrans_fli_head, fli_list) {
 		if (fli->fli_mountinfo != fmi)
 			continue;
@@ -681,6 +682,7 @@ state_change_done(const struct fstrans_mount_info *fmi)
 
 		return false;
 	}
+#endif
 
 	return true;
 }

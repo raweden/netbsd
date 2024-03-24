@@ -79,7 +79,6 @@
  *	@(#)kern_subr.c	8.4 (Berkeley) 2/14/95
  */
 
-#include "arch/wasm/mm/mm.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: subr_copy.c,v 1.19 2023/05/22 14:07:24 riastradh Exp $");
 
@@ -99,13 +98,13 @@ void
 uio_setup_sysspace(struct uio *uio)
 {
 	//uio->uio_vmspace = vmspace_kernel();
-	uio->uio_vmspace = (struct vmspace *)__wasm_kmeminfo;
+	uio->uio_vmspace = __wasm_kmeminfo;
 }
 
 int
 uiomove(void *buf, size_t n, struct uio *uio)
 {
-	struct vmspace *vm = uio->uio_vmspace;
+	struct vm_space_wasm *vm = uio->uio_vmspace;
 	struct iovec *iov;
 	size_t cnt;
 	int error = 0;
@@ -299,13 +298,10 @@ again:
  * Like copyin(), but operates on an arbitrary vmspace.
  */
 int
-copyin_vmspace(struct vmspace *vm, const void *uaddr, void *kaddr, size_t len)
+copyin_vmspace(struct vm_space_wasm *vm, const void *uaddr, void *kaddr, size_t len)
 {
 	struct iovec iov;
 	struct uio uio;
-#ifdef __wasm__
-	struct wm_space_wasm *md_umem;
-#endif
 	int error;
 
 	if (len == 0)
@@ -320,10 +316,10 @@ copyin_vmspace(struct vmspace *vm, const void *uaddr, void *kaddr, size_t len)
 	}
 #endif
 #ifdef __wasm__
-	md_umem = (struct wm_space_wasm *)vm->vm_wasm_mem;
-	if (__predict_true(md_umem == curproc->p_md.md_umem)) {
-		return copyout(kaddr, uaddr, len);
+	if (__predict_true(vm == curlwp->l_md.md_umem)) {
+		return copyin(uaddr, kaddr, len);
 	}
+	printf("%s resorting to uvm_io for md_umem = %p and curlwp->l_md.md_umem = %p\n", __func__, vm, curlwp->l_md.md_umem);
 #else
 	if (__predict_true(vm == curproc->p_vmspace)) {
 		return copyin(uaddr, kaddr, len);
@@ -338,7 +334,7 @@ copyin_vmspace(struct vmspace *vm, const void *uaddr, void *kaddr, size_t len)
 	uio.uio_resid = len;
 	uio.uio_rw = UIO_READ;
 	UIO_SETUP_SYSSPACE(&uio);
-	error = uvm_io(&vm->vm_map, &uio, 0);
+	error = uvm_io(NULL, &uio, 0); // FIXME: we will crash here for wasm anyways.
 
 	return (error);
 }
@@ -347,24 +343,21 @@ copyin_vmspace(struct vmspace *vm, const void *uaddr, void *kaddr, size_t len)
  * Like copyout(), but operates on an arbitrary vmspace.
  */
 int
-copyout_vmspace(struct vmspace *vm, const void *kaddr, void *uaddr, size_t len)
+copyout_vmspace(struct vm_space_wasm *vm, const void *kaddr, void *uaddr, size_t len)
 {
 	struct iovec iov;
 	struct uio uio;
-#ifdef __wasm__
-	struct wm_space_wasm *md_umem;
-#endif
 	int error;
 
 	if (len == 0)
 		return (0);
 
 #ifdef __wasm__
-	if (vm_space_is_kernel((struct vm_space_wasm *)vm)) {
+	if (vm_space_is_kernel(vm)) {
 		return kcopy(kaddr, uaddr, len);
 	}
-	md_umem = (struct wm_space_wasm *)vm;
-	if (__predict_true(md_umem == curproc->p_md.md_umem)) {
+	
+	if (__predict_true(vm == curlwp->l_md.md_umem)) {
 		return copyout(kaddr, uaddr, len);
 	}
 #else
@@ -375,6 +368,7 @@ copyout_vmspace(struct vmspace *vm, const void *kaddr, void *uaddr, size_t len)
 		return copyout(kaddr, uaddr, len);
 	}
 #endif
+	printf("%s resorting to uvm_io for md_umem = %p and curlwp->l_md.md_umem = %p\n", __func__, vm, curlwp->l_md.md_umem);
 
 	iov.iov_base = __UNCONST(kaddr); /* XXXUNCONST cast away const */
 	iov.iov_len = len;
@@ -384,7 +378,7 @@ copyout_vmspace(struct vmspace *vm, const void *kaddr, void *uaddr, size_t len)
 	uio.uio_resid = len;
 	uio.uio_rw = UIO_WRITE;
 	UIO_SETUP_SYSSPACE(&uio);
-	error = uvm_io(&vm->vm_map, &uio, 0);
+	error = uvm_io(NULL, &uio, 0); // FIXME: we will crash here for wasm anyways.
 
 	return (error);
 }

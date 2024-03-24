@@ -203,22 +203,32 @@ noinodes:
  * The policy implemented by this algorithm is to select from
  * among those cylinder groups with above the average number of
  * free inodes, the one with the smallest number of directories.
+ * TODO: this algorithm does not do what the comment states.
  */
-static u_long
+static u_long __noinline
 ext2fs_dirpref(struct m_ext2fs *fs)
 {
-	int cg, maxspace, mincg, avgifree;
+	int ncg, cg, maxspace, mincg, avgifree, nbfree;
 
-	avgifree = fs->e2fs.e2fs_ficount / fs->e2fs_ncg;
+	ncg = fs->e2fs_ncg;
+
+	// ramdisks might simply have one cylinder group, then do not bother to check.
+	if (ncg == 1)
+		return 0;
+
+	avgifree = fs->e2fs.e2fs_ficount / ncg;
 	maxspace = 0;
 	mincg = -1;
-	for (cg = 0; cg < fs->e2fs_ncg; cg++)
+	for (cg = 0; cg < ncg; cg++) {
 		if (fs2h16(fs->e2fs_gd[cg].ext2bgd_nifree) >= avgifree) {
-			if (mincg == -1 || fs2h16(fs->e2fs_gd[cg].ext2bgd_nbfree) > maxspace) {
+			nbfree = fs2h16(fs->e2fs_gd[cg].ext2bgd_nbfree);
+			if (mincg == -1 || nbfree > maxspace) {
 				mincg = cg;
-				maxspace = fs2h16(fs->e2fs_gd[cg].ext2bgd_nbfree);
+				maxspace = nbfree;
 			}
 		}
+	}
+
 	return mincg;
 }
 

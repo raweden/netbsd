@@ -58,8 +58,7 @@ __KERNEL_RCSID(0, "$NetBSD: uvm_object.c,v 1.25 2020/08/15 07:24:09 chs Exp $");
  * uvm_obj_init: initialize UVM memory object.
  */
 void
-uvm_obj_init(struct uvm_object *uo, const struct uvm_pagerops *ops,
-    bool alock, u_int refs)
+uvm_obj_init(struct uvm_object *uo, const struct uvm_pagerops *ops, bool alock, u_int refs)
 {
 
 #if 0 /* notyet */

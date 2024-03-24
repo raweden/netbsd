@@ -651,7 +651,6 @@ pr_find_pagehead(struct pool *pp, void *v)
 			pr_phinpage_check(pp, ph, page, v);
 		} else {
 			tmp.ph_page = page;
-			printf("%s pp->pr_alloc->pa_pagemask = %d page-size = %d new-page %p vs. old-page %p\n", __func__, pp->pr_alloc->pa_pagemask, pp->pr_alloc->pa_pagesz, page, POOL_OBJ_TO_PAGE(pp, v));
 			ph = SPLAY_FIND(phtree, &pp->pr_phtree, &tmp);
 		}
 	}
@@ -2904,6 +2903,7 @@ pool_cache_put_paddr(pool_cache_t pc, void *object, paddr_t pa)
 	pcg_t *pcg;
 	int s;
 
+#ifndef __wasm__
 	KASSERT(object != NULL);
 	pool_cache_put_kmsan(pc, object);
 	pool_cache_redzone_check(pc, object);
@@ -2916,6 +2916,7 @@ pool_cache_put_paddr(pool_cache_t pc, void *object, paddr_t pa)
 	if (pool_cache_put_nocache(pc, object)) {
 		return;
 	}
+
 
 	/* Lock out interrupts and disable preemption. */
 	s = splvm();
@@ -2951,6 +2952,9 @@ pool_cache_put_paddr(pool_cache_t pc, void *object, paddr_t pa)
 		if (!pool_cache_put_slow(pc, cc, s, object))
 			break;
 	}
+#else
+	pool_put(&pc->pc_pool, object);
+#endif
 }
 
 /*

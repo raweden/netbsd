@@ -591,7 +591,10 @@ out_err:
 			WAPBL_END(trans_mount);
 		fstrans_done(trans_mount);
 	}
-	printf("%s error = %d\n", __func__, error);
+#ifdef __WASK_KERN_DEBUG_FS
+	if (error != 0)
+		printf("%s error = %d\n", __func__, error);
+#endif
 	return error;
 }
 
@@ -684,8 +687,8 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 	tailstart = bytes;
 	while (tailbytes > 0) {
 #ifdef __wasm__
-		printf("%s check this scenario! %s:%d", __func__, __FILE_NAME__, __LINE__);
-		__panic_abort();
+		printf("%s check this scenario! %s:%d\ntailbytes = %zu tailstart = %zu pgs[%zu] pg-addr = %p len = %lu off = %lu\n", __func__, __FILE_NAME__, __LINE__, tailbytes, tailstart, (tailstart >> PAGE_SHIFT), pgs[tailstart >> PAGE_SHIFT], PAGE_SIZE - (tailstart & PAGE_MASK), (PAGE_SIZE - (PAGE_SIZE - (tailstart & PAGE_MASK))));
+		//__panic_abort();
 		struct mm_page *tail_pg;
 #endif
 		const int len = PAGE_SIZE - (tailstart & PAGE_MASK);
@@ -786,13 +789,15 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 		 */
 
 		if (blkno == (daddr_t)-1) {
-			int holepages = (round_page(offset + iobytes) -
-			    trunc_page(offset)) >> PAGE_SHIFT;
+			int holepages = (round_page(offset + iobytes) - trunc_page(offset)) >> PAGE_SHIFT;
 			UVMHIST_LOG(ubchist, "lbn 0x%jx -> HOLE", lbn,0,0,0);
 
 			sawhole = true;
-			memset((char *)kva + (offset - startoffset), 0,
-			    iobytes);
+#ifndef __wasm__
+			memset((char *)kva + (offset - startoffset), 0, iobytes);
+#else
+			memset((char *)(pgs[pidx]->phys_addr), 0, PAGE_SIZE);
+#endif
 			skipbytes += iobytes;
 
 			if (!blockalloc) {
@@ -811,6 +816,7 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 		 * and start it going.
 		 */
 
+#ifndef __wasm__
 		if (offset == startoffset && iobytes == bytes) {
 			bp = mbp;
 		} else {
@@ -819,10 +825,76 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 			bp = getiobuf(vp, true);
 			nestiobuf_setup(mbp, bp, offset - startoffset, iobytes);
 		}
-#ifdef __WASM
-		// TODO: WASM fixme
-		bp->b_data = (void *)pgs[pidx]->phys_addr;
+#else
+		bp = NULL;
 #endif
+
+#ifdef __wasm__
+		/*if (iobytes > PAGE_SIZE) {
+			printf("%s ERROR scenario currently not handled (iobytes = %zu > PAGE_SIZE = %d bytes = %zu)\n", __func__, iobytes, PAGE_SIZE, bytes);
+		} else */if (iobytes < PAGE_SIZE) {
+			printf("%s ERROR scenario currently not handled (iobytes = %zu < PAGE_SIZE = %d bytes = %zu)\n", __func__, iobytes, PAGE_SIZE, bytes);
+		}
+
+		if (iobytes > PAGE_SIZE) {
+			if (async)
+				printf("%s ERROR async not implemented for wasm yet!", __func__);
+			struct buf *sub_buf;
+			off_t sub_off;
+			int todo = iobytes;
+			int sub_pgidx = (offset - startoffset) >> PAGE_SHIFT;
+			sub_buf = NULL;
+			sub_off = offset;
+			for (; todo > 0; todo -= PAGE_SIZE) {
+				sub_buf = getiobuf(vp, true);
+				if (sub_buf == NULL) {
+					printf("%s error: ENOMEM\n", __func__);
+				}
+
+				sub_buf->b_bufsize = PAGE_SIZE;
+				sub_buf->b_resid = PAGE_SIZE;
+				sub_buf->b_bcount = PAGE_SIZE;
+				sub_buf->b_cflags |= BC_BUSY;
+				sub_buf->b_flags = B_READ;
+				sub_buf->b_iodone = NULL;
+				
+				sub_buf->b_data = (void *)pgs[sub_pgidx]->phys_addr;
+				sub_buf->b_lblkno = 0;
+
+				/* adjust physical blkno for partial blocks */
+				sub_buf->b_blkno = blkno + ((sub_off - ((off_t)lbn << fs_bshift)) >> dev_bshift);
+
+				UVMHIST_LOG(ubchist, "bp %#jx offset 0x%x bcount 0x%x blkno 0x%x", (uintptr_t)sub_buf, sub_off, sub_buf->b_bcount, sub_buf->b_blkno);
+
+				VOP_STRATEGY(devvp, sub_buf);
+				
+				// FIXME: where should this be done?
+				pgs[sub_pgidx]->offset = sub_off;
+				// bp = getiobuf(vp, true);
+				putiobuf(sub_buf);
+				sub_buf = NULL;
+				sub_pgidx++;
+				sub_off += PAGE_SIZE;
+			}
+
+		} else {
+			bp = mbp;
+			bp->b_data = (void *)pgs[pidx]->phys_addr;
+			bp->b_lblkno = 0;
+
+			/* adjust physical blkno for partial blocks */
+			bp->b_blkno = blkno + ((offset - ((off_t)lbn << fs_bshift)) >> dev_bshift);
+
+			UVMHIST_LOG(ubchist, "bp %#jx offset 0x%x bcount 0x%x blkno 0x%x", (uintptr_t)bp, offset, bp->b_bcount, bp->b_blkno);
+
+			VOP_STRATEGY(devvp, bp);
+			// FIXME: where should this be done?
+			pgs[pidx]->offset = offset;
+			if (!async)
+				bp = NULL;
+		}
+#else
+
 		bp->b_lblkno = 0;
 
 		/* adjust physical blkno for partial blocks */
@@ -834,9 +906,7 @@ genfs_getpages_read(struct vnode *vp, struct vm_page **pgs, int npages,
 		    (uintptr_t)bp, offset, bp->b_bcount, bp->b_blkno);
 
 		VOP_STRATEGY(devvp, bp);
-#ifdef __wasm__
-		// FIXME: where should this be done?
-		pgs[pidx]->offset = offset;
+
 #endif
 	}
 
@@ -846,9 +916,11 @@ loopdone:
 		UVMHIST_LOG(ubchist, "returning 0 (async)",0,0,0,0);
 		return 0;
 	}
+
 	if (bp != NULL) {
 		error = biowait(mbp);
 	}
+
 
 	/* Remove the mapping (make KVA available as soon as possible) */
 	//uvm_pagermapout(kva, npages);

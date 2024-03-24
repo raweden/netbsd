@@ -96,7 +96,6 @@
  *	@(#)init_main.c	8.16 (Berkeley) 5/14/95
  */
 
-#include "arch/wasm/include/vmparam.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: init_main.c,v 1.542 2023/07/07 12:34:50 riastradh Exp $");
 
@@ -258,6 +257,8 @@ extern bool wasm_kmem_growable;
 extern uint32_t wasm_kmem_avail;
 extern uint32_t wasm_kmem_limit;
 void wasm_superentropy_init(void);
+void wasm_scheduler(void);
+void init_display_server(void);
 #endif
 
 
@@ -600,10 +601,8 @@ main(void)
 
 	ssp_init();
 
-//#ifndef __WASM
 	// pager related init, skip for wasm
 	ubc_init();		/* must be after autoconfig */
-//#endif
 
 	mm_init();
 
@@ -698,6 +697,10 @@ main(void)
 	mutex_enter(&proc_lock);
 	initproc = proc_find_raw(1);
 	mutex_exit(&proc_lock);
+
+#ifdef __wasm__
+	init_display_server();
+#endif
 
 	/*
 	 * Load any remaining builtin modules, and hand back temporary
@@ -805,6 +808,8 @@ main(void)
 	/* The scheduler is an infinite loop. */
 	uvm_scheduler();
 	/* NOTREACHED */
+#else
+	wasm_scheduler();
 #endif
 }
 

@@ -585,7 +585,17 @@ struct vmspace {
 	void *vm_wasm_mem;	/* reference representation for WebAssembly.Memory*/
 #endif
 };
+#ifdef __wasm__
+struct vm_space_wasm;
+extern struct vm_space_wasm *__wasm_kmeminfo;
+#ifdef VM_MAP_IS_KERNEL
+#undef VM_MAP_IS_KERNEL
+#endif
+#define VM_MAP_IS_KERNEL(vm) 		((vm) == (__wasm_kmeminfo))
+#define VMSPACE_IS_KERNEL_P(vm) 	((vm) == (__wasm_kmeminfo))
+#else
 #define	VMSPACE_IS_KERNEL_P(vm)	VM_MAP_IS_KERNEL(&(vm)->vm_map)
+#endif
 #endif
 
 #ifdef _KERNEL

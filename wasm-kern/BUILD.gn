@@ -34,6 +34,8 @@ config("kern_config") {
         "_KERNEL_OPT=1",
         "DEBUG_MEMLOAD=1",
         #"__WASM_KERN_DEBUG_PRINT=1",    # enables extra debug prints.
+        "__WASK_KERN_DEBUG_FS=1",
+        "__WASM_KERN_DEBUG_BIO=1",
         "__WASM_KERN_DIAGNOSTIC=1",     # enables extra assertion 
     ]
 
@@ -105,6 +107,7 @@ common_src = [
     #"../sys/arch/wasm/wasm/cpu_subr.c",
     #"../sys/arch/wasm/wasm/cpu_switch.S",      # usage ??
     "../sys/arch/wasm/wasm/exec_machdep.c",
+    "../sys/arch/wasm/wasm/wasm_scheduler.c",
     "../sys/arch/wasm/wasm/gdt.c",
     #"../sys/arch/wasm/wasm/fixup.c",           # TODO: i386 base remove ?????
     "../sys/arch/wasm/wasm/fpu.c",
@@ -149,10 +152,11 @@ common_src = [
     "../sys/arch/wasm/mm/mm_map.c",
     "../sys/arch/wasm/mm/mm_sysctl.c",
     "../sys/arch/wasm/mm/mm-test.c",
-    "../sys/arch/wasm/libwasm/lib128.c",
+    "../sys/arch/wasm/libwasm/leb128.c",
     "../sys/arch/wasm/libwasm/wasm_loader.c",
     "../sys/arch/wasm/wasm/superentropy.c",
     "../sys/arch/wasm/wasm/wasm_log.c",
+    "../sys/arch/wasm/wasm/lwp_jsworker.c",
 
     # devices 
     "../sys/dev/cons.c",

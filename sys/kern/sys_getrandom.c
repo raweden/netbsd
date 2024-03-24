@@ -216,7 +216,7 @@ sys_getrandom(struct lwp *l, const struct sys_getrandom_args *uap,
 		.uio_resid = buflen,
 		.uio_rw = UIO_READ,
 #ifdef __wasm__
-		.uio_vmspace = (void *)curproc->p_md.md_umem,
+		.uio_vmspace = curlwp->l_md.md_umem,
 #else
 		.uio_vmspace = curproc->p_vmspace,
 #endif

@@ -111,7 +111,7 @@ dtrace_vtime_switch_func_t      dtrace_vtime_switch_func;
 #ifdef __WASM
 #include <machine/wasm_module.h>
 
-void __wasm_lwp_spawn(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize) __WASM_IMPORT(kern, __lwp_spawn);
+void __wasm_lwp_spawn(struct lwp *l1, struct lwp *l2, void *stack, size_t stacksize, struct runtime_abi *abi) __WASM_IMPORT(kern, __lwp_spawn);
 
 #endif
 
@@ -908,7 +908,7 @@ setrunnable(struct lwp *l)
 	if ((l->l_pflag & LP_WASM_NEED_BACKING_WORKER) != 0) {
 		struct pcb *pcb = lwp_getpcb(l);
 		l->l_pflag = l->l_pflag & ~LP_WASM_NEED_BACKING_WORKER;
-		__wasm_lwp_spawn(NULL, l, (void *)pcb->pcb_esp, USPACE);
+		__wasm_lwp_spawn(NULL, l, (void *)pcb->pcb_esp, USPACE, l->l_md.md_abi);
 	}
 #endif
 

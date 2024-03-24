@@ -380,8 +380,15 @@ typedef int	(*copyout_t)(const void *, void *, size_t);
 int	copyin_proc(struct proc *, const void *, void *, size_t);
 int	copyout_proc(struct proc *, const void *, void *, size_t);
 int	copyin_pid(pid_t, const void *, void *, size_t);
+#ifndef __wasm__
 int	copyin_vmspace(struct vmspace *, const void *, void *, size_t);
 int	copyout_vmspace(struct vmspace *, const void *, void *, size_t);
+#else
+struct vm_space_wasm;
+// wasm/uvm/uvm_copy.c
+int	copyin_vmspace(struct vm_space_wasm *, const void *, void *, size_t);
+int	copyout_vmspace(struct vm_space_wasm *, const void *, void *, size_t);
+#endif
 
 int	ioctl_copyin(int ioctlflags, const void *src, void *dst, size_t len);
 int	ioctl_copyout(int ioctlflags, const void *src, void *dst, size_t len);

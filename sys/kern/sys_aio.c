@@ -374,7 +374,7 @@ aio_process(struct aio_job *a_job)
 		auio.uio_iovcnt = 1;
 		auio.uio_resid = aiocbp->aio_nbytes;
 #if __wasm__
-		auio.uio_vmspace = (struct vmspace *)p->p_md.md_umem;
+		auio.uio_vmspace = curlwp->l_md.md_umem;
 #else
 		auio.uio_vmspace = p->p_vmspace;
 #endif

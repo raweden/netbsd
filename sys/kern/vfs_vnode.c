@@ -1295,7 +1295,7 @@ vcache_stats(struct hashstat_sysctl *hs, bool fill)
 	return 0;
 }
 
-static void
+static void __noinline
 vcache_init(void)
 {
 
@@ -1369,8 +1369,8 @@ vcache_alloc(void)
 	vnode_t *vp;
 
 	vip = pool_cache_get(vcache_pool, PR_WAITOK);
-	vp = VIMPL_TO_VNODE(vip);
 	memset(vip, 0, sizeof(*vip));
+	vp = VIMPL_TO_VNODE(vip);
 
 	rw_init(&vip->vi_lock);
 	vp->v_interlock = mutex_obj_alloc(MUTEX_DEFAULT, IPL_NONE);
@@ -1645,6 +1645,9 @@ vcache_new(struct mount *mp, struct vnode *dvp, struct vattr *vap,
 		KASSERT(*vpp == NULL);
 		return error;
 	}
+
+	printf("%s vk_key_len = %zu vk_key = %p mp = %p (dead_rootmount = %p)\n", __func__, vip->vi_key.vk_key_len, vip->vi_key.vk_key, mp, dead_rootmount);
+
 	KASSERT(vp->v_op != NULL);
 	KASSERT((vip->vi_key.vk_key_len == 0) == (mp == dead_rootmount));
 	if (vip->vi_key.vk_key_len > 0) {

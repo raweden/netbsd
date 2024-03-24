@@ -1005,7 +1005,11 @@ usbioctl(dev_t devt, u_long cmd, void *data, int flag, struct lwp *l)
 			uio.uio_rw =
 				ur->ucr_request.bmRequestType & UT_READ ?
 				UIO_READ : UIO_WRITE;
+#ifdef __wasm__
+			uio.uio_vmspace = l->l_md.md_umem;
+#else
 			uio.uio_vmspace = l->l_proc->p_vmspace;
+#endif
 			ptr = kmem_alloc(len, KM_SLEEP);
 			if (uio.uio_rw == UIO_WRITE) {
 				error = uiomove(ptr, len, &uio);

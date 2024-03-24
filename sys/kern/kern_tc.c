@@ -68,6 +68,42 @@ __KERNEL_RCSID(0, "$NetBSD: kern_tc.c,v 1.73 2023/07/17 21:51:45 riastradh Exp $
 #include <wasm/wasm_module.h>
 void __wasm_gettimespec_clock(struct timespec *) __WASM_IMPORT(kern, gettimespec64_clock);
 void __wasm_gettimespec_monotomic(struct timespec *) __WASM_IMPORT(kern, gettimespec64_monotomic);
+int __wasm_kexec_ioctl(int cmd, void * argp) __WASM_IMPORT(kern, exec_ioctl);
+
+#define KEXEC_IOCTL_UPTIME_WALL_CLK 488
+#define KEXEC_IOCTL_UPTIME_MONO_CLK 489
+
+struct timespec tc_uptime_wclk;
+struct timespec tc_uptime_mclk;
+
+// mutates the timespec in tsa argument
+static void inline
+timespec_subtract(struct timespec *tsa, const struct timespec *tsb)
+{
+	long tv_nsec = tsa->tv_nsec - tsb->tv_nsec;
+	if (tv_nsec < 0L) {
+		tsa->tv_sec = tsa->tv_sec - tsb->tv_sec - 1;
+		tsa->tv_nsec = tv_nsec + 1000000000UL;
+	} else {
+		tsa->tv_sec = tsa->tv_sec - tsb->tv_sec;
+		tsa->tv_nsec = tv_nsec;
+	}
+}
+
+// mutates the timespec in tsa argument
+static void inline
+timespec_add(struct timespec *tsa, const struct timespec *tsb)
+{
+	long tv_nsec = tsa->tv_nsec + tsb->tv_nsec;
+	if (tv_nsec >= 1000000000L) {
+		tsa->tv_sec = tsa->tv_sec + tsb->tv_sec + 1;
+		tsa->tv_nsec = tv_nsec - 1000000000UL;
+	} else {
+		tsa->tv_sec = tsa->tv_sec + tsb->tv_sec;
+		tsa->tv_nsec = tv_nsec;
+	}
+}
+
 #endif
 
 
@@ -438,6 +474,7 @@ tc_delta(struct timehands *th)
 void
 binuptime(struct bintime *bt)
 {
+#ifndef __wasm__
 	struct timehands *th;
 	lwp_t *l;
 	u_int lgen, gen;
@@ -488,62 +525,97 @@ binuptime(struct bintime *bt)
 
 	__insn_barrier();
 	l->l_tcgen = lgen;
+#else
+	struct timespec tsp;
+	__wasm_gettimespec_clock(&tsp);
+	timespec_subtract(&tsp, &tc_uptime_wclk);
+	timespec2bintime(&tsp, bt);
+#endif
 }
 
 void
 nanouptime(struct timespec *tsp)
 {
+#ifndef __wasm__
 	struct bintime bt;
 
 	TC_COUNT(nnanouptime);
 	binuptime(&bt);
 	bintime2timespec(&bt, tsp);
+#else
+	__wasm_gettimespec_clock(tsp);
+	timespec_subtract(tsp, &tc_uptime_wclk);
+#endif
 }
 
 void
 microuptime(struct timeval *tvp)
 {
+#ifndef __wasm__
 	struct bintime bt;
 
 	TC_COUNT(nmicrouptime);
 	binuptime(&bt);
 	bintime2timeval(&bt, tvp);
+#else
+	struct timespec ts;
+	__wasm_gettimespec_clock(&ts);
+	timespec_subtract(&ts, &tc_uptime_wclk);
+	TIMESPEC_TO_TIMEVAL(tvp, &ts);
+#endif
 }
 
 void
 bintime(struct bintime *bt)
 {
+#ifndef __wasm__
 	struct bintime boottime;
 
 	TC_COUNT(nbintime);
 	binuptime(bt);
 	getbinboottime(&boottime);
 	bintime_add(bt, &boottime);
+#else
+	struct timespec ts;
+	__wasm_gettimespec_clock(&ts);
+	timespec2bintime(&ts, bt);
+#endif
 }
 
 void
 nanotime(struct timespec *tsp)
 {
+#ifndef __wasm__
 	struct bintime bt;
 
 	TC_COUNT(nnanotime);
 	bintime(&bt);
 	bintime2timespec(&bt, tsp);
+#else
+	__wasm_gettimespec_clock(tsp);
+#endif
 }
 
 void
 microtime(struct timeval *tvp)
 {
+#ifndef __wasm__
 	struct bintime bt;
 
 	TC_COUNT(nmicrotime);
 	bintime(&bt);
 	bintime2timeval(&bt, tvp);
+#else
+	struct timespec ts;
+	__wasm_gettimespec_clock(&ts);
+	TIMESPEC_TO_TIMEVAL(tvp, &ts);
+#endif
 }
 
 void
 getbinuptime(struct bintime *bt)
 {
+#ifndef __wasm__
 	struct timehands *th;
 	u_int gen;
 
@@ -555,11 +627,18 @@ getbinuptime(struct bintime *bt)
 		*bt = th->th_offset;
 		membar_consumer();
 	} while (gen == 0 || gen != th->th_generation);
+#else
+	struct timespec tsp;
+	__wasm_gettimespec_clock(&tsp);
+	timespec_subtract(&tsp, &tc_uptime_wclk);
+	timespec2bintime(&tsp, bt);
+#endif
 }
 
 void
 getnanouptime(struct timespec *tsp)
 {
+#ifndef __wasm__
 	struct timehands *th;
 	u_int gen;
 
@@ -571,11 +650,16 @@ getnanouptime(struct timespec *tsp)
 		bintime2timespec(&th->th_offset, tsp);
 		membar_consumer();
 	} while (gen == 0 || gen != th->th_generation);
+#else
+	__wasm_gettimespec_clock(tsp);
+	timespec_subtract(tsp, &tc_uptime_wclk);
+#endif
 }
 
 void
 getmicrouptime(struct timeval *tvp)
 {
+#ifndef __wasm__
 	struct timehands *th;
 	u_int gen;
 
@@ -587,11 +671,18 @@ getmicrouptime(struct timeval *tvp)
 		bintime2timeval(&th->th_offset, tvp);
 		membar_consumer();
 	} while (gen == 0 || gen != th->th_generation);
+#else
+	struct timespec ts;
+	__wasm_gettimespec_clock(&ts);
+	timespec_subtract(&ts, &tc_uptime_wclk);
+	TIMESPEC_TO_TIMEVAL(tvp, &ts);
+#endif
 }
 
 void
 getbintime(struct bintime *bt)
 {
+#ifndef __wasm__
 	struct timehands *th;
 	struct bintime boottime;
 	u_int gen;
@@ -606,8 +697,13 @@ getbintime(struct bintime *bt)
 	} while (gen == 0 || gen != th->th_generation);
 	getbinboottime(&boottime);
 	bintime_add(bt, &boottime);
+#else
+	struct timespec ts;
+	__wasm_gettimespec_clock(&ts);
+	timespec2bintime(&ts, bt);
+#endif
 }
-
+#ifndef __wasm__
 static inline void
 dogetnanotime(struct timespec *tsp)
 {
@@ -623,12 +719,16 @@ dogetnanotime(struct timespec *tsp)
 		membar_consumer();
 	} while (gen == 0 || gen != th->th_generation);
 }
+#endif
 
 void
 getnanotime(struct timespec *tsp)
 {
-
+#ifndef __wasm__
 	dogetnanotime(tsp);
+#else
+	__wasm_gettimespec_clock(tsp);
+#endif
 }
 
 void dtrace_getnanotime(struct timespec *tsp);
@@ -637,12 +737,17 @@ void
 dtrace_getnanotime(struct timespec *tsp)
 {
 
+#ifndef __wasm__
 	dogetnanotime(tsp);
+#else
+	__wasm_gettimespec_clock(tsp);
+#endif
 }
 
 void
 getmicrotime(struct timeval *tvp)
 {
+#ifndef __wasm__
 	struct timehands *th;
 	u_int gen;
 
@@ -654,6 +759,11 @@ getmicrotime(struct timeval *tvp)
 		*tvp = th->th_microtime;
 		membar_consumer();
 	} while (gen == 0 || gen != th->th_generation);
+#else
+	struct timespec ts;
+	__wasm_gettimespec_clock(&ts);
+	TIMESPEC_TO_TIMEVAL(tvp, &ts);
+#endif
 }
 
 void
@@ -1040,7 +1150,14 @@ tc_windup(void)
 	 * Go live with the new struct timehands.  Ensure changes are
 	 * globally visible before changing.
 	 */
+#ifndef __wasm__
 	setrealuptime(th->th_microtime.tv_sec, th->th_offset.sec);
+#else
+	__wasm_kexec_ioctl(KEXEC_IOCTL_UPTIME_WALL_CLK, &tc_uptime_wclk);
+	struct timespec ts_uptime;
+	__wasm_gettimespec_clock(&ts_uptime);
+	setrealuptime(ts_uptime.tv_sec, tc_uptime_wclk.tv_sec);
+#endif
 	atomic_store_release(&timehands, th);
 
 	/*

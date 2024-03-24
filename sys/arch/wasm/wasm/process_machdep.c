@@ -1,11 +1,11 @@
 /*	$NetBSD: process_machdep.c,v 1.96 2020/10/19 17:47:37 christos Exp $	*/
 
-/*-
- * Copyright (c) 1998, 2000, 2001, 2008 The NetBSD Foundation, Inc.
+/*
+ * Copyright (c) 2024 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This code is derived from software contributed to The NetBSD Foundation
- * by Charles M. Hannum; by Jason R. Thorpe of Wasabi Systems, Inc.
+ * by Raweden @github 2024.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,18 +15,21 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  */
 
 /*
@@ -74,6 +77,7 @@
  *
  */
 
+#include "arch/wasm/include/cpu.h"
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: process_machdep.c,v 1.96 2020/10/19 17:47:37 christos Exp $");
 
@@ -314,7 +318,7 @@ ptrace_machdep_dorequest(
 #if 0
 		uio.uio_vmspace = vm;
 #endif
-		uio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+		uio.uio_vmspace = l->l_md.md_umem;
 		error = process_machdep_doxmmregs(l, *lt, &uio);
 		uvmspace_free(vm);
 		return error;
@@ -347,7 +351,7 @@ ptrace_machdep_dorequest(
 #if 0
 		uio.uio_vmspace = vm;
 #endif
-		uio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+		uio.uio_vmspace = l->l_md.md_umem;
 		error = process_machdep_doxstate(l, *lt, &uio);
 		uvmspace_free(vm);
 		return error;

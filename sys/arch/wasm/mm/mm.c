@@ -1,3 +1,34 @@
+/*
+ * Copyright (c) 2024 The NetBSD Foundation, Inc.
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to The NetBSD Foundation
+ * by Raweden @github 2024.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
 #include <sys/types.h>
 #include <sys/mutex.h>
@@ -19,6 +50,7 @@
 #include "arch/wasm/include/vmparam.h"
 #include "arch/wasm/include/wasm-extra.h"
 #include "arch/wasm/include/wasm_inst.h"
+#include "lwp.h"
 #include "mm.h"
 #include "param.h"
 #include "queue.h"
@@ -121,6 +153,10 @@ struct mm_page **pg_avec;     // pg_avec[idx in smallest pgsz] mapped to struct 
 uint32_t pg_avecsz;
 struct pool *pg_metapool; // alternative to pg_metatbl?
 
+#ifdef UBC_WIN_PAGES_PREALLOC
+struct mm_page *__ubc_page_bucket;
+#endif
+
 #if MEMORY_DEBUG
 struct mm_page *pg_first_addr;
 struct mm_page *pg_last_addr;
@@ -142,8 +178,6 @@ static kmutex_t dcon_pg_lock;
 
 // TODO: this should be dynamic..
 static kmutex_t __uvmspaces_lock;
-unsigned int __uvmspaces_bmap[2];
-struct vm_space_wasm __uvmspaces[64];
 struct vm_space_wasm *__wasm_kmeminfo;
 static struct pool mm_space_pool;
 
@@ -180,7 +214,7 @@ void wasm_memory_fill(void * dst, int32_t val, uint32_t len) __WASM_BUILTIN(memo
 
 // arg0 = mem-info, arg1 = bt-info
 void __wasm_bootstrap_info(void *, void *) __WASM_IMPORT(kern, __bootstrap_info);
-void __wasm_kexec_ioctl(int, void *) __WASM_IMPORT(kern, exec_ioctl);
+int __wasm_kexec_ioctl(int, void *) __WASM_IMPORT(kern, exec_ioctl);
 
 #ifndef WASM_MAX_PHYS_SEG
 #define WASM_MAX_PHYS_SEG 32
@@ -1121,12 +1155,21 @@ init_wasm_memory(void)
     struct mm_phys_seg *pvecseg;    // index of phys-seg that fit page-array table.
     struct mm_phys_seg *iomemseg;
 
+#ifndef UBC_WIN_PAGES_PREALLOC
     struct init_pg_bucket buckets[5];
+#else
+    struct init_pg_bucket buckets[6];
+#endif
     struct init_pg_bucket *meta_bucket = &buckets[0];
     struct init_pg_bucket *pvec_bucket = &buckets[1];
     struct init_pg_bucket *pgrb_bucket = &buckets[2];
     struct init_pg_bucket *msgb_bucket = &buckets[3];
+#ifndef UBC_WIN_PAGES_PREALLOC
     bucket_cnt = 4;
+#else
+    struct init_pg_bucket *ubc_bucket = &buckets[4];
+    bucket_cnt = 5;
+#endif
 
     wasm_memory_fill(&buckets[0], 0x00, sizeof(buckets));
 
@@ -1136,6 +1179,11 @@ init_wasm_memory(void)
     msgb_bucket->min_addr = IOM_END;
     msgb_bucket->tail = true;
 
+#ifdef UBC_WIN_PAGES_PREALLOC
+    ubc_bucket->pgcnt = UBC_NWINS * howmany((1 << UBC_WINSHIFT), PAGE_SIZE);
+    ubc_bucket->min_addr = IOM_END;
+    ubc_bucket->tail = true;
+#endif
 
     mutex_init(&__malloc_mtx, MUTEX_SPIN, 0);
     mutex_init(&__uvmspaces_lock, MUTEX_SPIN, 0);
@@ -1478,6 +1526,12 @@ init_wasm_memory(void)
     msgbuf_vaddr = seg->first->phys_addr;
     msgbuf_p_cnt = seg->pg_cnt;
 
+#ifdef UBC_WIN_PAGES_PREALLOC
+    seg = ubc_bucket->seg;
+    pg_detach_list(seg->first, seg->last);
+    __ubc_page_bucket = seg->first;
+#endif
+
     if (iomemseg)
         pg_detach_list(iomemseg->first, iomemseg->last);
 
@@ -1486,6 +1540,9 @@ init_wasm_memory(void)
     pages_busy += pvec_bucket->pgcnt;
     pages_busy += pgrb_bucket->pgcnt;
     pages_busy += msgb_bucket->pgcnt;
+#ifdef UBC_WIN_PAGES_PREALLOC
+    pages_busy += ubc_bucket->pgcnt;
+#endif
 
     atomic_store32(&__kmem_data.unmapped_raw, rsvd_raw);
     atomic_store32(&__kmem_data.unmapped_pad, rsvd_pad);
@@ -1910,7 +1967,23 @@ mm_space_pool_free(struct pool *pp, void *ptr)
 struct vm_space_wasm *
 new_uvmspace(void)
 {
-    return pool_get(&mm_space_pool, 0);
+    struct lwp *l;
+    struct vm_space_wasm *mem;
+    
+    mem = pool_get(&mm_space_pool, 0);
+    if (mem == NULL)
+        return mem;
+
+    l = (struct lwp *)curlwp;
+
+    if (l->l_md.md_umem != NULL) {
+        printf("ERROR: %s lwp->l_md.md_umem was already specified.. overwritting previous (%p) with new %p", __func__, l->l_md.md_umem, mem);   
+    }
+
+    l->l_md.md_umem = mem;
+    
+
+    return mem;
 }
 
 static void

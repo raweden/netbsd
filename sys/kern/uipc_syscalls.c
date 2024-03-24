@@ -294,6 +294,7 @@ sys_accept(struct lwp *l, const struct sys_accept_args *uap, register_t *retval)
 	return error;
 }
 
+// accept4 goes trough paccept
 int
 sys_paccept(struct lwp *l, const struct sys_paccept_args *uap,
     register_t *retval)
@@ -576,7 +577,7 @@ do_sys_sendmsg_so(struct lwp *l, int s, struct socket *so, file_t *fp,
 	auio.uio_resid = 0;
 	KASSERT(l == curlwp);
 #ifdef __wasm__
-	auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+	auio.uio_vmspace = l->l_md.md_umem;
 #else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
 #endif
@@ -957,7 +958,7 @@ do_sys_recvmsg_so(struct lwp *l, int s, struct socket *so, struct msghdr *mp,
 	auio.uio_resid = 0;
 	KASSERT(l == curlwp);
 #ifdef __wasm__
-	auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+	auio.uio_vmspace = l->l_md.md_umem;
 #else
 	auio.uio_vmspace = l->l_proc->p_vmspace;
 #endif

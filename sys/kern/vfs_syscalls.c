@@ -3389,7 +3389,7 @@ do_sys_readlinkat(struct lwp *l, int fdat, const char *path, char *buf,
 		auio.uio_rw = UIO_READ;
 		KASSERT(l == curlwp);
 #ifdef __wasm__
-		auio.uio_vmspace = (void *)l->l_proc->p_md.md_umem;
+		auio.uio_vmspace = l->l_md.md_umem;
 #else
 		auio.uio_vmspace = l->l_proc->p_vmspace;
 #endif

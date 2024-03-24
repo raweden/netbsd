@@ -1,6 +1,35 @@
+/*
+ * Copyright (c) 2024 The NetBSD Foundation, Inc.
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to The NetBSD Foundation
+ * by Raweden @github 2024.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
-
-#include "arch/wasm/include/cpu.h"
 #include <sys/null.h>
 #include <sys/param.h>
 #include <sys/lwp.h>
@@ -26,7 +55,11 @@ x86_curlwp(void)
 	return wasm_curlwp;
 }
 
-int __noinline wasm_lwp_wait(lwp_t *l, int64_t timo)
+#define STD_WAKEUP 1234
+#define SIG_WAKEUP 5678
+
+int __noinline
+wasm_lwp_wait(lwp_t *l, int64_t timo)
 {
 	int result;
 	uint32_t sig;
@@ -35,17 +68,25 @@ int __noinline wasm_lwp_wait(lwp_t *l, int64_t timo)
 		l->l_pflag &= ~LP_RUNNING;
 	}
 	
-	result = atomic_wait32((uint32_t *)&l->l_wa_wakesig, 0, timo);
-	if (result == ATOMIC_WAIT_NOT_EQUAL) {
-		printf("expected is non zero");
-		__panic_abort();
-	}
-	
-	sig = atomic_load32((uint32_t *)&l->l_wa_wakesig);
-	if (sig == 1234) {
-		atomic_cmpxchg32((uint32_t *)&l->l_wa_wakesig, sig, 0);
-	} else {
-		printf("lwp awake with signal = %d", sig);
+	while (true) {
+
+		result = atomic_wait32((uint32_t *)&l->l_md.md_wakesig, 0, timo);
+		if (result == ATOMIC_WAIT_NOT_EQUAL) {
+			printf("expected is non zero");
+			__panic_abort();
+		}
+		
+		sig = atomic_load32((uint32_t *)&l->l_md.md_wakesig);
+		if (sig == STD_WAKEUP) {
+			atomic_cmpxchg32((uint32_t *)&l->l_md.md_wakesig, sig, 0);
+			break;
+		} else if (sig == SIG_WAKEUP) {
+			printf("lwp awake with signal = %d", sig);
+			// go back to sleep
+		} else {
+			printf("lwp awake with signal = %d", sig);
+			break;
+		}
 	}
 
 	// mark ourself as running.
@@ -56,24 +97,38 @@ int __noinline wasm_lwp_wait(lwp_t *l, int64_t timo)
 	return 0;
 }
 
-int __noinline wasm_lwp_awake(lwp_t *l)
+int __noinline
+wasm_lwp_awake(lwp_t *l)
 {
 	int result;
 
-	atomic_xchg32((uint32_t *)&l->l_wa_wakesig, 1234);
-	result = atomic_notify((uint32_t *)&l->l_wa_wakesig, 1);
-
+	atomic_xchg32((uint32_t *)&l->l_md.md_wakesig, STD_WAKEUP);
+	result = atomic_notify((uint32_t *)&l->l_md.md_wakesig, 1);
 
 	return 0;
 }
 
-/*
- * void lwp_trampoline(void);
+int __noinline
+wasm_lwp_awake_signal(lwp_t *l)
+{
+	int result;
+
+	atomic_xchg32((uint32_t *)&l->l_md.md_wakesig, SIG_WAKEUP);
+	result = atomic_notify((uint32_t *)&l->l_md.md_wakesig, 1);
+
+	return 0;
+}
+
+/**
+ * The purpose of the trampoline is to enter into the threads, some threads
+ * is spawned to provide a user-space program, these are handled trough a function 
+ * called by this trampoline which setups additional runtime and later enters into `main()`
  *
- * This is a trampoline function pushed run by newly created LWPs
- * in order to do additional setup in their context.
+ * Where the trampoline jumps to is directed by the bottom switchframe, which holds a 
+ * callback along with one argument given to that callback.
  */
-void lwp_trampoline(void)
+void
+lwp_trampoline(void)
 {
 	struct lwp *l;
 	struct pcb *pcb;
@@ -127,4 +182,32 @@ ENTRY(lwp_trampoline)
 	jmp	.Lsyscall_checkast
 END(lwp_trampoline)
 #endif
+}
+
+int lwp_create_jsworker(struct lwp *l1, pid_t *pid_res, bool *child_ok, struct lwp **child_lwp, struct runtime_abi *abi);
+
+static struct runtime_abi __abi_display_server_wrapper = {
+	.ra_path_type = RUNTIME_ABI_PATH_URL,
+	.ra_abi_pathlen = (sizeof("display-server.js") - 1),
+	.abi_path = "display-server.js"
+};
+
+void
+init_display_server(void)
+{
+	struct proc *p2;
+	struct lwp *l2;
+	bool child_ok;
+	pid_t child_pid;
+	int error;
+
+	l2 = NULL;
+	child_ok = false;
+
+	error = lwp_create_jsworker(&lwp0, &child_pid, &child_ok, &l2, &__abi_display_server_wrapper);
+
+	if (error != 0 || l2 == NULL) {
+		printf("%s error = %d while spawning js-worker\n", __func__, error);
+		return;
+	}
 }

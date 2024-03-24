@@ -1,4 +1,4 @@
-/*
+/*-
  * Copyright (c) 2024 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
@@ -30,40 +30,68 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/stdint.h>
+#include <sys/cdefs.h>
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/proc.h>
+#include <sys/lwp.h>
+#include <wasm/wasm_inst.h>
 
-#ifdef __WASM
-#define __WASM_BUILTIN(symbol) __attribute__((import_module("__builtin"), import_name(#symbol)))
-#else
-__WASM_BUILTIN(x)
-#endif
+#define SCHEDULER_MAX 128
 
+struct async_task {
+    void (*fn)(void *);
+    void *arg;
+};
 
+// the location of this struct needs to be exported in kernel descriptor.
+struct async_task_queue {
+    uint32_t queue_size;
+    uintptr_t queue[SCHEDULER_MAX];
+} scheduler_tasks = {
+    .queue_size = SCHEDULER_MAX
+};
 
+// lwp_machdep.c
+int wasm_lwp_wait(lwp_t *, int64_t);
 
+void *
+__scheduler_taskque(void)
+{
+    return (void *)&scheduler_tasks;
+}
 
-/**
- * translates to `memory.fill` instruction in post-edit (or link-time with ylinker)
- *
- * @param dst The destination address.
- * @param val The value to use as fill
- * @param len The number of bytes to fill.
- */
-void wasm_memory_fill(void * dst, int32_t val, uint32_t len) __WASM_BUILTIN(memory_fill);
+void
+wasm_scheduler(void)
+{
+    struct lwp *l;
+    //uintptr_t *queue;
+    struct async_task *task;
+    uintptr_t tasks[SCHEDULER_MAX];
+    uint32_t ret, count;
 
-/**
- * translates to `memory.copy` instruction in post-edit (or link-time with ylinker)
- *
- * @param dst The destination address.
- * @param src The value to use as fill
- * @param len The number of bytes to fill.
- */
-void wasm_memory_copy(void * dst, const void *src, uint32_t len) __WASM_BUILTIN(memory_copy);
+    l = (struct lwp *)curlwp;
 
+    while (true) {
+        count = 0;
 
-int wasm_memory_grow(int pgcnt) __WASM_BUILTIN(memory_grow);
-int wasm_memory_size(void) __WASM_BUILTIN(memory_size);
+        for (int i = 0; i < SCHEDULER_MAX; i++) {
+            ret = atomic_xchg32((uint32_t *)&scheduler_tasks.queue[i], 0);
+            if (ret != 0) {
+                tasks[count++] = ret;
+            }
+        }
 
-int wasm_table_grow(int incr) __WASM_BUILTIN(table_grow);
-int wasm_table_size(void) __WASM_BUILTIN(table_size);
-void wasm_table_zerofill(uintptr_t dst, uintptr_t len) __WASM_BUILTIN(table_zerofill);
+        if (count > 0) {
+            for (int i = 0; i < count; i++) {
+                task = (struct async_task *)tasks[i];
+                if (task->fn == NULL) {
+                    continue;
+                }
+                task->fn(task->arg);
+            }
+        }
+
+        wasm_lwp_wait(l, -1);
+    }
+}
