@@ -1,6 +1,16 @@
 
 const JSONRPC_HEAD = "2.0";
 
+/**
+ * @callback PostMessageFn
+ * @param {any} message
+ * @param {Transferable} transfer
+ * 
+ * @typedef IPCTarget
+ * @type {EventTarget}
+ * @property {PostMessageFn} postMessage
+ */
+
 function JSONRPC() {
 
 	const port = globalThis;
@@ -183,6 +193,14 @@ function JSONRPC() {
 		methods[method] = obj;
 	}
 
+	/**
+	 * 
+	 * @param {IPCTarget} target 
+	 * @param {string} method 
+	 * @param {Object|Array} params 
+	 * @param {Transferable[]=} transfer 
+	 * @returns 
+	 */
 	this.send = function(target, method, params, transfer) {
 
 		let msgId = generateMsgId();
@@ -215,6 +233,14 @@ function JSONRPC() {
 		return p;
 	}
 
+	/**
+	 * 
+	 * @param {IPCTarget} target 
+	 * @param {string} method 
+	 * @param {Object|Array} params 
+	 * @param {Transferable[]=} transfer 
+	 * @returns 
+	 */
 	this.notify = function(target, method, params, transfer) {
 
 		let hasTransfer = transfer && Array.isArray(transfer) && transfer.length > 0;

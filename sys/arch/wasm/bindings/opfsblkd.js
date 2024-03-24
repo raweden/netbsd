@@ -11,13 +11,31 @@
 // - If w3c would come up with a attribute to disable double buffered write, that option would be suitable since
 //   having these large file double buffers makes performance suffer.
 
+/** @type {number} */
+let aio_lwp;
+/** @type {number} */
+let aio_wchan;
+/** @type {number} */
+let aio_taskque;
+
+/** @type {WebAssembly.Memory} */
 let kmemory;
+/** @type {SharedArrayBuffer} */
 let kmembuf;
+/** @type {Uint8Array} */
 let kmem_u8;
+/** @type {Int32Array} */
 let kmem_32;
+/** @type {DataView} */
 let kmem;
+/** @type {integer} */
 let rblkdev_head = 0;
+/** @type {FileSystemSyncAccessHandle} */
 let fhandle;
+/**
+ * @type {Uint32Array}
+ */
+const buf4 = new Uint32Array();
 
 const NO_REQ_SLOT = 32;
 
@@ -30,6 +48,13 @@ const OPFSBLK_STATE_READY = 2;
 const OPFSBLK_STATE_KILL = 3;
 
 console.log("spawned opfsblkd.js thread");
+
+// TODO: error-handling:
+//		1. report error back and awaken the waiting thread!
+//		2. there might be some error that can be recovered from.
+// 		3. error that cannot be recovered from or would mean data-loss, abort op or crash thread.
+//
+// TODO: rewrite operation handling to either use throw/catch to report error or c-like et
 
 function blkdevOnError(err) {
 	console.error(err);
@@ -68,6 +93,7 @@ function blkdevRunLoop(wkret) {
 			for (let i = 0; i < len; i++) {
 				let ptr = reqs[i];
 				let op = kmem.getInt32(ptr, true);
+				let sync;
 				let reqseq = kmem.getUint32(ptr, true);
 				if (reqseq > seqval) {
 					seqval = reqseq;
@@ -75,6 +101,8 @@ function blkdevRunLoop(wkret) {
 
 				if (op === BIO_READ) {
 					opfs_bio_read(op, ptr);
+				} else if (op === BIO_WRITE || op === (BIO_WRITE|BIO_SYNC)) { // TODO: BIO_SYNC should be set as a async field.
+					opfs_bio_write(op, ptr);
 				} else {
 					throw new Error("other operations not implemented..");
 				}
@@ -105,7 +133,34 @@ function blkdevRunLoop(wkret) {
 	}
 }
 
+/**
+ * 
+ * @param {number} task_ptr 
+ * @returns {void}
+ */
+function aio_schedule(task_ptr) {
+	const count = kmem.getUint32(aio_taskque, true); // never changes.
+	let old, idx = (aio_taskque + 4) >>> 2;
+	let found = false;
+	for (let i = 0; i < count; i++) {
+		old = Atomics.compareExchange(kmem_32, idx, 0, task_ptr);
+		if (old === 0) {
+			found = true;
+			break;
+		}
+	}
 
+	if (found) {
+		// wake up the scheduler!
+		let wchan = aio_wchan >> 2;
+		Atomics.store(kmem_32, wchan, 1234);
+		Atomics.notify(kmem_32, wchan, 1);
+		return;
+	}
+
+	// schedular is busy.. try later
+	setTimeout(aio_schedule, 0, task_ptr);
+}
 
 const BIO_READ = 0x01;
 const BIO_WRITE = 0x02;
@@ -119,6 +174,10 @@ let blkbuf_2048;
 let blkbuf_4096;
 let blkbuf_8192;
 
+/**
+ * @param {integer} sz A predefined buffer size (1024, 2048, 4096, 8192)
+ * @returns {Uint8Array} 
+ */
 function blkbuf_get(sz) {
 	switch (sz) {
 		case 1024:
@@ -150,12 +209,15 @@ function blkbuf_get(sz) {
 			return blkbuf_8192;
 		}
 	}
+
+	throw new RangeError("NOT_BLKSZ_CACHED");
 }
 
 function opfs_bio_read(op, ptr) {
 	let blksz = kmem.getUint32(ptr + 20, true);
 	let blkno = Number(kmem.getBigInt64(ptr + 24, true));
 	let daddr = kmem.getUint32(ptr + 16, true);
+	let wchan = kmem.getUint32(ptr + 48, true);
 
 	if (daddr === 0)
 		throw new RangeError("cannot read/write from/to NULL");
@@ -170,13 +232,43 @@ function opfs_bio_read(op, ptr) {
 	fhandle.read(buf, {at: off});
 	kmem_u8.set(buf, daddr);
 
-	let waddr = (ptr + 4) / 4;
-	Atomics.store(kmem_32, waddr, READY_STATE_DONE);
-	Atomics.notify(kmem_32, waddr);
+	if (wchan === 0) {
+		let waddr = (ptr + 4) >> 2;
+		Atomics.store(kmem_32, waddr, READY_STATE_DONE);
+		Atomics.notify(kmem_32, waddr);
+	} else if (wchan == aio_wchan) {
+		aio_schedule(ptr + 52);
+	} else {
+		console.error("req->wchan %d is not of supported value", wchan);
+	}
 }
 
-function opfs_bio_write(ptr) {
+function opfs_bio_write(op, ptr) {
+	let blksz = kmem.getUint32(ptr + 20, true);
+	let blkno = Number(kmem.getBigInt64(ptr + 24, true));
+	let daddr = kmem.getUint32(ptr + 16, true);
+	let wchan = kmem.getUint32(ptr + 48, true);
 
+	if (daddr === 0)
+		throw new RangeError("cannot read/write from/to NULL");
+
+	// subarray should be OK since in this thread GC should not be a problem.
+	let buf = kmem_u8.subarray(daddr, daddr + blksz);
+	let off = blkno << DEV_BSHIFT;
+
+	//console.log("ptr = %d op = %d blkno = %d (off %d) blksz = %d data-addr = %d", ptr, op, blkno, off, blksz, daddr);
+
+	fhandle.write(buf, {at: off});
+
+	if (wchan === 0) {
+		let waddr = (ptr + 4) >> 2;
+		Atomics.store(kmem_32, waddr, READY_STATE_DONE);
+		Atomics.notify(kmem_32, waddr);
+	} else if (wchan == aio_wchan) {
+		aio_schedule(ptr + 52);
+	} else {
+		console.error("req->wchan is not of supported value", wchan);
+	}
 }
 
 function opfs_bio_sync(ptr) {
@@ -224,6 +316,12 @@ function exec_bio_ops(reqs) {
 // handle.read(buffer, {at: 0})
 // handle.write(buffer, {at: 0})
 
+/**
+ * 
+ * @param {string} filepath A file-system path relative to the opfs root directory.
+ * @param {boolean} finddir A boolean value that indicates the lookup is for a directory.
+ * @returns {File}
+ */
 async function opfs_simple_namei(filepath, finddir) {
 
 	let file, cnt, nodes, names, abs = false;
@@ -310,6 +408,13 @@ async function init_blkdev(rblkdev_head, init_cmd) {
 		reqslot++;
 	}
 
+	let path_ptr, args_ptr;
+	path_ptr = kmem.getUint32(init_cmd + 24, true);
+	args_ptr = kmem.getUint32(init_cmd + 28, true);
+	aio_lwp = kmem.getUint32(init_cmd + 32, true);
+	aio_wchan = kmem.getUint32(init_cmd + 36, true);
+	aio_taskque = kmem.getUint32(init_cmd + 40, true);
+
     let file, filepath = "netbsd-wasm-128.image";
 
     try {
@@ -327,11 +432,11 @@ async function init_blkdev(rblkdev_head, init_cmd) {
 
 	kmem.setInt32(rblkdev_head + 40, 1, true); // rblk_ftype
 
-	let waddr = (init_cmd + 4) / 4;
+	let waddr = (init_cmd + 8) >> 2;
 	Atomics.store(kmem_32, waddr, READY_STATE_DONE);
 	Atomics.notify(kmem_32, waddr);
 
-	waddr = rblkdev_head / 4;
+	waddr = rblkdev_head >> 2;
 	Atomics.store(kmem_32, waddr, OPFSBLK_STATE_READY);
 	Atomics.notify(kmem_32, waddr);
 }
@@ -353,6 +458,7 @@ self.addEventListener("message", function (evt) {
         kmem_u8 = new Uint8Array(kmembuf);
         kmem = new DataView(kmembuf);
         rblkdev_head = msg.rblkdev_head;
+		lwp0_tasks_queue = msg.schedule_task;
         init_blkdev(msg.rblkdev_head, msg.rblkdev_init);
         return;
     } else if (msg.cmd === "rblkdev_kill_signal") {

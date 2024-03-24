@@ -11,11 +11,15 @@ let __kmodule;
 let _exports;
 let kmemory;
 let kmembuf;
-let kmemdata;
+/** @type DataView */
+let kmem;
 let kheap32;
 let kheapu8;
 let __sysent;
 let __curlwp;
+let __tasksptr;
+const __wclk_uptime = Date.now();
+const __mclk_uptime = performance.timeOrigin + performance.now();
 
 function u8_memcpy(src, sidx, slen, dst, didx) {
     // TODO: remove this assert at later time. (should be a debug)
@@ -420,7 +424,7 @@ function kern_random_source(buf, size, nread) {
 	
 	u8_memcpy(tmp, 0, bufsz, kheap32, buf);
 	if (nread !== 0)
-		kmemdata.setInt32(nread, bufsz, true);
+		kmem.setInt32(nread, bufsz, true);
 	return 0;
 }
 
@@ -442,7 +446,7 @@ function wasm_thread_alloc(td) {
 	if (td == 0) {
 		throw TypeError("tried to alloc thread with NULL");
 	}
-	let kstack = kmemdata.getUint32(td + 844, true);
+	let kstack = kmem.getUint32(td + 844, true);
 
 	pending_td[td] = {td: td, kstack: kstack};
 }
@@ -569,8 +573,18 @@ function addEventListenerToThread(worker, trdobj) {
 	}
 }
 
-function klwp_spawn(l1, l2, stackptr, stacksz) {
+function klwp_spawn(l1, l2, stackptr, stacksz, abi_p) {
 	console.log("klwp_spawn l1 = %d l2 = %d stackptr = %d stacksz = %d", l1, l2, stackptr, stacksz);
+	let abi_path, abi_path_type;
+
+	if (abi_p !== 0) {
+		let strsz, strp;
+		abi_path_type = kmem.getUint8(abi_p);
+		strsz = kmem.getUint16(abi_p + 2, true);
+		strp = kmem.getUint32(abi_p + 4, true);
+		abi_path = UTF8ArrayToString(kheapu8, strp, strsz);
+	}
+	
 
 	let name = "lwp @0x" + ((l2).toString(16).padStart(8, 0));
 	let msg = {
@@ -581,6 +595,8 @@ function klwp_spawn(l1, l2, stackptr, stacksz) {
 		__stack_pointer: stackptr,
 		__stack_size: stacksz,
 		name: name,
+		abi_path_type: abi_path_type,
+		abi_path: abi_path
 	};
 	self.postMessage(msg);
 }
@@ -604,13 +620,13 @@ function wasm_sched_add(td, flags) {
 	
 
 	// setup proc->p_sysent to 151452 here, to allow systemcalls.
-	let proc = kmemdata.getUint32(td + 4, true);
+	let proc = kmem.getUint32(td + 4, true);
 	if (proc == 0) {
 		throw TypeError("td->td_proc should not be NULL");
 	}
-	let p_sysent = kmemdata.getUint32(proc + 672, true);
+	let p_sysent = kmem.getUint32(proc + 672, true);
 	console.log("proc->p_sysent = %d (old) %d (new)", p_sysent, __sysent)
-	kmemdata.setUint32(proc + 672, __sysent, true);
+	kmem.setUint32(proc + 672, __sysent, true);
 	// init: 17674240 proc0: 223256
 	
 	// TODO: we should move the Worker creation to wasm_sched_alloc
@@ -665,15 +681,16 @@ function kgettimespec64_clock(ts) {
 
 	const now = Date.now();
 
-	kmem.setBigInt64(ts, BigInt(now / 1000), true);					// seconds
+	kmem.setBigInt64(ts, BigInt((now / 1000) | 0), true);			// seconds
 	kmem.setInt32(ts + 8, ((now % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
 }
 
+// performance.now() does not tick during sleep, do not use it for clock-time.
 function kgettimespec64_monotomic(ts) {
 
 	const now = performance.timeOrigin + performance.now();
 	
-	kmem.setBigInt64(ts, BigInt(now / 1000), true);					// seconds
+	kmem.setBigInt64(ts, BigInt((now / 1000) | 0), true);			// seconds
 	kmem.setInt32(ts + 8, ((now % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
 }
 
@@ -762,7 +779,8 @@ function configureWasmBinary(buffer) {
 }
 
 function onKernBootstrapFail(err) {
-
+	console.error("failed to compile kernel binary!");
+	console.error(err);
 }
 
 // Somehow the busy state of the lwp0 prevents message to be delivered to the worker, like it not beeing sent.
@@ -780,6 +798,7 @@ function kspawn_blkdev_worker(rblkdev, init_cmd) {
 		kmemory: kmemory,
 		rblkdev_head: rblkdev,
 		rblkdev_init: init_cmd,
+		schedule_task: __tasksptr,
 	});
 }
 
@@ -802,14 +821,29 @@ function kexec_ioctl(cmd, argp) {
 			self.postMessage({
 				cmd: "mmblkd_attach",
 				kmemory: kmemory, 		// special role = "kmemory" key, normal memory = "memory" key
-				mmblkd_head: kmemdata.getUint32(argp, true),
-				meminfo_ptr: kmemdata.getUint32(argp + 4, true)
+				mmblkd_head: kmem.getUint32(argp, true),
+				meminfo_ptr: kmem.getUint32(argp + 4, true),
+				schedule_task: __tasksptr,
 			});
 			break;
 		}
 		case 537: {
 			console.warn("kmem_alloc() large chunk %d", argp);
 			break;
+		}
+		case 488: {	// KEXEC_IOCTL_UPTIME_WALL_CLK (only called once in tc_windup)
+			if (argp == 0) 
+				return EINVAL;
+
+			kmem.setBigInt64(argp, BigInt((__wclk_uptime / 1000) | 0), true);			// seconds
+			kmem.setInt32(argp + 8, ((__wclk_uptime % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
+		}
+		case 489: {	// KEXEC_IOCTL_UPTIME_MONO_CLK
+			if (argp == 0) 
+				return EINVAL;
+
+			kmem.setBigInt64(argp, BigInt((__mclk_uptime / 1000) | 0), true);			// seconds
+			kmem.setInt32(argp + 8, ((__mclk_uptime % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
 		}
 	}
 
@@ -832,7 +866,7 @@ function bootstrap_kern(kmodule) {
 	let IOM_BEGIN;
 	let IOM_END;
 	let netbsd_wakern_info;
-	let iosurfaceIPCHead;
+	let __dsrpc_server_head;
 	let arr = WebAssembly.Module.customSections(kmodule, "com.netbsd.kernel-locore");
 	if (arr.length == 1) {
 		let text, json, buffer = arr[0];
@@ -864,22 +898,22 @@ function bootstrap_kern(kmodule) {
 		const info = netbsd_wakern_info;
 		const PAGE_SIZE = 4096;
 
-		let initmem_lo = kmemdata.getUint32(info.__start__init_memory, true);
-		let initmem_hi = kmemdata.getUint32(info.__stop__init_memory, true);
+		let initmem_lo = kmem.getUint32(info.__start__init_memory, true);
+		let initmem_hi = kmem.getUint32(info.__stop__init_memory, true);
 		let iomem_start;
 		let iomem_end;
 
 		if (info.__wasm_meminfo) {
 			let ptr = info.__wasm_meminfo;
-			let bootspace_p = kmemdata.getUint32(ptr, true);
-			let physmem_p = kmemdata.getUint32(ptr + 4, true);
-			iomem_start = kmemdata.getUint32(ptr + 8, true);
-			iomem_end = kmemdata.getUint32(ptr + 12, true);
+			let bootspace_p = kmem.getUint32(ptr, true);
+			let physmem_p = kmem.getUint32(ptr + 4, true);
+			iomem_start = kmem.getUint32(ptr + 8, true);
+			iomem_end = kmem.getUint32(ptr + 12, true);
 			IOM_BEGIN = iomem_start;
 			IOM_END = iomem_end;
 
 			if (physmem_p) {
-				kmemdata.setUint32(physmem_p, memory_max * wasm_pgsz, true);
+				kmem.setUint32(physmem_p, memory_max * wasm_pgsz, true);
 			}
 		}
 
@@ -894,8 +928,13 @@ function bootstrap_kern(kmodule) {
 		}
 		*/
 
-		if (info.__builtin_iosurfaceAddr) {
-			iosurfaceIPCHead = info.__builtin_iosurfaceAddr;
+		if (info.__dsrpc_server_head) {
+			__dsrpc_server_head = info.__dsrpc_server_head;
+			self.postMessage({
+				cmd: "__dsrpc_server_head",
+				ptr: info.__dsrpc_server_head,
+				mem: kmemory
+			});
 		}
 
 		if (info.__kmem_data) {
@@ -917,7 +956,7 @@ function bootstrap_kern(kmodule) {
 
 		// whats allocated here needs to fit before iomem_start or be placed after iomem_end
 		let mem_l2tbl = {size: PAGE_SIZE, align: PAGE_SIZE};
-		let mem_l1tbl = {size: Math.ceil((kmemdata.byteLength / PAGE_SIZE) / 1024) * PAGE_SIZE, align: PAGE_SIZE};
+		let mem_l1tbl = {size: Math.ceil((kmem.byteLength / PAGE_SIZE) / 1024) * PAGE_SIZE, align: PAGE_SIZE};
 		let mem_lwp0_stackp = {size: Math.ceil(info.hint_min_stacksz / wasm_pgsz) * wasm_pgsz, align: PAGE_SIZE};
 		let sysrsvd = [mem_l2tbl, mem_l1tbl, mem_lwp0_stackp];
 		let boot_pde, l1_addr;
@@ -952,9 +991,9 @@ function bootstrap_kern(kmodule) {
 		info.lwp0_stackp = lwp0_stackp;
 
 
-		kmemdata.setUint32(info.__stop__init_memory, initmem_hi, true);
-		kmemdata.setUint32(info.__start_kern, 0, true);
-		kmemdata.setUint32(info.__stop_kern, memptr, true);
+		kmem.setUint32(info.__stop__init_memory, initmem_hi, true);
+		kmem.setUint32(info.__start_kern, 0, true);
+		kmem.setUint32(info.__stop_kern, memptr, true);
 
 		console.log("after init-locore");
 		console.log("first_avail: %d", memptr);
@@ -962,19 +1001,19 @@ function bootstrap_kern(kmodule) {
 		console.log("IOM_END: %d", IOM_END);
 
 		if (info.__physmemlimit) {
-			kmemdata.setUint32(info.__physmemlimit, memory_max * wasm_pgsz, true);
+			kmem.setUint32(info.__physmemlimit, memory_max * wasm_pgsz, true);
 		}
 
 		if (info.avail_end) {
-			//kmemdata.setUint32(info.avail_end, kmemdata.byteLength, true);
+			//kmem.setUint32(info.avail_end, kmem.byteLength, true);
 		}
 
 		if (info.__first_avail) {
-			kmemdata.setUint32(info.__first_avail, memptr, true);
+			kmem.setUint32(info.__first_avail, memptr, true);
 		}
 
 		if (info.lwp0uarea) {
-			kmemdata.setUint32(info.lwp0uarea, lwp0_stackp, true);
+			kmem.setUint32(info.lwp0uarea, lwp0_stackp, true);
 		}
 
 		rsvdmem.sort(function(a, b) {
@@ -1015,7 +1054,7 @@ function bootstrap_kern(kmodule) {
 		const BTINFO_EFIMEMMAP = 15;
 		const BTINFO_PREKERN = 16;
 
-		if (kmemdata.getInt32(nent_ptr, true) != 0) {
+		if (kmem.getInt32(nent_ptr, true) != 0) {
 			console.warn("bootinfo not uninitalized");
 			return;
 		}
@@ -1029,8 +1068,8 @@ function bootstrap_kern(kmodule) {
 			if (strlen >= 80) {
 				throw new Error("ENAMETOLONG");
 			}
-			kmemdata.setInt32(ptr, 88, true);
-			kmemdata.setInt32(ptr + 4, BTINFO_BOOTPATH, true);
+			kmem.setInt32(ptr, 88, true);
+			kmem.setInt32(ptr + 4, BTINFO_BOOTPATH, true);
 			stringToUTF8Bytes(kheapu8, ptr + 8, path);
 			ptr += 88;
 			cnt++;
@@ -1045,8 +1084,8 @@ function bootstrap_kern(kmodule) {
 			if (strlen >= 16) {
 				throw new Error("ENAMETOLONG");
 			}
-			kmemdata.setInt32(ptr, 24, true);
-			kmemdata.setInt32(ptr + 4, BTINFO_ROOTDEVICE, true);
+			kmem.setInt32(ptr, 24, true);
+			kmem.setInt32(ptr + 4, BTINFO_ROOTDEVICE, true);
 			stringToUTF8Bytes(kheapu8, ptr + 8, path);
 			ptr += 24;
 			cnt++;
@@ -1067,14 +1106,14 @@ function bootstrap_kern(kmodule) {
 			if (strlen >= 16) {
 				throw new Error("ENAMETOLONG");
 			}
-			kmemdata.setInt32(ptr, 40, true);
-			kmemdata.setInt32(ptr + 4, BTINFO_BOOTDISK, true);
-			kmemdata.setInt32(ptr + 8, labelsector, true);
-			kmemdata.setInt16(ptr + 12, type, true);
-			kmemdata.setInt16(ptr + 14, cksum, true);
+			kmem.setInt32(ptr, 40, true);
+			kmem.setInt32(ptr + 4, BTINFO_BOOTDISK, true);
+			kmem.setInt32(ptr + 8, labelsector, true);
+			kmem.setInt16(ptr + 12, type, true);
+			kmem.setInt16(ptr + 14, cksum, true);
 			stringToUTF8Bytes(kheapu8, ptr + 16, packname);
-			kmemdata.setInt32(ptr + 8, biosdev, true);
-			kmemdata.setInt32(ptr + 8, partition, true);
+			kmem.setInt32(ptr + 8, biosdev, true);
+			kmem.setInt32(ptr + 8, partition, true);
 			ptr += 40;
 			cnt++;
 		}
@@ -1103,10 +1142,10 @@ function bootstrap_kern(kmodule) {
 
 		function btinfo_memmap(entries) {
 			
-			kmemdata.setInt32(ptr, 16 + (20 * entries), true);
-			kmemdata.setInt32(ptr + 4, BTINFO_MEMMAP, true);
-			kmemdata.setInt32(ptr + 8, memory_max === undefined ? -1 : memory_max, true);
-			kmemdata.setInt32(ptr + 12, entries.length, true);
+			kmem.setInt32(ptr, 16 + (20 * entries), true);
+			kmem.setInt32(ptr + 4, BTINFO_MEMMAP, true);
+			kmem.setInt32(ptr + 8, memory_max === undefined ? -1 : memory_max, true);
+			kmem.setInt32(ptr + 12, entries.length, true);
 
 			ptr += 16;
 			let len = entries.length;
@@ -1115,9 +1154,9 @@ function bootstrap_kern(kmodule) {
 				if (ent.addr < 0 || ent.size < 0) {
 					throw new RangeError("entry addr or size must not be less-than zero");
 				}
-				kmemdata.setBigUint64(ptr, BigInt(ent.addr), true);
-				kmemdata.setBigUint64(ptr + 8, BigInt(ent.size), true);
-				kmemdata.setUint32(ptr + 16, ent.type, true);
+				kmem.setBigUint64(ptr, BigInt(ent.addr), true);
+				kmem.setBigUint64(ptr + 8, BigInt(ent.size), true);
+				kmem.setUint32(ptr + 16, ent.type, true);
 				ptr += 20;
 			}
 
@@ -1179,13 +1218,13 @@ function bootstrap_kern(kmodule) {
 			}
 			// neither was this
 			let msgbuf_sz = 131072;
-			if (lastend < kmemdata.byteLength - msgbuf_sz) {
-				entries.push({addr: lastend, size: kmemdata.byteLength - msgbuf_sz - lastend, type: BIM_Memory});
-				lastend = kmemdata.byteLength - msgbuf_sz;
+			if (lastend < kmem.byteLength - msgbuf_sz) {
+				entries.push({addr: lastend, size: kmem.byteLength - msgbuf_sz - lastend, type: BIM_Memory});
+				lastend = kmem.byteLength - msgbuf_sz;
 			}*/
 
-			if (lastend < kmemdata.byteLength) {
-				entries.push({addr: lastend, size: kmemdata.byteLength - lastend, type: BIM_Memory});
+			if (lastend < kmem.byteLength) {
+				entries.push({addr: lastend, size: kmem.byteLength - lastend, type: BIM_Memory});
 			}
 
 			console.log(entries);
@@ -1211,7 +1250,7 @@ function bootstrap_kern(kmodule) {
 		ent = {addr: IOM_BEGIN, size: IOM_END - IOM_BEGIN, type: BIM_Reserved};
 		mem.push(ent);
 
-		ent = {addr: IOM_END, size: kmemdata.byteLength - IOM_END, type: BIM_Reserved};
+		ent = {addr: IOM_END, size: kmem.byteLength - IOM_END, type: BIM_Reserved};
 		mem.push(ent);
 		*/
 		
@@ -1219,7 +1258,7 @@ function bootstrap_kern(kmodule) {
 		
 
 		//
-		kmemdata.setInt32(nent_ptr, cnt, true);
+		kmem.setInt32(nent_ptr, cnt, true);
 	}
 
 	function preBootstrapCheck() {
@@ -1228,8 +1267,12 @@ function bootstrap_kern(kmodule) {
 		for (let i = 0; i < len; i++) {
 			let addr = addresses[i];
 			let name = addr.name;
-			let value = kmemdata.getUint32(addr.addr, true);
+			let value = kmem.getUint32(addr.addr, true);
 			console.log("%s = %s", name, value.toString(16).padStart('0', 8));
+		}
+
+		if (netbsd_wakern_info.scheduler_tasks) {
+			__tasksptr = netbsd_wakern_info.scheduler_tasks;
 		}
 	}
 
@@ -1318,7 +1361,7 @@ function bootstrap_kern(kmodule) {
 	kmembuf = kmemory.buffer;
 	kheapu8 = new Uint8Array(kmemory.buffer);
 	kheap32 = new Int32Array(kmemory.buffer)
-	kmemdata = new DataView(kmemory.buffer);
+	kmem = new DataView(kmemory.buffer);
 
 	fetch("./init.mem.wasm").then(function(req) {
 		req.arrayBuffer().then(function(data) {

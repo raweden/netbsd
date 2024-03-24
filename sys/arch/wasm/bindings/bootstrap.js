@@ -3,17 +3,38 @@
 // 
 
 //debugger;
+
+/**
+ * @typedef WorkerInfo
+ * @type {object}
+ * @property {integer} addr The address of the lwp in kernel space memory used to identify the thread from wasm land.
+ * @property {string} name
+ * @property {Worker} worker
+ */
+
+const DISPLAY_SERVER_URL = "display-server.js"
+
+/** @type {WorkerInfo[]} */
 const workers = [];
+/** @type {Worker} */
 const worker = new Worker("lwp0.js");
-let worker2;
+/** @type {Worker} */
+let fb_worker;
+let __dsrpc_server_head;
+/** @type {Worker} */
 let worker3;
 let memstatDiv;
 let kmem_debug_data;
 let mmblkd_head;
+/** @type {Worker} */
 let mmblkd_worker;
+/** @type {string} */
 let canvasQuerySelector;
 
+let windowManagerWorker;
+
 let jsonrpc = new JSONRPC();
+let dsrpc = new JSONRPC();
 let dragDataTransferStack = [];
 let dataTransferItemId = 1;
 let dataTransferFileMap = new Map();
@@ -37,21 +58,35 @@ function lwp_error_handler(evt) {
     console.error("There is an error with your worker! %o", evt);
 }
 
+/**
+ * @param {MessageEvent} evt 
+ * @returns {boolean|void}
+ */
 function lwp0_message_handler(evt) {
 
 	let msg = evt.data;
 	let cmd = msg.cmd;
 	if (cmd == "lwp_spawn") {
+		let abi_wrapper = typeof msg.abi_path == "string" ? msg.abi_path : "lwp.js";
 		let options = {};
 		options.name = msg.name;
-		let worker = new Worker("lwp.js", options);
 		let fmsg = Object.assign({}, msg);
 		fmsg.cmd = "lwp_ctor";
-        workers.push({addr: null, name: msg.name, worker: worker});
+		if (abi_wrapper && abi_wrapper == DISPLAY_SERVER_URL && windowManagerWorker) {
+			windowManagerWorker.postMessage(fmsg);
+			workers.push({addr: msg.__curlwp ? msg.__curlwp : null, name: msg.name, worker: windowManagerWorker});
+			return;
+		}
+
+		let worker = new Worker(abi_wrapper, options);
+        workers.push({addr: msg.__curlwp ? msg.__curlwp : null, name: msg.name, worker: worker});
 		worker.addEventListener("message", lwp_message_handler);
         worker.addEventListener("error", lwp_error_handler);
 		worker.postMessage(fmsg);
 		workercnt++;
+		if (abi_wrapper && abi_wrapper == DISPLAY_SERVER_URL) {
+			windowManagerWorker = worker;
+		}
 		return;
 	} else if (cmd == "rblkdev_init_signal") {
 		let worker = new Worker("./opfsblkd.js");
@@ -63,6 +98,12 @@ function lwp0_message_handler(evt) {
 	} else if (cmd == "__kmem_debug_data") {
 		setupMemoryDebugPanel(msg.mem, msg.ptr);
 		return;
+	} else if (cmd == "__dsrpc_server_head") {
+		if (fb_worker) {
+			fb_worker.postMessage(msg);
+		} else {
+			__dsrpc_server_head = msg.ptr;
+		}
 	}
 
 	let ret = lwp_message_handler(evt);
@@ -70,6 +111,10 @@ function lwp0_message_handler(evt) {
 		console.error("message not handled %o", evt);
 }
 
+/**
+ * @param {MessageEvent} evt 
+ * @returns {boolean|void}
+ */
 function lwp_message_handler(evt) {
 
 	let msg = evt.data;
@@ -93,7 +138,8 @@ function lwp_message_handler(evt) {
 		worker.postMessage(fmsg);
 		workercnt++;
 		return true;
-
+	} else if (cmd == "fs_ready") {
+		windowManagerWorker.postMessage({cmd: "fs_ready"});
 	} else if (cmd == "mmblkd_memcpy") {
 		// TODO: used for testing, remove once no-longer needed.
 		if (!mmblkd_worker) {
@@ -137,6 +183,18 @@ function lwp_message_handler(evt) {
         }
 
 		return true;
+	} else if (cmd == "lwp_coredump") {
+
+		let target = evt.target;
+		let filename;
+		if (typeof msg.filename == "string") {
+			filename = msg.filename;
+		} else {
+			filename = "coredump-" + target.name + ".txt";
+		}
+		addCoredumpToList(msg.buffer, filename);
+
+		return true;
 	}
 
 	return false;
@@ -144,6 +202,56 @@ function lwp_message_handler(evt) {
 
 worker.addEventListener("message", lwp0_message_handler);
 worker.addEventListener("error", lwp_error_handler);
+
+/** @type {HTMLUListElement} */
+let _coredumpList;
+let _coredumps = [];
+
+function addCoredumpToList(buffer, filename) {
+
+	if (!_coredumpList) {
+		_coredumpList = document.createElement("ul");
+		let parent = memstatDiv.parentElement;
+		parent.insertBefore(_coredumpList, memstatDiv.nextElementSibling);
+	}
+
+	/** @type {HTMLLIElement} */
+	let element = document.createElement("li");
+	element.textContent = `save "${filename}" as file`;
+
+	element.addEventListener("click", function coredumpOnClick(evt) {
+		save_coredump(buffer, filename);
+		element.removeEventListener("click", coredumpOnClick);
+		element.parentElement.removeChild(element);
+	});
+
+	_coredumpList.appendChild(element);
+}
+
+/**
+ * Opens a file save dialoge to save the provided ArrayBuffer as a file. Primarly used for debugging ATM.
+ * @param {ArrayBuffer} buffer 
+ * @param {String} filename Suggested filename
+ */
+async function save_coredump(buffer, filename) {
+	let stream, handle;
+	let opts = {};
+	if (typeof filename == "string") {
+		opts.suggestedName = filename;
+	} else {
+		opts.suggestedName = "coredump.txt";
+	}
+
+	try {
+		handle = await window.showSaveFilePicker(opts);
+		stream = await handle.createWritable({keepExistingData: false});
+
+		await stream.write(buffer);
+		await stream.close();
+	} catch (err) {
+		console.error(err);
+	}
+}
 
 function setup_mmblkd_worker(msg) {
 
@@ -160,6 +268,17 @@ function setup_mmblkd_worker(msg) {
 		let init_msg = {cmd: "mmblkd_init_signal", mmblkd_head: msg.mmblkd_head};
 		delete msg.mmblkd_head;
 		mmblkd_worker.postMessage(init_msg);
+	}
+
+	if (fb_worker) {
+		let ch = new MessageChannel();
+		jsonrpc.send(fb_worker, "display_server.mmblkd_connect", {
+			port: ch.port1,
+			kmemory: msg.kmemory
+		}, [ch.port1]).then(console.log, console.error);
+		jsonrpc.send(mmblkd_worker, "mmblkd.connect", {
+			port: ch.port2,
+		}, [ch.port2]).then(console.log, console.error);
 	}
 
 	//worker3 = new Worker("mmblkd-tester.js");
@@ -330,22 +449,27 @@ function render_mempanel() {
 // Display Server
 
 
-jsonrpc.addMethod("browserUI.setClipboard", function (target, params, transfer) {
+dsrpc.addMethod("browserUI.setClipboard", function (target, params, transfer) {
 
 });
 
-jsonrpc.addMethod("browserUI.getClipboard", function (target, params, transfer) {
+dsrpc.addMethod("browserUI.getClipboard", function (target, params, transfer) {
 
 });
 
-jsonrpc.addMethod("browserUI.getDataTransferFile", function (target, params, transfer) {
+dsrpc.addMethod("browserUI.getDataTransferFile", function (target, params, transfer) {
 
 });
 
-jsonrpc.addMethod("browserUI.getDataTransferItem", function (target, params, transfer) {
+dsrpc.addMethod("browserUI.getDataTransferItem", function (target, params, transfer) {
 
 });
 
+/**
+ * 
+ * @param {MouseEvent} evt 
+ * @returns {Object}
+ */
 function copyMouseEvent(evt) {
 	let cpy = {};
 	cpy.type = evt.type;
@@ -381,6 +505,29 @@ function copyMouseEvent(evt) {
 	return cpy;
 }
 
+function copyPointerEvent(evt) {
+	let cpy = copyMouseEvent(evt); // PointerEvent extends MouseEvent
+	cpy.altitudeAngle = evt.altitudeAngle;
+	cpy.azimuthAngle = evt.azimuthAngle;
+	cpy.height = evt.height;
+	cpy.isPrimary = evt.isPrimary;
+	cpy.pointerId = evt.pointerId;
+	cpy.pointerType = evt.pointerType;
+	cpy.pressure = evt.pressure
+	cpy.tangentialPressure = evt.tangentialPressure;
+	cpy.tiltX = evt.tiltX;
+	cpy.tiltY = evt.tiltY;
+	cpy.twist = evt.twist;
+	cpy.width = evt.width;
+
+	return cpy;
+}
+
+/**
+ * 
+ * @param {KeyboardEvent} evt 
+ * @returns {Object}
+ */
 function copyKeyboardEvent(evt) {
 
 	let cpy = {};
@@ -407,6 +554,11 @@ function copyKeyboardEvent(evt) {
 	return cpy;
 }
 
+/**
+ * 
+ * @param {WheelEvent} evt 
+ * @returns {Object}
+ */
 function copyWheelEvent(evt) {
 	let cpy = {};
 	cpy.type = evt.type;
@@ -452,6 +604,11 @@ function copyWheelEvent(evt) {
 // DataTransferItem(s) is only available during the event call frame, once exiting the event call frame the
 // .kind & .type properties are set to empty string and.
 // Neiter is the DataTransfer object a transferable type, 
+/**
+ * 
+ * @param {DragEvent} evt 
+ * @returns {Object}
+ */
 function copyDragEvent(evt) {
 	let cpy = {};
 	cpy.type = evt.type;
@@ -589,38 +746,61 @@ function clearDragDataTransfer(evt) {
 
 function onDisplayServerMessage(evt) {
 
+	let msg = evt.data;
+	if (msg.jsonrpc === JSONRPC_HEAD) {
+		ret = dsrpc._handleMessage(evt);
+		return;
+	}
 }
-
+/**
+ * 
+ * @returns 
+ */
 function setupDisplayServer() {
-	if (worker2)
+	if (fb_worker)
 		return;
 
+	/** @type {HTMLDivElement} */
+	let canvasContainer;
+	/** @type {HTMLCanvasElement} */
 	let canvas;
+	/** @type {OffscreenCanvas} */
 	let offscreen;
 	let keyCharMap = {};
+	let canvasWidth = 0;
+	let canvasHeight = 0;
+	let touchEvents = false;
 
 	if (canvasQuerySelector) {
 		canvas = document.querySelector(canvasQuerySelector);
 		if (!(canvas instanceof HTMLCanvasElement)) {
 			throw new TypeError("Not a HTMLCanvasElement");
 		}
+		canvasContainer = canvas.parentElement;
+		canvasWidth = canvas.width;
+		canvasHeight = canvas.height;
 	} else {
 		canvas = document.createElement("canvas");
-		document.body.appendChild(canvas);
+		canvasContainer = document.createElement("div");
+		canvasContainer.classList.add("primary-viewport")
+		canvasContainer.appendChild(canvas);
+		document.body.appendChild(canvasContainer);
+		canvasWidth = canvas.width;
+		canvasHeight = canvas.height;
 	}
 
 	offscreen = canvas.transferControlToOffscreen();
 
-	worker2 = new Worker("display-server.js");
-	worker2.addEventListener("message", onDisplayServerMessage);
+	fb_worker = new Worker("display-server.js");
+	fb_worker.addEventListener("message", onDisplayServerMessage);
 
 	canvas.addEventListener("mousedown", function(evt) {
 
-		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+		jsonrpc.notify(fb_worker, "ui_event", evt instanceof PointerEvent ? copyPointerEvent(evt) : copyMouseEvent(evt));
 	});
 
 	canvas.addEventListener("mouseup", function(evt) {
-		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+		jsonrpc.notify(fb_worker, "ui_event", evt instanceof PointerEvent ? copyPointerEvent(evt) : copyMouseEvent(evt));
 	});
 
 	canvas.addEventListener("click", function(evt) {
@@ -632,11 +812,11 @@ function setupDisplayServer() {
 	});
 
 	canvas.addEventListener("mousemove", function(evt) {
-		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+		jsonrpc.notify(fb_worker, "ui_event", copyMouseEvent(evt));
 	});
 
 	canvas.addEventListener("wheel", function(evt) {
-		jsonrpc.notify(worker2, "ui_event", copyMouseEvent(evt));
+		jsonrpc.notify(fb_worker, "ui_event", copyMouseEvent(evt));
         return false;
 	});
 
@@ -647,30 +827,30 @@ function setupDisplayServer() {
 		let model = pushDragDataTransfer(evt);
 		lastDNDDataTransfer = evt.dataTransfer;
 		lastDNDDataTransferModel = cpy;
-		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+		jsonrpc.notify(fb_worker, "ui_event", model, [evt.dataTransfer]);
 	});
 
 	canvas.addEventListener("dragend", function(evt) {
 		console.log(evt);
 		let model = pushDragDataTransfer(evt);
-		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+		jsonrpc.notify(fb_worker, "ui_event", model, [evt.dataTransfer]);
 	});
 
 	canvas.addEventListener("dragenter", function(evt) {
 		console.log(evt);
 		let model = copyDragEvent(evt);
-		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+		jsonrpc.notify(fb_worker, "ui_event", model, [evt.dataTransfer]);
 	});
 
 	canvas.addEventListener("dragleave", function(evt) {
 		console.log(evt);
 		let model = pushDragDataTransfer(evt);
-		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+		jsonrpc.notify(fb_worker, "ui_event", model, [evt.dataTransfer]);
 	});
 
 	canvas.addEventListener("dragover", function(evt) {
 		let model = pushDragDataTransfer(evt);
-		jsonrpc.notify(worker2, "ui_event", model, [evt.dataTransfer]);
+		jsonrpc.notify(fb_worker, "ui_event", model, [evt.dataTransfer]);
 		// prevent default to allow drop
       	evt.preventDefault();
 	});
@@ -678,7 +858,7 @@ function setupDisplayServer() {
 	canvas.addEventListener("dragstart", function(evt) {
 		// Not sure about how well the canvas works when proxying a dragstart
 		// 
-		// To enable a HTML to be able to initiate such event the draggable
+		// TODO: To enable a HTMLCanvasElement to be able to initiate such event the draggable
 		// attribute needs to be set to true, there might be chance to use 
 		// evt.preventDefault() to avoid starting a drag where there is no
 		// dragable item under the mouse within the GnuStep view realm. What the
@@ -687,12 +867,18 @@ function setupDisplayServer() {
 		// be dragging the main canvas. The mdn docs mention that <img> / <canvas>
 		// tag is the recomended element to use. I thing however that it is a
 		// single render use.
+		//
+		// However the issue is that it could become a race between mousedown & dragstart.
+		//
+		// Another alternative would be map the regions from which a dragstart should be fired,
+		// but this does not exists in GnuStep ATM. And such region mapping would limited to rectangular regions.
 	});
 
+	// TODO: to bridge files to only thing that makes sense is to handle these trough hyper-io thread.
 	canvas.addEventListener("drop", function(evt) {
 		console.log(evt);
 		let model = pushDragDataTransfer(evt);
-		jsonrpc.send(worker2, "ui_event", model, [evt.dataTransfer]).then(function() {
+		jsonrpc.send(fb_worker, "ui_event", model, [evt.dataTransfer]).then(function() {
 			clearDragDataTransfer();
 		});
 	});
@@ -700,13 +886,16 @@ function setupDisplayServer() {
 	// Keyboard and Text-Input
 
 	window.addEventListener("keydown", function(evt) {
-		jsonrpc.notify(worker2, "ui_event", copyKeyboardEvent(evt));
+		//TODO: use evt.getModifierState("") to map other modifiers.
+		// https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/getModifierState#modifier_keys_on_firefox
+		// "CapsLock", "NumLock", "AltGraph", "ScrollLock"	
+		jsonrpc.notify(fb_worker, "ui_event", copyKeyboardEvent(evt));
 	});
 
 	// The "keypress" event is basically the same as a keyup but also fires for repeat. 
 
 	window.addEventListener("keyup", function(evt) {
-		jsonrpc.notify(worker2, "ui_event", copyKeyboardEvent(evt));
+		jsonrpc.notify(fb_worker, "ui_event", copyKeyboardEvent(evt));
 	});
 
 	// check other projects where input proxying is implemented.
@@ -719,9 +908,6 @@ function setupDisplayServer() {
 	keyboard.getLayoutMap().then(function(keyboardLayoutMap) {
 		console.log(keyboardLayoutMap);
 
-		let entries = keyboardLayoutMap.entries();
-		console.log(entries);
-
 		/*for (let key in keys) {
 			let val = keyboardLayoutMap.get(key);
 			console.log("key: '%s' value: '%s'", key, val);
@@ -729,6 +915,8 @@ function setupDisplayServer() {
 		keyboardLayoutMap.forEach(function(chr, key) {
 			keyCharMap[key] = chr;
 		});
+
+		console.log(keyCharMap);
 	});
 	/*
 	navigator.keyboard.addEventListener("layoutchange", function() {
@@ -740,7 +928,7 @@ function setupDisplayServer() {
 	//window.addEventListener("resize", domWindowOnResize);
 		
 	document.addEventListener("visibilitychange", function(evt) {
-		jsonrpc.notify(worker2, "ui_event", {type: "visibilitychange", visibilityState: document.visibilityState});
+		jsonrpc.notify(fb_worker, "ui_event", {type: "visibilitychange", visibilityState: document.visibilityState});
 	});
 
 	function domWindowOnOrientationChange(evt) {
@@ -754,7 +942,7 @@ function setupDisplayServer() {
 		screen.orientation.type:  landscape-primary
 		screen.orientation.angle: 90
 		 */
-		jsonrpc.notify(worker2, "ui_event", {type: "orientationchange", orientationData: {type: screen.orientation.type, angle: screen.orientation.angle}});
+		jsonrpc.notify(fb_worker, "ui_event", {type: "orientationchange", orientationData: {type: screen.orientation.type, angle: screen.orientation.angle}});
 	}
 
 	
@@ -775,11 +963,11 @@ function setupDisplayServer() {
 		let newPixelRatio = window.devicePixelRatio;
 		console.log("resolution: (new: " + newPixelRatio + ") MediaQuery did trigger change event");
 		console.log(evt);
-		jsonrpc.notify(worker2, "ui_event", {type: "devicepixelratiochange", devicePixelRatio: newPixelRatio});
+		jsonrpc.notify(fb_worker, "ui_event", {type: "devicepixelratiochange", devicePixelRatio: newPixelRatio});
 	});
 
 	let prefersColorSchemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-		prefersColorSchemeMediaQuery.addListener(function(evt) {
+	prefersColorSchemeMediaQuery.addListener(function(evt) {
 		// prefers-color-scheme: light
 		// prefers-color-scheme: dark
 		// prefers-color-scheme: no-preference
@@ -800,41 +988,117 @@ function setupDisplayServer() {
 
 		console.log("prefers-color-scheme: (new: '%s') MediaQuery did trigger change event", prefersColorScheme);
 		console.log(evt);
-		jsonrpc.notify(worker2, "ui_event", {type: "preferscolorschemechange", prefersColorScheme: prefersColorScheme});
+		jsonrpc.notify(fb_worker, "ui_event", {type: "preferscolorschemechange", prefersColorScheme: prefersColorScheme});
 	});
 
-	function initialPreferedColorScheme(darkMediaQuery) {
-		let prefersColorScheme;
-		if (darkMediaQuery.matches) {
-			prefersColorScheme = "dark";
-		} else if (window.matchMedia("(prefers-color-scheme: light)")) {
-			prefersColorScheme = "light";
-		} else {
-			prefersColorScheme = "no-preference";
-		}
+	if (touchEvents) {
+		
+		canvas.addEventListener("touchstart", function(evt) {
 
-		return prefersColorScheme;
+		});
+
+		canvas.addEventListener("touchmove", function(evt) {
+
+		});
+		
+		canvas.addEventListener("touchend", function(evt) {
+
+		});
+		
+		canvas.addEventListener("touchcancel", function(evt) {
+
+		});
+
+		canvas.addEventListener("touchstart", function(evt) {
+
+		});
 	}
 
-	worker2.postMessage({
-		jsonrpc: "2.0",
-		id: "abc123",
-		method: "display_server_init",
-		params: {
-			offscreenCanvas: offscreen,
-			devicePixelRatio: window.devicePixelRatio,
-			prefersColorScheme: initialPreferedColorScheme(prefersColorSchemeMediaQuery),
-			keyCharMap: keyCharMap,
-			options: {
+	/**
+	 * 
+	 * @param {ResizeObserverEntry[]} entries 
+	 * @param {ResizeObserver} observer 
+	 */
+	function onCanvasParentResize(entries, observer) {
+		for (const entry of entries) {
+			if (entry != canvasContainer)
+				continue;
 
+			let contentBoxSize = entry.contentBoxSize[0];
+			let width = contentBoxSize.inlineSize;
+			let height = contentBoxSize.blockSize;
+
+			if (width != canvasWidth || height != canvasHeight) {
+				jsonrpc.notify(fb_worker, "ui_event", {type: "viewportResize", viewportData: {width: width, height: height}});
+				canvasWidth = width;
+				canvasHeight = height;
+			}
+			
+			console.log("%o %o %o", entry.borderBoxSize, entry.contentBoxSize, entry.devicePixelContentBoxSize);
+		}
+	}
+
+	const resizeObserver = new ResizeObserver(onCanvasParentResize);
+
+	resizeObserver.observe(canvasContainer);
+
+	{
+		// What's in this closure is not needed for the event closures..
+
+		let transfer = [offscreen];
+		let opts = {};
+		if (mmblkd_worker) {
+			let ch = new MessageChannel();
+			opts.mmblkd_port = ch.port1;
+			transfer.push(ch.port1);
+
+			jsonrpc.send(mmblkd_worker, "mmblkd.connect", {port: ch.port2}, [ch.port2]).then(console.log, console.error);
+		}
+
+		if (__dsrpc_server_head) {
+			opts.__dsrpc_server_head;
+		}
+
+		let capabilities = {
+			EditContext: (typeof window.EditContext == "function"),
+			// https://developer.mozilla.org/en-US/docs/Web/API/EyeDropper
+			EyeDropper: (typeof window.EyeDropper == "function"),
+		};
+
+		let initialColorScheme;
+		if (window.matchMedia("(prefers-color-scheme: dark)")) {
+			initialColorScheme = "dark";
+		} else if (window.matchMedia("(prefers-color-scheme: light)")) {
+			initialColorScheme = "light";
+		} else {
+			initialColorScheme = "no-preference";
+		}
+
+		fb_worker.postMessage({
+			jsonrpc: "2.0",
+			id: "abc123",
+			method: "display_server_init",
+			params: {
+				offscreenCanvas: offscreen,
+				devicePixelRatio: window.devicePixelRatio,
+				prefersColorScheme: initialColorScheme,
+				keyCharMap: keyCharMap,
+				capabilities: capabilities,
+				options: opts,
 			},
-		},
-		_transfer: [offscreen]
-	}, [offscreen]);
+			_transfer: transfer
+		}, transfer);
+
+		windowManagerWorker = fb_worker;
+	}
 }
 
 setupDisplayServer();
 
+/**
+ * 
+ * @param {LaunchParam} launchParam 
+ */
 function launchQueue_handler(launchParam) {
     console.log(launchParam);
 }
@@ -843,7 +1107,14 @@ if (window.launchQueue) {
     window.launchQueue.setConsumer(launchQueue_handler);
 }
 
+window.addEventListener("beforeunload", function(evt) {
+	
+	worker.postMessage({
+		cmd: "beforeunload"
+	});
 
+	return "This dialoge pops up in hopes of the disk-image not getting corrupt..";
+});
 
 
 

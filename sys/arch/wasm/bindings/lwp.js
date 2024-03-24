@@ -17,6 +17,14 @@
 
 const _kexp = {};
 
+/**
+ * @typedef RuntimeObjectDescriptor
+ * @type {object}
+ * @property {integer} fd
+ * @property {ArrayBuffer} buf Holds the buffer to be compiled with new WebAssembly.Module(buf)
+ * @property {WebAssembly.Instance} instance
+ */
+
 (function() {
 
 	// ERROR codes that is returned from lwp.js into wasm kernel
@@ -27,23 +35,34 @@ const _kexp = {};
 	const ENOEXEC = 8;
 	const ENOENT = 2;
 
+	/** @type WebAssembly.Module */
 	let __kmodule;
 	let __curlwp;
 	let __stack_pointer;
 	let __kesp;		// kernel-space stack-pointer (wasm global)
 	let __uesp0;	// userspace stack-pointer (origin address, where argv/envp is stored etc.)
 	let __uesp;		// userspace stack-pointer (wasm global)
+	/** @type WebAssembly.Memory */
 	let kmemory;	// WebAssembly.Memory
+	/** @type SharedArrayBuffer */
 	let kmembuf;	// SharedArrayBuffer
+	/** @type Uint8Array */
 	let kheapu8;	// Uint8Array
+	/** @type Int32Array */
 	let kheap32;	// Int32Array
+	/** @type DataView */
 	let kmem;		// DataView
 
 	let _uvm_spacep;
+	/** @type {WebAssembly.Memory} */
 	let umemory;
-	let uheapu8;	// Uint8Array
-	let umem;		// DataView
+	/** @type Uint8Array */
+	let uheapu8;
+	/** @type DataView */
+	let umem;
 	let utmp;
+	/** @type Uint8Array */
+	let buf4;
 
 	let _kernexp;
 	let _userexp;
@@ -61,14 +80,18 @@ const _kexp = {};
 	let _uheapbase;
 	let _forkframe;
 	let _meminfo;
+	/** @type {Object.<string, RuntimeObjectDescriptor>} */
 	let _execfds;
 	let _dyndl_exp;
+	/** @type {WebAssembly.Memory} */
 	let _execmem;	// TODO: make sure we clear this around unwind4exec
+	/** @type {WebAssembly.Table} */
 	let _exectbl;
 	let _execImportObject;
 	let _includedTemp = false;
 
 	// rtld (runtime dynamic loading/linking)
+	/** @type {WebAssembly.Instance} */
 	let _rtld_inst;
 	let _rtld_exports;
 
@@ -105,6 +128,14 @@ const _kexp = {};
 	  	return x;
 	}
 
+	/**
+	 * 
+	 * @param {Uint8Array} src 
+	 * @param {integer} sidx 
+	 * @param {integer} slen 
+	 * @param {Uint8Array} dst 
+	 * @param {integer} didx 
+	 */
 	function u8_memcpy(src, sidx, slen, dst, didx) {
 	    // TODO: remove this assert at later time. (should be a debug)
 	    if (!(src instanceof Uint8Array) && (dst instanceof Uint8Array)) {
@@ -471,7 +502,14 @@ const _kexp = {};
 	// void kern.random_source(i32, i32)
 	// only diffrence from the kernel version is the destination memory.
 	function usr_random_source(buf, bufsz) {
-		let tmp = new Uint8Array(bufsz);
+		let tmp;
+		if (bufsz == 4) {
+			if (!buf4)
+				buf4 = new Uint8Array(4);
+			tmp = buf4;
+		} else {
+			tmp = new Uint8Array(bufsz);
+		}
 	    crypto.getRandomValues(tmp);
 	    __check_umem();
 	    u8_memcpy(tmp, 0, bufsz, uheapu8, buf);
@@ -544,8 +582,17 @@ const _kexp = {};
 		});
 	}
 
-	function klwp_spawn(l1, l2, stackptr, stacksz) {
+	function klwp_spawn(l1, l2, stackptr, stacksz, abi_p) {
 		console.error("klwp_spawn l1 = %d l2 = %d stackptr = %d stacksz = %d", l1, l2, stackptr, stacksz);
+		let abi_path, abi_path_type;
+
+		if (abi_p !== 0) {
+			let strsz, strp;
+			abi_path_type = kmem.getUint8(abi_p);
+			strsz = kmem.getUint16(abi_p + 2, true);
+			strp = kmem.getUint32(abi_p + 4, true);
+			abi_path = UTF8ArrayToString(kheapu8, strp, strsz);
+		}
 
 		let name = "lwp @0x" + ((l2).toString(16).padStart(8, 0));
 		let msg = {
@@ -556,6 +603,8 @@ const _kexp = {};
 			__stack_pointer: stackptr,
 			__stack_size: stacksz,
 			name: name,
+			abi_path_type: abi_path_type,
+			abi_path: abi_path
 		};
 		// TODO: try to route execuation buffer loading to outside of the worker (Garbage collection?)
 		if (__in_posix_spawn) {
@@ -722,6 +771,9 @@ const _kexp = {};
 
 	// adhoc implementation calls this method once /sbin/init completes (this might change in the future)
 	function init_did_finish() {
+
+		self.postMessage({cmd: "fs_ready"});
+
 		let exec_env = {
 			EXEC_TEST: 1234,
 			SHELL: "/bin/bash",
@@ -738,12 +790,35 @@ const _kexp = {};
 			GNUSTEP_CONFIG_FILE: "/GNUstep.conf",
 			GNUSTEP_TZ: localTimeZone(),
 			FONTCONFIG_FILE: "/usr/lib/fontconfig/fonts.conf",
+			/* 	const FC_MATCH = 1;    		// Brief information about font matching
+				const FC_MATCHV = 2;   		// Extensive font matching information
+				const FC_EDIT = 4;    		// Monitor match/test/edit execution
+				const FC_FONTSET = 8;      	// Track loading of font information at startup
+				const FC_CACHE = 16;   		// Watch cache files being written
+				const FC_CACHEV = 32;    	// Extensive cache file writing information
+				const FC_PARSE = 64;   		// (no longer in use)
+				const FC_SCAN = 128;   		// Watch font files being scanned to build caches
+				const FC_SCANV = 256;    	// Verbose font file scanning information
+				const FC_MEMORY = 512;     	// Monitor fontconfig memory usage
+				const FC_CONFIG = 1024;    	// Monitor which config files are loaded
+				const FC_LANGSET = 2048;   	// Dump char sets used to construct lang values
+				const FC_OBJTYPES = 4096;   // Display message when value typechecks fail
+			*/
 			// FC_DEBUG: FC_MATCH, // | FC_FONTSET | FC_OBJTYPES | FC_CONFIG;
+			FC_DEBUG: 1024 /* FC_CONFIG */ | 16 /* FC_CACHE */ | 32 /* FC_CACHEV */ | 128 /* FC_SCAN */ | 1 /* FC_MATCH */,
 			XDG_CACHE_HOME: "/home/test-user"
 		};
 
 		console.log("init_did_finish called");
 		let exec_path = "/GnuStep/System/Applications/GWorkspace.app/GWorkspace";
+		//lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
+
+		/*exec_path = "/home/test-user/socket_server.wasm";
+		lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
+
+		Atomics.wait(kheap32, 10, 0, 5000);*/
+
+		exec_path = "/home/test-user/socket_client.wasm";
 		lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
 	}
 
@@ -763,6 +838,7 @@ const _kexp = {};
 			sys: {
 				syscall_trap: syscall_trap,
 				sbrk: usbrk,
+				random_source: usr_random_source
 			},
 			emscripten: {
 				get_heap_size: usr_emscripten_get_heap_size,
@@ -883,19 +959,27 @@ const _kexp = {};
 		return 1024;
 	}
 
+	// i32 sys.get_memidx()
+	function sys_get_memidx() {
+		if (!_uvm_spacep)
+			return 0;
+		return kmem.getUint16(_uvm_spacep, true);
+	}
+
 	function kgettimespec64_clock(ts) {
 
 		const now = Date.now();
 	
-		kmem.setBigInt64(ts, BigInt(now / 1000), true);					// seconds
+		kmem.setBigInt64(ts, BigInt((now / 1000) | 0), true);			// seconds
 		kmem.setInt32(ts + 8, ((now % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
 	}
 	
+	// performance.now() does not tick during sleep, do not use it for clock-time.
 	function kgettimespec64_monotomic(ts) {
 	
 		const now = performance.timeOrigin + performance.now();
 		
-		kmem.setBigInt64(ts, BigInt(now / 1000), true);					// seconds
+		kmem.setBigInt64(ts, BigInt((now / 1000) | 0), true);			// seconds
 		kmem.setInt32(ts + 8, ((now % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
 	}
 
@@ -946,21 +1030,28 @@ const _kexp = {};
 
 	function rtld_main_entrypoint(argc, argv, envp) {
 
+		let mainfn;
+		let mlen;
 		let ret;
 
 		if (!_userexp) {
 			_userexp = _execfds[1].instance.exports;
 		}
 
-		let mlen = _userexp.main.length;
+		mainfn = _userexp.main;
+		if (!mainfn) {
+			mainfn = _userexp.__main_argc_argv;
+		}
+
+		mlen = mainfn.length;
 
 		try {
 			if (mlen == 2) {
-				ret = _userexp.main(argc, argv);
+				ret = mainfn(argc, argv);
 			} else if (mlen == 3) {
-				ret = _userexp.main(argc, argv, envp);
+				ret = mainfn(argc, argv, envp);
 			} else if (mlen == 0) {
-				ret = _userexp.main();
+				ret = mainfn();
 			}
 		} catch (err) {
 			console.error(err);
@@ -1008,7 +1099,7 @@ const _kexp = {};
 			outfn = console.log;
 		}
 		
-		if (str.indexOf("] panic:") != -1 || str.indexOf(" ERROR ") != -1) {
+		if (str.indexOf("] panic:") != -1 || str.indexOf(" ERROR ") != -1 || str.indexOf("error:") != -1) {
 			console.error(str);
 		} else {
 			str.trimEnd();
@@ -1036,12 +1127,26 @@ const _kexp = {};
 		if (!__uesp) {
 			__uesp = new WebAssembly.Global({value: "i32", mutable: true}, 4096);	// 
 		};
+
 		importObject.env = {
 			__stack_pointer: __uesp,
 		};
+
 		importObject.sys = {
-			syscall_trap: syscall_trap
+			syscall_trap: syscall_trap,
+			random_source: usr_random_source,
+			get_memidx: sys_get_memidx
 		};
+
+		importObject.kern = {
+			get_memidx: sys_get_memidx,
+		};
+
+		importObject.dsrpc = {
+			connect: _kernexp.DSMessageChannelConnect,
+			disconnect: _kernexp.DSMessageChannelDisconnect,
+			msg_server_is_ready: _kernexp.DSMessageServerIsReady
+		}
 
 		return importObject;
 	}
@@ -1119,6 +1224,9 @@ const _kexp = {};
 			return Math.hypot(x, y);
 		}
 		obj.env.rexp = function (x, exponent) {
+			return Math.exp(x);
+		}
+		obj.env.frexp = function (x, exponent) {
 			return Math.exp(x);
 		}
 		obj.env.exp = function (x) {
@@ -1367,13 +1475,26 @@ const _kexp = {};
 				umem.setInt32(argp, fd, true);
 				return 0;
 			}
+			case 553: { 				// EXEC_IOCTL_WRBUF
+				if (argp == 0)
+					return EINVAL;
+				let fd = umem.getInt32(argp, true);
+				let src = umem.getUint32(argp + 4, true);	// umem
+				let dst = umem.getUint32(argp + 8, true);
+				let len = umem.getUint32(argp + 12, true);
+				if (!_execfds.hasOwnProperty(fd))
+					return EINVAL;
+				let buf = _execfds[fd].buf;
+				u8_memcpy(uheapu8, src, len, buf, dst);
+				return 0;
+			}
 			case 569: {					// RTLD_IOCTL_EXECBUF_MAP_FROM_MEMORY
 				if (argp == 0)
 					return EINVAL;
 				let desc, fd = -1;
-				let bufsz = kmem.getUint32(argp + 4, true);
-				let cpcnt = kmem.getUint32(argp + 8, true);
-				let argsp = kmem.getUint32(argp + 12, true);
+				let bufsz = umem.getUint32(argp + 4, true);
+				let cpcnt = umem.getUint32(argp + 8, true);
+				let argsp = umem.getUint32(argp + 12, true);
 
 				if (!_execfds)
 					_execfds = {};
@@ -1445,11 +1566,15 @@ const _kexp = {};
 					delete desc.buf;
 
 				} catch (err) {
-					// Example errors:
+					// Example (phase 1) errors:
 					// CompileError: WebAssembly.Module(): expected 5006784 bytes, fell off end @+78248
 					// CompileError: WebAssembly.Module(): length overflow while decoding functions count @+34986
 					// CompileError: WebAssembly.Module(): length overflow while decoding body size @+70393
 					// CompileError: WebAssembly.Module(): illegal flag value 116. Must be 0, 1, or 2 @+17267
+					// CompileError: WebAssembly.Module(): Compiling function #22:"_rtld_map_objects" failed: not enough arguments on the stack for table.fill (need 3, got 1) @+5851
+					// CompileError: WebAssembly.Module(): field name: no valid UTF-8 string @+278517
+					// Example (phase 2) errors:
+					// LinkError: WebAssembly.Instance(): Import #11 module="env" function="frexp": function import requires a callable
 					console.error(err);
 					umem.setInt32(argp + 24, ENOEXEC, true);
 					let str = err.message;
@@ -1491,6 +1616,33 @@ const _kexp = {};
 				
 				// wait with __wasm_call_ctors until __stack_pointer has been set.
 
+				return 0;
+			}
+			case 580: { 								// EXEC_IOCTL_COREDUMP
+				if (argp == 0)
+					return EINVAL;
+				let name, buf, newbuf;
+				let fd = umem.getInt32(argp, true);
+				let strptr = umem.getUint32(argp + 4, true);	// umem
+				let src = umem.getUint32(argp + 8, true);		// umem
+				let len = umem.getUint32(argp + 12, true);
+				if (strptr != 0) {
+					name = UTF8ArrayToString(uheapu8, strptr, 255);
+				} else {
+					name = null;
+				}
+				if (fd == -1) {
+					newbuf = new Uint8Array(len);
+					u8_memcpy(uheapu8, src, len, newbuf, 0);
+					self.postMessage({cmd: "lwp_coredump", buffer: newbuf, filename: name});
+				} else {
+					if (!_execfds.hasOwnProperty(fd))
+						return EINVAL;
+					buf = _execfds[fd].buf;
+					newbuf = new Uint8Array(len);
+					u8_memcpy(buf, src, len, newbuf, 0);
+					self.postMessage({cmd: "lwp_coredump", buffer: newbuf, filename: name});
+				}
 				return 0;
 			}
 		}
@@ -1792,6 +1944,9 @@ const _kexp = {};
 					return ENOMEM;
 				}
 
+				_uvm_spacep = _kernexp.new_uvmspace();
+				post_mmblkd_attach(umemory, _uvm_spacep);
+
 				if (!_execImportObject)
 					_execImportObject = createImportObject();
 				
@@ -1902,11 +2057,13 @@ const _kexp = {};
 					importObject = createImportObject();
 					importObject.rtld = {
 						cons_write: kcons_write,
-						rtld_exec_ioctl: rtld_exec_ioctl
+						exec_ioctl: rtld_exec_ioctl
 					};
-					importObject.kern = {
-						panic_abort: kern_panic
-					};
+					if (!importObject.kern) {
+						importObject.kern = {};
+					}
+					importObject.kern.panic_abort = kern_panic;
+
 					importObject.env.__linear_memory = _execmem;
 					importObject.env.__indirect_function_table = _exectbl;
 					importObject.env.__cxa_atexit = function (a, b, c) { return 0; }
@@ -2136,6 +2293,23 @@ const _kexp = {};
 	}
 
 	// main entry-point for setting up a new backing Worker for a lwp, this is used both for kernel + user and kernel-only spawning.
+	/**
+	 * TODO: there is some fields that could be given better names, and also why use a object for fork_from
+	 * @typedef SpawnThreadOptions
+	 * @type {object}
+	 * @property {WebAssembly.Memory} kernel_memory
+	 * @property {WebAssembly.Module} kernel_module
+	 * @property {integer} __curlwp
+	 * @property {integer} __stack_pointer
+	 * @property {WebAssembly.Module} user_module
+	 * @property {WebAssembly.Memory} user_memory
+	 * @property {integer} _uvm_spacep
+	 * @property {ArrayBuffer} user_execbuf
+	 * @property {integer} ustack
+	 * @property {Object} fork_from
+	 */
+
+	/** @param {SpawnThreadOptions} opts  */
 	function spawn_thread(opts) {
 		kmemory = opts.kernel_memory;
 		kmembuf = kmemory.buffer;

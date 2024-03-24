@@ -8,18 +8,45 @@
 // - uses a rw_lock to ensure that only one thread can write at a time
 // - on rw_exit syncronize/replicate memory to other instances.
 
+/**
+ * @callback MemoryCheckFunction
+ * @param {MemorySpace} space - The space to validate that the buffers views are in sync with the memory resize operations.
+ */
+
+/**
+ * @typedef MemorySpace
+ * @type {object}
+ * @property {integer} memidx - A global index of the memory, assigned by this managment worker and used within the kernel to address cross worker memory.
+ * @property {SharedArrayBuffer} buffer
+ * @property {WebAssembly.Memory} memory
+ * @property {Int32Array} heap32
+ * @property {Uint8Array} heapu8
+ * @property {DataView} data
+ * @property {MemoryCheckFunction} check_mem - Validates the views are for the full range of memory for growable memory containers.
+ * @property {integer} vm_spacep - A reference to the data structure within kernel memory, which holds additional data such as reference-count of the memory space.
+ * @property {boolean} growable - A boolean value that indicates whether the Memory in memory property is growable. If this is specified to false check_mem is never called.
+ */
+
+/** @type {Object.<string, MemorySpace>} */
 let mem_map = {};
 let umem_min_memidx = 1;
 let umem_max_memidx = 4096;
 
+/** @type integer */
 let kmem_vmc;
+/** @type WebAssembly.Memory */
 let kmemory;
+/** @type Int32Array */
 let kmem_32;
+/** @type Uint8Array */
 let kmem_u8;
+/** @type DataView */
 let kmem_data;
 
+/** @type integer */
 let mmblkd_head;
 
+/** @type {MessagePort[]} */
 let ports = [];
 
 importScripts("jsonrpc.js");
@@ -35,10 +62,13 @@ function onPortMessage(evt) {
 }
 
 jsonrpc.addMethod("mmblkd.connect", function(target, params, transfer) {
+    /** @type MessagePort */
     let port = params.port;
     port.start();
 
     port.addEventListener("message", onPortMessage);
+
+    ports.push(port);
 
     return true;
 });
@@ -54,7 +84,7 @@ jsonrpc.addMethod("mmblkd.detach", function (target, params, transfer) {
 jsonrpc.addMethod("mmblkd.getMemory", function (target, params, transfer) {
     let memidx = params.memidx;
 
-    if (mem_map.hasOwnProperty(memidx)) {
+    if (!mem_map.hasOwnProperty(memidx)) {
         throw new RangeError("INVALID_MEMIDX");
     }
 
@@ -68,6 +98,11 @@ jsonrpc.addMethod("mmblkd.getMemory", function (target, params, transfer) {
     return resp;
 });
 
+/**
+ * 
+ * @param {MemorySpace} uvmc 
+ * @returns 
+ */
 function check_kmem(uvmc) {
     if (uvmc.memory.buffer.byteLength === uvmc.buffer.byteLength)
         return;
@@ -82,6 +117,11 @@ function check_kmem(uvmc) {
     uvmc.data = kmem_data;
 }
 
+/**
+ * 
+ * @param {MemorySpace} uvmc 
+ * @returns 
+ */
 function check_mem(uvmc) {
     if (uvmc.memory.buffer.byteLength === uvmc.buffer.byteLength)
         return;
@@ -105,6 +145,12 @@ function find_memidx(memory) {
     return -1;
 }
 
+/**
+ * 
+ * @param {integer} min 
+ * @param {integer} max 
+ * @returns {integer}
+ */
 function alloc_memidx(min, max) {
     if (!Number.isInteger(min))
         min = umem_min_memidx;
@@ -185,6 +231,10 @@ function mmblkd_attach(memory, vm_spacep) {
     uvmc.check_mem = check_mem;
     uvmc.vm_spacep = vm_spacep;
     uvmc.memidx = memidx;
+    
+    // mapping the global memidx
+    kmem_data.setUint16(vm_spacep, memidx, true);
+    
     mem_map[memidx] = uvmc;
 }
 
@@ -259,7 +309,7 @@ self.addEventListener("message", function (evt) {
     }
 
     if (cmd === "mmblkd_attach") {
-        mmblkd_detach(msg.memory, msg.meminfo_ptr);
+        mmblkd_attach(msg.memory, msg.meminfo_ptr);
         return;
     } else if (cmd === "mmblkd_detach") {
         mmblkd_detach(msg.memidx);
