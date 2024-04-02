@@ -46,6 +46,8 @@ const OPFSBLK_STATE_UNUSED = 0;
 const OPFSBLK_STATE_INIT = 1;
 const OPFSBLK_STATE_READY = 2;
 const OPFSBLK_STATE_KILL = 3;
+const OPFSBLK_STATE_FAILURE_SETUP = 4;
+const OPFSBLK_STATE_FAILURE = 5;
 
 console.log("spawned opfsblkd.js thread");
 
@@ -432,12 +434,14 @@ async function init_blkdev(rblkdev_head, init_cmd) {
 
 	kmem.setInt32(rblkdev_head + 40, 1, true); // rblk_ftype
 
-	let waddr = (init_cmd + 8) >> 2;
+	let waddr = rblkdev_head >> 2;
+	Atomics.store(kmem_32, waddr, OPFSBLK_STATE_READY);
+
+	waddr = (init_cmd + 8) >> 2;
 	Atomics.store(kmem_32, waddr, READY_STATE_DONE);
 	Atomics.notify(kmem_32, waddr);
 
 	waddr = rblkdev_head >> 2;
-	Atomics.store(kmem_32, waddr, OPFSBLK_STATE_READY);
 	Atomics.notify(kmem_32, waddr);
 }
 
