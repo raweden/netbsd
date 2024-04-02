@@ -928,7 +928,7 @@ mm_put_page_single(struct mm_page *pg)
     
     mutex_exit(&dcon_pg_lock);
 
-    atomic_add32(&dcon_pg_cnt, 1);
+    __builtin_atomic_rmw_add32(&dcon_pg_cnt, 1);
 }
 
 static struct mm_page *
@@ -955,7 +955,7 @@ mm_get_single_page(void)
         pg->flags &= ~(PG_FREE|PG_FREELIST);
         dcon_pg_list = nf;
 
-        atomic_sub32(&dcon_pg_cnt, 1);
+        __builtin_atomic_rmw_sub32(&dcon_pg_cnt, 1);
     } else {
         mutex_exit(&dcon_pg_lock);
         pg = NULL;
@@ -1544,13 +1544,13 @@ init_wasm_memory(void)
     pages_busy += ubc_bucket->pgcnt;
 #endif
 
-    atomic_store32(&__kmem_data.unmapped_raw, rsvd_raw);
-    atomic_store32(&__kmem_data.unmapped_pad, rsvd_pad);
-    atomic_store32(&__kmem_data.rsvd_pgs, rsvd_pgs);
-    atomic_store32(&__kmem_data.pages_total, pgcnt);
-    atomic_store32(&__kmem_data.pages_busy, pages_busy);
+    __builtin_atomic_store32(&__kmem_data.unmapped_raw, rsvd_raw);
+    __builtin_atomic_store32(&__kmem_data.unmapped_pad, rsvd_pad);
+    __builtin_atomic_store32(&__kmem_data.rsvd_pgs, rsvd_pgs);
+    __builtin_atomic_store32(&__kmem_data.pages_total, pgcnt);
+    __builtin_atomic_store32(&__kmem_data.pages_busy, pages_busy);
 
-    atomic_store32((uint32_t *)&nkmempages, pgcnt);
+    __builtin_atomic_store32((uint32_t *)&nkmempages, pgcnt);
     
 
     // Put it here temporary!
@@ -1615,8 +1615,8 @@ int grow_kernel_memory(unsigned int wapgs)
         }
 
         new_avail_end = newval * WASM_PAGE_SIZE;
-        atomic_store32(&wasm_kmem_avail, new_avail_end);
-        atomic_store32(&avail_end, new_avail_end);
+        __builtin_atomic_store32(&wasm_kmem_avail, new_avail_end);
+        __builtin_atomic_store32(&avail_end, new_avail_end);
         err = 0;
     } else {
         err = ENOMEM;
@@ -1630,7 +1630,7 @@ int grow_kernel_memory(unsigned int wapgs)
 int 
 uvm_availmem(bool cached)
 {
-    return atomic_load32(&__kmem_data.pages_total) - atomic_load32(&__kmem_data.pages_busy);
+    return __builtin_atomic_load32(&__kmem_data.pages_total) - __builtin_atomic_load32(&__kmem_data.pages_busy);
 }
 
 struct mm_page *
@@ -1650,7 +1650,7 @@ kmem_page_alloc(unsigned int pgs, km_flag_t flags)
     void *paddr = NULL;
 
     // TODO: use rb tree to organize pages by continuous range?
-    if (pgs == 1 && atomic_load32(&dcon_pg_cnt) > 0) {
+    if (pgs == 1 && __builtin_atomic_load32(&dcon_pg_cnt) > 0) {
         pg = mm_get_single_page();
         if (pg != NULL) {
             if (pg->phys_addr == 0x883000) {
@@ -1675,7 +1675,7 @@ kmem_page_alloc(unsigned int pgs, km_flag_t flags)
         mm_dump_rangelist();
     }
 
-    atomic_add32(&__kmem_data.pages_busy, pgs);
+    __builtin_atomic_rmw_add32(&__kmem_data.pages_busy, pgs);
     paddr = (void *)pg->phys_addr;
 
     pg->flags |= (PG_BUSY|PG_CLEAN|PG_FAKE);
@@ -1765,7 +1765,7 @@ kmem_freepgs(struct mm_page **pgs, unsigned int cnt)
         pg = pgs[idx++];
     }
 
-    atomic_add32(&__kmem_data.pages_busy, cnt);
+    __builtin_atomic_rmw_add32(&__kmem_data.pages_busy, cnt);
 }
 
 void
@@ -1792,7 +1792,7 @@ kmem_free_pgsrange(struct mm_page *first, struct mm_page *last)
     }
 
 
-    atomic_sub32(&__kmem_data.pages_busy, pgcnt);
+    __builtin_atomic_rmw_sub32(&__kmem_data.pages_busy, pgcnt);
 }
 #endif
 
@@ -1941,7 +1941,7 @@ kmem_page_free(void *addr, uint32_t pagecnt)
         mm_put_page_range(NULL, start, end, pagecnt);
     }
 
-    atomic_sub32(&__kmem_data.pages_busy, pagecnt);
+    __builtin_atomic_rmw_sub32(&__kmem_data.pages_busy, pagecnt);
 }
 
 // mm_space
@@ -1995,13 +1995,13 @@ free_uvmspace(struct vm_space_wasm *spacep)
 int
 ref_uvmspace(struct vm_space_wasm *space)
 {
-    uint32_t res, old = atomic_load32(&space->refcount);
+    uint32_t res, old = __builtin_atomic_load32(&space->refcount);
     if (old == 0) {
         printf("%s uvmspace = %p refcount already 0 (zero)\n", __func__, space);
         return EINVAL;
     }
 
-    res = atomic_cmpxchg32(&space->refcount, old, old + 1);
+    res = __builtin_atomic_rmw_cmpxchg32(&space->refcount, old, old + 1);
     if (res == old) {
         return 0;
     }
@@ -2012,14 +2012,14 @@ ref_uvmspace(struct vm_space_wasm *space)
 
 int deref_uvmspace(struct vm_space_wasm *space)
 {
-    uint32_t res, nv, old = atomic_load32(&space->refcount);
+    uint32_t res, nv, old = __builtin_atomic_load32(&space->refcount);
     if (old == 0) {
         printf("%s uvmspace = %p refcount already 0 (zero)\n", __func__, space);
         return EINVAL;
     }
 
     nv = old - 1;
-    res = atomic_cmpxchg32(&space->refcount, old, nv);
+    res = __builtin_atomic_rmw_cmpxchg32(&space->refcount, old, nv);
     if (res == old) {
         if (nv == 0) {
             free_uvmspace(space);
@@ -2063,7 +2063,7 @@ kmem_alloc(size_t size, unsigned int flags)
     // aquire lock
     mutex_enter(&__malloc_mtx);
 
-    atomic_add32(&__kmem_data.malloc_busy, size);
+    __builtin_atomic_rmw_add32(&__kmem_data.malloc_busy, size);
     mutex_exit(&__malloc_mtx);
 }
 
@@ -2078,7 +2078,7 @@ kmem_free(void *ptr, size_t size)
 {
     mutex_enter(&__malloc_mtx);
 
-    atomic_sub32(&__kmem_data.malloc_busy, size);
+    __builtin_atomic_rmw_sub32(&__kmem_data.malloc_busy, size);
     mutex_exit(&__malloc_mtx);
 }
 #endif

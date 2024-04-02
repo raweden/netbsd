@@ -798,7 +798,7 @@ main(void)
 	mutex_enter(&proc_lock);
 	start_init_exec = 1;
 #ifdef __WASM
-	atomic_notify((uint32_t *)&start_init_exec, 1);
+	__builtin_futex_notify((uint32_t *)&start_init_exec, 1);
 #else
 	cv_broadcast(&lbolt);
 #endif
@@ -1058,7 +1058,7 @@ start_init(void *arg)
 		cv_wait(&lbolt, &proc_lock);
 	mutex_exit(&proc_lock);
 #else
-	atomic_wait32((uint32_t *)&start_init_exec, 0, -1);
+	__builtin_futex_wait32((uint32_t *)&start_init_exec, 0, -1);
 #endif
 
 	/*

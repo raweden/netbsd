@@ -70,15 +70,15 @@ wasm_lwp_wait(lwp_t *l, int64_t timo)
 	
 	while (true) {
 
-		result = atomic_wait32((uint32_t *)&l->l_md.md_wakesig, 0, timo);
+		result = __builtin_futex_wait32((uint32_t *)&l->l_md.md_wakesig, 0, timo);
 		if (result == ATOMIC_WAIT_NOT_EQUAL) {
 			printf("expected is non zero");
 			__panic_abort();
 		}
 		
-		sig = atomic_load32((uint32_t *)&l->l_md.md_wakesig);
+		sig = __builtin_atomic_load32((uint32_t *)&l->l_md.md_wakesig);
 		if (sig == STD_WAKEUP) {
-			atomic_cmpxchg32((uint32_t *)&l->l_md.md_wakesig, sig, 0);
+			__builtin_atomic_rmw_cmpxchg32((uint32_t *)&l->l_md.md_wakesig, sig, 0);
 			break;
 		} else if (sig == SIG_WAKEUP) {
 			printf("lwp awake with signal = %d", sig);
@@ -102,8 +102,8 @@ wasm_lwp_awake(lwp_t *l)
 {
 	int result;
 
-	atomic_xchg32((uint32_t *)&l->l_md.md_wakesig, STD_WAKEUP);
-	result = atomic_notify((uint32_t *)&l->l_md.md_wakesig, 1);
+	__builtin_atomic_rmw_xchg32((uint32_t *)&l->l_md.md_wakesig, STD_WAKEUP);
+	result = __builtin_futex_notify((uint32_t *)&l->l_md.md_wakesig, 1);
 
 	return 0;
 }
@@ -113,8 +113,8 @@ wasm_lwp_awake_signal(lwp_t *l)
 {
 	int result;
 
-	atomic_xchg32((uint32_t *)&l->l_md.md_wakesig, SIG_WAKEUP);
-	result = atomic_notify((uint32_t *)&l->l_md.md_wakesig, 1);
+	__builtin_atomic_rmw_xchg32((uint32_t *)&l->l_md.md_wakesig, SIG_WAKEUP);
+	result = __builtin_futex_notify((uint32_t *)&l->l_md.md_wakesig, 1);
 
 	return 0;
 }

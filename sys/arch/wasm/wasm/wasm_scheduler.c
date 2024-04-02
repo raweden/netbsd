@@ -76,7 +76,7 @@ wasm_scheduler(void)
         count = 0;
 
         for (int i = 0; i < SCHEDULER_MAX; i++) {
-            ret = atomic_xchg32((uint32_t *)&scheduler_tasks.queue[i], 0);
+            ret = __builtin_atomic_rmw_xchg32((uint32_t *)&scheduler_tasks.queue[i], 0);
             if (ret != 0) {
                 tasks[count++] = ret;
             }

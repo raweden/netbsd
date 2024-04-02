@@ -66,19 +66,19 @@ void wasm32_atomic_fence(void);
 __attribute__((always_inline))
 static inline void wasm_atomic_add_32(volatile uint32_t *p, uint32_t val)
 {
-    atomic_add32(p, val);
+    __builtin_atomic_rmw_add32(p, val);
 }
 
 __attribute__((always_inline))
 static inline void wasm_atomic_add_64(volatile uint64_t *p, uint64_t val)
 {
-    atomic_add64(p, val);
+    __builtin_atomic_rmw_add64(p, val);
 }
 
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_add_32_nv(volatile uint32_t *p, uint32_t val)
 {
-    uint32_t ret = atomic_add32(p, val);
+    uint32_t ret = __builtin_atomic_rmw_add32(p, val);
     ret += val;
     return ret;
 }
@@ -86,7 +86,7 @@ static inline uint32_t wasm_atomic_add_32_nv(volatile uint32_t *p, uint32_t val)
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_add_64_nv(volatile uint64_t *p, uint64_t val)
 {
-    uint64_t ret = atomic_add64(p, val);
+    uint64_t ret = __builtin_atomic_rmw_add64(p, val);
     ret += val;
     return ret;
 }
@@ -95,20 +95,20 @@ static inline uint64_t wasm_atomic_add_64_nv(volatile uint64_t *p, uint64_t val)
 __attribute__((always_inline))
 static inline void wasm_atomic_and_32(volatile uint32_t *p, uint32_t val)
 {
-    atomic_and32(p, val);
+    __builtin_atomic_rmw_and32(p, val);
 }
 
 
 __attribute__((always_inline))
 static inline void wasm_atomic_and_64(volatile uint64_t *p, uint64_t val)
 {
-    atomic_and64(p, val);
+    __builtin_atomic_rmw_add64(p, val);
 }
 
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_and_32_nv(volatile uint32_t *p, uint32_t val)
 {
-    uint32_t ret = atomic_and32(p, val);
+    uint32_t ret = __builtin_atomic_rmw_and32(p, val);
     ret &= val;
     return ret;
 }
@@ -116,7 +116,7 @@ static inline uint32_t wasm_atomic_and_32_nv(volatile uint32_t *p, uint32_t val)
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_and_64_nv(volatile uint64_t *p, uint64_t val)
 {
-    uint64_t ret = atomic_and64(p, val);
+    uint64_t ret = __builtin_atomic_rmw_add64(p, val);
     ret &= val;
     return ret;
 }
@@ -127,26 +127,26 @@ static inline uint64_t wasm_atomic_and_64_nv(volatile uint64_t *p, uint64_t val)
 __attribute__((always_inline))
 static inline void wasm_atomic_or_32(volatile uint32_t *p, uint32_t val)
 {
-    atomic_or32(p, val);
+    __builtin_atomic_rmw_or32(p, val);
 }
 
 __attribute__((always_inline))
 static inline void wasm_atomic_or_u32(volatile uint32_t *p, uint32_t val)
 {
-    atomic_or32(p, val);
+    __builtin_atomic_rmw_or32(p, val);
 }
 
 
 __attribute__((always_inline))
 static inline void wasm_atomic_or_64(volatile uint64_t *p, uint64_t val)
 {
-    atomic_or64(p, val);
+    __builtin_atomic_rmw_or64(p, val);
 }
 
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_or_32_nv(volatile uint32_t *p, uint32_t val)
 {
-    uint32_t ret = atomic_or32(p, val);
+    uint32_t ret = __builtin_atomic_rmw_or32(p, val);
     ret |= val;
     return ret;
 }
@@ -154,7 +154,7 @@ static inline uint32_t wasm_atomic_or_32_nv(volatile uint32_t *p, uint32_t val)
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_or_u32_nv(volatile uint32_t *p, uint32_t val)
 {
-    uint32_t ret = atomic_or32(p, val);
+    uint32_t ret = __builtin_atomic_rmw_or32(p, val);
     ret |= val;
     return ret;
 }
@@ -162,7 +162,7 @@ static inline uint32_t wasm_atomic_or_u32_nv(volatile uint32_t *p, uint32_t val)
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_or_64_nv(volatile uint64_t *p, uint64_t val)
 {
-    uint64_t ret = atomic_or64(p, val);
+    uint64_t ret = __builtin_atomic_rmw_or64(p, val);
     ret |= val;
     return ret;
 }
@@ -170,26 +170,26 @@ static inline uint64_t wasm_atomic_or_64_nv(volatile uint64_t *p, uint64_t val)
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_cas_32(volatile uint32_t *p, uint32_t expected, uint32_t replacement)
 {
-    return atomic_cmpxchg32(p, expected, replacement);
+    return __builtin_atomic_rmw_cmpxchg32(p, expected, replacement);
 }
 
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_cas_64(volatile uint64_t *p, uint64_t expected, uint64_t replacement)
 {
-    return atomic_cmpxchg64(p, expected, replacement);
+    return __builtin_atomic_rmw_cmpxchg64(p, expected, replacement);
 }
 
 
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_swap_32(volatile uint32_t *p, uint32_t val)
 {
-    return atomic_xchg32(p, val);
+    return __builtin_atomic_rmw_xchg32(p, val);
 }
 
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_swap_64(volatile uint64_t *p, uint64_t val)
 {
-    return atomic_xchg64(p, val);
+    return __builtin_atomic_rmw_xchg64(p, val);
 }
 
 
@@ -197,19 +197,19 @@ static inline uint64_t wasm_atomic_swap_64(volatile uint64_t *p, uint64_t val)
 __attribute__((always_inline))
 static inline void wasm_atomic_dec_32(volatile uint32_t *p)
 {
-    atomic_sub32(p, 1);
+    __builtin_atomic_rmw_sub32(p, 1);
 }
 
 __attribute__((always_inline))
 static inline void wasm_atomic_dec_64(volatile uint64_t *p)
 {
-    atomic_sub64(p, 1);
+    __builtin_atomic_rmw_sub64(p, 1);
 }
 
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_dec_32_nv(volatile uint32_t *p)
 {
-    uint32_t ret = atomic_sub32(p, 1);
+    uint32_t ret = __builtin_atomic_rmw_sub32(p, 1);
     ret = ret - 1;
     return ret;
 }
@@ -217,7 +217,7 @@ static inline uint32_t wasm_atomic_dec_32_nv(volatile uint32_t *p)
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_dec_64_nv(volatile uint64_t *p)
 {
-    uint32_t ret = atomic_sub64(p, 1);
+    uint32_t ret = __builtin_atomic_rmw_sub64(p, 1);
     ret = ret - 1;
     return ret;
 }
@@ -226,19 +226,19 @@ static inline uint64_t wasm_atomic_dec_64_nv(volatile uint64_t *p)
 __attribute__((always_inline))
 static inline void wasm_atomic_inc_32(volatile uint32_t *p)
 {
-    atomic_add32(p, 1);
+    __builtin_atomic_rmw_add32(p, 1);
 }
 
 __attribute__((always_inline))
 static inline void wasm_atomic_inc_64(volatile uint64_t *p)
 {
-    atomic_add64(p, 1);
+    __builtin_atomic_rmw_add64(p, 1);
 }
 
 __attribute__((always_inline))
 static inline uint32_t wasm_atomic_inc_32_nv(volatile uint32_t *p)
 {
-    uint32_t ret = atomic_add32(p, 1);
+    uint32_t ret = __builtin_atomic_rmw_add32(p, 1);
     ret = ret + 1;
     return ret;
 }
@@ -246,7 +246,7 @@ static inline uint32_t wasm_atomic_inc_32_nv(volatile uint32_t *p)
 __attribute__((always_inline))
 static inline uint64_t wasm_atomic_inc_64_nv(volatile uint64_t *p)
 {
-    uint32_t ret = atomic_add64(p, 1);
+    uint32_t ret = __builtin_atomic_rmw_add64(p, 1);
     ret = ret + 1;
     return ret;
 }

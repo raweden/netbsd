@@ -1254,7 +1254,7 @@ malloc_arena_grow(struct mm_arena *arena, size_t nb)
         }
         pg = paddr_to_page(tbase + tsize - 1);
         arena->last_page = pg;
-        atomic_add32(&arena->page_count, pagecnt);
+        __builtin_atomic_rmw_add32(&arena->page_count, pagecnt);
     }
 
 
@@ -1778,7 +1778,7 @@ void mm_arena_destroy(struct mm_arena *vm)
     kmem_page_free(vm->first_page, vm->page_count);
     vm->first_page = NULL;
     vm->last_page = NULL;
-    atomic_store32(&vm->page_count, 0);
+    __builtin_atomic_store32(&vm->page_count, 0);
 }
 
 

@@ -104,7 +104,7 @@ mutex_enter(kmutex_t *mtx)
 
 	uintptr_t lwp = (uintptr_t)curlwp;
 	uintptr_t old;
-	old = atomic_cmpxchg32(&mtx->u.mtxa_owner, 0, (uint32_t)lwp);
+	old = __builtin_atomic_rmw_cmpxchg32(&mtx->u.mtxa_owner, 0, (uint32_t)lwp);
 	if (old == 0 || old == lwp)
 		return;
 #if 0 // TODO: wasm fixme
@@ -146,7 +146,7 @@ mutex_exit(kmutex_t *mtx)
 
 	uintptr_t lwp = (uintptr_t)curlwp;
 	uintptr_t old;
-	old = atomic_cmpxchg32(&mtx->u.mtxa_owner, (uint32_t)lwp, 0);
+	old = __builtin_atomic_rmw_cmpxchg32(&mtx->u.mtxa_owner, (uint32_t)lwp, 0);
 	if (old == lwp)
 		return;
 
@@ -185,7 +185,7 @@ rw_enter(krwlock_t *rwl, krw_t op)
 	if (op == RW_READER) {
 		// Reader
 		while (true) {
-			rw_owner = atomic_load32((uint32_t *)rwl);
+			rw_owner = __builtin_atomic_load32((uint32_t *)rwl);
 			if ((rw_owner & (RW_WRITE_LOCKED|RW_WRITE_WANTED)) != 0) {
 				rw_vector_enter(rwl, op);
 				return;
@@ -193,7 +193,7 @@ rw_enter(krwlock_t *rwl, krw_t op)
 			rw_val = (rw_owner >> 5);
 			rw_val++;
 			rw_new = (rw_val << 5) | (rw_owner & 0x1f); 	// masking out only first 5-bits in owner.
-			rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+			rw_val = __builtin_atomic_rmw_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
 			if (rw_val == rw_owner) {
 				break;
 			}
@@ -208,7 +208,7 @@ rw_enter(krwlock_t *rwl, krw_t op)
 			__panic_abort();
 		}
 		rw_new |= RW_WRITE_LOCKED;
-		rw_val = atomic_cmpxchg32((uint32_t *)rwl, 0, rw_new);
+		rw_val = __builtin_atomic_rmw_cmpxchg32((uint32_t *)rwl, 0, rw_new);
 		if (rw_val != 0) {
 			rw_vector_enter(rwl, op);
 		}
@@ -268,7 +268,7 @@ rw_exit(krwlock_t *rwl)
 	// TODO: wasm; implement real rw locking..
 	uint32_t rw_owner, rw_val, rw_new;
 
-	rw_owner = atomic_load32((uint32_t *)rwl);
+	rw_owner = __builtin_atomic_load32((uint32_t *)rwl);
 
 	if ((rw_owner & RW_WRITE_LOCKED) != 0) {
 		rw_new = (rw_owner & ~RW_WRITE_LOCKED) - (uint32_t)curlwp;
@@ -276,7 +276,7 @@ rw_exit(krwlock_t *rwl)
 			rw_vector_exit(rwl);
 			return;
 		}
-		rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+		rw_val = __builtin_atomic_rmw_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
 		if (rw_val != rw_owner) {
 			rw_vector_exit(rwl);
 		}
@@ -293,7 +293,7 @@ restart:
 	rw_val--;
 	rw_new = (rw_val << 5) | (rw_owner & 0x1f);
 
-	rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+	rw_val = __builtin_atomic_rmw_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
 	if (rw_val != rw_owner) {
 		rw_owner = rw_val;
 		goto restart;
@@ -305,13 +305,13 @@ restart:
 	uintptr_t newv;
 	uintptr_t oldv;
 
-	owner = atomic_load32(&rwl->rw_owner);
+	owner = __builtin_atomic_load32(&rwl->rw_owner);
 
 	if ((owner & RW_WRITE_LOCKED) != 0) {
 		uintptr_t lwp = owner & RW_THREAD;
 		if (lwp == (uintptr_t)curlwp) {
 			newv = owner & ~RW_THREAD;
-			oldv = atomic_cmpxchg32(&rwl->rw_owner, owner, newv);
+			oldv = __builtin_atomic_rmw_cmpxchg32(&rwl->rw_owner, owner, newv);
 			// this should not be possible..
 		}
 	}
@@ -379,7 +379,7 @@ rw_tryenter(krwlock_t *rwl, krw_t op)
 			__panic_abort();
 		}
 		rw_new |= RW_WRITE_LOCKED;
-		rw_val = atomic_cmpxchg32((uint32_t *)rwl, 0, rw_new);
+		rw_val = __builtin_atomic_rmw_cmpxchg32((uint32_t *)rwl, 0, rw_new);
 		if (rw_val == 0) {
 			return (1);
 		} else {
@@ -387,7 +387,7 @@ rw_tryenter(krwlock_t *rwl, krw_t op)
 		}
 	}
 
-	rw_owner = atomic_load32((uint32_t *)rwl);
+	rw_owner = __builtin_atomic_load32((uint32_t *)rwl);
 restart:
 	if ((rw_owner & (RW_WRITE_LOCKED|RW_WRITE_WANTED)) != 0) {
 		return (0);
@@ -395,7 +395,7 @@ restart:
 	rw_val = (rw_owner >> 5);
 	rw_val++;
 	rw_new = (rw_val << 5) | (rw_owner & 0x1f);
-	rw_val = atomic_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
+	rw_val = __builtin_atomic_rmw_cmpxchg32((uint32_t *)rwl, rw_owner, rw_new);
 	if (rw_val == rw_owner) {
 		return (1);
 	} else {
@@ -590,14 +590,14 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 {
 	uint32_t count = 0;
 	uint8_t old;
-	old = atomic_cmpxchg8(lockp, 0, 1);
+	old = __builtin_atomic_rmw_cmpxchg8_u(lockp, 0, 1);
 	if (old == 0)
 		return;
 	
 	while (true) {
 		wasm_inst_nop();
 		wasm_inst_nop();
-		old = atomic_cmpxchg8(lockp, 0, 1);
+		old = __builtin_atomic_rmw_cmpxchg8_u(lockp, 0, 1);
 		if (old == 0) {
 			return;
 		}
@@ -630,14 +630,14 @@ __cpu_simple_lock(__cpu_simple_lock_t *lockp)
 void
 __cpu_simple_unlock(__cpu_simple_lock_t *lockp)
 {
-	atomic_store8(lockp, 0);
+	__builtin_atomic_store8(lockp, 0);
 }
 
 int
 __cpu_simple_lock_try(__cpu_simple_lock_t *lockp)
 {
 	uint8_t old;
-	old = atomic_cmpxchg8(lockp, 0, 1);
+	old = __builtin_atomic_rmw_cmpxchg8_u(lockp, 0, 1);
 	return old == 0 ? true : false;
 }
 
