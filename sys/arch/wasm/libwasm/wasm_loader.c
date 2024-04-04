@@ -59,10 +59,13 @@ __KERNEL_RCSID(0, "$NetBSD: wasmloader.c,v 1.000 2024-01-22 14:51:28 raweden Exp
 #include <wasm/wasm_module.h>
 #include <wasm/wasm/builtin.h>
 
+// FIXME: hacky path
 #include <wasm/../mm/mm.h>
 #include <wasm/../libwasm/libwasm.h>
 #include <wasm/../libwasm/wasmloader.h>
 
+#include "loader.h"
+#include "kld_ioctl.h"
 #include "rtld.h"
 
 struct wasm_loader_dl_ctx;
@@ -76,8 +79,6 @@ int wasm_execbuf_alloc(uint32_t size) __WASM_IMPORT(kern, execbuf_alloc);
 int wasm_execbuf_copy(void *kaddr, void *uaddr, uint32_t size) __WASM_IMPORT(kern, execbuf_copy);
 void wasm_exec_entrypoint(int argc, char **argv, char **envp) __WASM_IMPORT(kern, exec_entrypoint);
 
-int wasm_exec_ioctl(int cmd, void *arg) __WASM_IMPORT(kern, exec_ioctl);
-
 int __dlsym_early(void *arr, unsigned int count, unsigned int namesz, const char *name, unsigned char type, void *res) __WASM_IMPORT(dlfcn, __dlsym_early);
 
 int wasm_find_dylib(const char *, const char *, char *, int32_t *, struct vnode **vpp);
@@ -90,19 +91,6 @@ int rtld_do_extern_reloc(struct lwp *, struct wasm_loader_dl_ctx *, struct wa_mo
 int rtld_reloc_place_segments(struct lwp *, struct wasm_loader_dl_ctx *, struct wa_module_info *);
 int rtld_dylink0_decode_modules(struct wasm_loader_dl_ctx *, struct wa_module_info *, struct wasm_loader_module_dylink_state *);
 
-
-#define EXEC_CTL_GET_USTKP 512
-#define EXEC_CTL_SET_USTKP 513
-
-#ifndef DEBUG_DL_LOADING
-#define DEBUG_DL_LOADING 0
-#endif
-
-#if defined (DEBUG_DL_LOADING) && DEBUG_DL_LOADING
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
-#else
-#define DEBUG_PRINT(...)
-#endif
 
 struct data_segment_name {
     uint32_t namesz;
@@ -271,6 +259,10 @@ wasm_loader_has_exechdr_in_buf(const char *buf, size_t len, size_t *dataoff, siz
     const uint8_t *ptr = (const uint8_t *)buf;
     const uint8_t *end = ptr + len;
 
+    if (*((uint32_t *)ptr) == WASM_HDR_SIGN_LE) {
+        ptr += 8;
+    }
+
     if (*(ptr) != WASM_SECTION_CUSTOM) {
         return false;
     }
@@ -298,14 +290,43 @@ wasm_loader_has_exechdr_in_buf(const char *buf, size_t len, size_t *dataoff, siz
     return true;
 }
 
+void
+rtld_reloc_exechdr(char *buf)
+{
+    struct wash_exechdr_rt *hdr;
+    struct wasm_exechdr_secinfo *secinfo;
+    uint32_t hdrsz, secinfo_cnt;
+    const char *min_addr;
+    const char *max_addr;
+
+    hdrsz = *((uint32_t *)(buf)); // possible un-aligned
+    hdr = (struct wash_exechdr_rt *)hdr;
+    min_addr = buf;
+    max_addr = buf + hdrsz;
+    // string table reloc
+    if (hdr->runtime_abi != NULL) {
+        hdr->runtime_abi = (void *)((char *)(hdr->runtime_abi) + (uintptr_t)(buf));
+    }
+    if (hdr->secdata != NULL) {
+        hdr->secdata = (void *)((char *)(hdr->secdata) + (uintptr_t)(buf));
+
+        secinfo = hdr->secdata;
+        secinfo_cnt = hdr->section_cnt;
+        for (int i = 0; i < secinfo_cnt; i++) {
+            if (secinfo->name != NULL)
+                secinfo->name += (uintptr_t)(buf);
+            secinfo++;
+        }
+    }
+}
+
 int
 wasm_loader_read_exechdr_early(const char *buf, size_t len, struct wash_exechdr_rt **hdrp)
 {
     struct wash_exechdr_rt *hdr;
     struct wasm_exechdr_secinfo *secinfo;
     uint32_t hdrsz, secinfo_cnt;
-    void *min_addr;
-    void *max_addr;
+
 
     hdrsz = *((uint32_t *)(buf)); // possible un-aligned
     if (hdrsz != len || hdrsz > 1024 || hdrp == NULL) {
@@ -317,25 +338,9 @@ wasm_loader_read_exechdr_early(const char *buf, size_t len, struct wash_exechdr_
         return ENOMEM;
     }
 
-    min_addr = hdr;
-    max_addr = hdr + hdrsz;
     memcpy((void *)hdr, buf, hdrsz);
 
-    // string table reloc
-    if (hdr->runtime_abi != NULL) {
-        hdr->runtime_abi = (void *)((char *)(hdr->runtime_abi) + (uintptr_t)(hdr));
-    }
-    if (hdr->secdata != NULL) {
-        hdr->secdata = (void *)((char *)(hdr->secdata) + (uintptr_t)(hdr));
-
-        secinfo = hdr->secdata;
-        secinfo_cnt = hdr->section_cnt;
-        for (int i = 0; i < secinfo_cnt; i++) {
-            if (secinfo->name != NULL)
-                secinfo->name += (uintptr_t)(hdr);
-            secinfo++;
-        }
-    }
+    rtld_reloc_exechdr((char *)hdr);
 
     if (hdrp)
         *hdrp = hdr;
@@ -384,7 +389,7 @@ wasm_process_chunk(struct wasm_processing_ctx *ctx, const char *buf, size_t bufs
 
         ctx->modvers = vers;
         data += 8;
-        DEBUG_PRINT("%s magic = %d module-version = %d", __func__, magic, vers);
+        dbg_loading("%s magic = %d module-version = %d", __func__, magic, vers);
     }
 
     if (ctx->bufuse != 0) {
@@ -455,7 +460,7 @@ wasm_process_chunk(struct wasm_processing_ctx *ctx, const char *buf, size_t bufs
             strlcpy(cst_info->wa_name, (const char *)data, namesz + 1);
             cst_info->wa_namelen = namesz;
             
-            DEBUG_PRINT("%s section-type = %d section-size = %d section-offset = %d name-size: %d name = %s", __func__, cst_info->wa_type, cst_info->wa_size, cst_info->wa_offset, cst_info->wa_namelen, cst_info->wa_name);
+            dbg_loading("%s section-type = %d section-size = %d section-offset = %d name-size: %d name = %s", __func__, cst_info->wa_type, cst_info->wa_size, cst_info->wa_offset, cst_info->wa_namelen, cst_info->wa_name);
         } else {
             if (ctx->seccnt <= WA_INLINE_SECTIONS) {
                 sec_info = &ctx->sections[ctx->seccnt++];
@@ -467,7 +472,7 @@ wasm_process_chunk(struct wasm_processing_ctx *ctx, const char *buf, size_t bufs
             sec_info->wa_type = sec_type;
             sec_info->wa_size = sec_size;
             sec_info->wa_offset = reloff + (sec_data_start - data_start);
-            DEBUG_PRINT("%s section-type = %d section-size = %d section-offset = %d\n", __func__, sec_type, sec_info->wa_size, sec_info->wa_offset);
+            dbg_loading("%s section-type = %d section-size = %d section-offset = %d\n", __func__, sec_type, sec_info->wa_size, sec_info->wa_offset);
         }
 
         if (ctx->wa_first_section == NULL) {
@@ -498,130 +503,6 @@ wasm_process_chunk(struct wasm_processing_ctx *ctx, const char *buf, size_t bufs
     return 0;
 }
 
-#define EXEC_IOCTL_MKBUF 552
-#define EXEC_IOCTL_WRBUF 553
-#define EXEC_IOCTL_RDBUF 554
-#define EXEC_IOCTL_CP_BUF_TO_MEM 555
-#define EXEC_IOCTL_CP_KMEM_TO_UMEM 556
-#define EXEC_IOCTL_COMPILE 557
-#define EXEC_IOCTL_MAKE_UMEM 558
-#define EXEC_IOCTL_UMEM_GROW 559
-#define EXEC_IOCTL_RLOC_LEB 560
-#define EXEC_IOCTL_RLOC_I32 561
-#define EXEC_IOCTL_RUN_MODULE 562
-#define EXEC_IOCTL_RUN_MODULE_AS_DYN_LD 563
-#define EXEC_IOCTL_UTBL_MAKE 564
-#define EXEC_IOCTL_UTBL_GROW 565
-#define EXEC_IOCTL_DYNLD_DLSYM_EARLY 566
-#define EXEC_IOCTL_BUF_REMAP 567
-#define EXEC_IOCTL_RUN_RTLD_INIT 570
-
-struct wasm_loader_cmd_mkbuf {
-    int32_t buffer;
-    uint32_t size;
-};
-
-struct wasm_loader_cmd_compile {
-    int32_t buffer;
-    int32_t err;
-    uint32_t strsz;
-    char *strbuf;
-};
-
-struct wasm_loader_cmd_compile_v2 {
-    int32_t buffer;
-    int32_t flags;
-    uintptr_t __dso_handle;
-    uintptr_t __tls_handle;
-    char *export_name;
-    uint8_t export_namesz;
-    uint8_t errphase;
-    int32_t errno;
-    uint32_t errmsgsz;
-    char *errmsg;
-};
-
-struct wasm_loader_cmd_mk_umem {
-    int32_t min;
-    int32_t max;
-    bool shared;   // 32 or 64 is valid values...
-    uint8_t bits;   // 32 or 64 is valid values...
-};
-
-struct wasm_loader_cmd_umem_grow {
-    int32_t grow_size;
-    int32_t grow_ret; // old size or -1 
-};
-
-struct wasm_loader_cmd_wrbuf {
-    int32_t buffer;
-    void *src;
-    uint32_t offset;
-    uint32_t size;
-};
-
-struct wasm_loader_cmd_rdbuf {
-    int32_t buffer;
-    uint32_t src;
-    void *dst;
-    uint32_t size;
-};
-
-struct buf_remap_param {
-    uint32_t dst;
-    uint32_t src;
-    uint32_t len;
-};
-
-struct wasm_loader_cmd_buf_remap {
-    int32_t buffer;
-    uint32_t new_size;
-    uint32_t remap_count;
-    struct buf_remap_param *remap_data;
-};
-
-struct wasm_loader_cmd_cp_buf_to_umem {
-    int32_t buffer;
-    uint32_t src_offset;
-    uint32_t dst_offset;
-    uint32_t size;
-};
-
-struct wasm_loader_cmd_cp_kmem_to_umem {
-    int32_t buffer;
-    void *src;
-    uint32_t dst_offset;
-    uint32_t size;
-};
-
-struct wasm_loader_cmd_rloc_leb {
-    int32_t buffer;
-    uint32_t count;
-    uint32_t lebsz;
-    void *packed_arr; // i32 + uleb|sleb (of lebsz)
-};
-
-struct wasm_loader_cmd_rloc_i32 {
-    int32_t buffer;
-    uint32_t count;     // number of i32 pairs in packed_arr
-    void *packed_arr;   // i32 + i32
-};
-
-struct wasm_loader_cmd_run {
-    int32_t buffer;
-    int32_t flags;
-    int32_t err;
-    uint32_t strsz;
-    char *strbuf;
-};
-
-struct wasm_loader_cmd_mk_table {
-    int32_t min;
-    int32_t max;
-    uint8_t reftype;
-    const char *module;
-    const char *name;
-};
 
 struct wasm_loader_dynld_dlsym {
     void *dynsym_start;
@@ -667,34 +548,6 @@ wasm_find_section(struct wa_module_info *module, int type, const char *name)
     return NULL;
 }
 
-struct wasm_import {
-    uint16_t wa_modulesz;
-    uint16_t wa_namesz;
-    const char *wa_module;
-    const char *wa_name;
-};
-
-struct wasm_loader_meminfo {
-    uint32_t min;
-    uint32_t max;
-    struct wasm_import import;
-    uint32_t min_file_offset;
-    uint8_t min_lebsz;
-    uint8_t max_lebsz;
-    uint8_t limit;
-    bool shared;
-};
-
-struct wasm_loader_tblinfo {
-    uint32_t min;
-    uint32_t max;
-    struct wasm_import import;
-    uint32_t min_file_offset;
-    uint8_t min_lebsz;
-    uint8_t max_lebsz;
-    uint8_t limit;
-    bool shared;
-};
 
 struct wasm_loader_dylink_section {
     uint32_t src_offset;
@@ -746,7 +599,7 @@ struct wasm_loader_dl_ctx {
 #define WASM_IMPORT_KIND_GLOBAL 0x03
 #define WASM_IMPORT_KIND_TAG 0x04
 
-static const char __dynld_module_path[] = "/stand/wasm/10.99.6/modules/rtld.wasm";
+static const char __rtldmodule_path[] = "/libexec/ld-wasm.so.1";
 
 int
 wasm_loader_load_rtld_module(struct wasm_loader_dl_ctx *dlctx)
@@ -789,14 +642,15 @@ wasm_loader_load_rtld_module(struct wasm_loader_dl_ctx *dlctx)
     dl_arena = dlctx->dl_arena;
 	l = (struct lwp *)curlwp;
     path = PNBUF_GET();
-    pathlen = strlen(__dynld_module_path);
-    strlcpy(path, __dynld_module_path, pathlen + 1);
+    pathlen = strlen(__rtldmodule_path);
+    strlcpy(path, __rtldmodule_path, pathlen + 1);
     pb = pathbuf_assimilate(path);
 	NDINIT(&nd, LOOKUP, FOLLOW | TRYEMULROOT, pb);
 
 	/* first get the vnode */
 	if ((error = namei(&nd)) != 0) {
         pathbuf_destroy(pb);
+        dbg_loading("error: could not find %s error = %d\n", __rtldmodule_path, error);
 		return error;
     }
 
@@ -861,18 +715,6 @@ wasm_loader_load_rtld_module(struct wasm_loader_dl_ctx *dlctx)
         printf("%s block-size does not match temp bufsz", __func__);
         return EINVAL;
     }
-#if 0
-	if (bsize == PAGE_SIZE) {
-		buf = kmem_page_alloc(1, 0);
-		// bypass file-mapping for exec read
-		pg = paddr_to_page(buf);
-		pg->flags |= PG_BYPASS_FILE_MAP;
-	} else {
-		buf = kmem_alloc(bsize, 0);
-	}
-#endif
-
-    //struct vm_page *pg;
 
 	// TODO: since everything must be passed trough anyways, we might as well just process
 	// the wasm structure here; parsing section and capturing anything of intrest
@@ -1723,7 +1565,7 @@ wasm_loader_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_m
         wa_elem->wa_align = seg_align;
         wa_elem->wa_dataSize = seg_dataSize;
 
-        DEBUG_PRINT("%s element-segment @%p type = %d name = %s (namesz = %d) size = %d (data-size: %d) align = %d\n", __func__, wa_elem, type, wa_elem->wa_name, namesz, wa_elem->wa_size, wa_elem->wa_dataSize, wa_elem->wa_align);
+        dbg_loading("%s element-segment @%p type = %d name = %s (namesz = %d) size = %d (data-size: %d) align = %d\n", __func__, wa_elem, type, wa_elem->wa_name, namesz, wa_elem->wa_size, wa_elem->wa_dataSize, wa_elem->wa_align);
 
         wa_elem++;
     }
@@ -1781,7 +1623,7 @@ wasm_loader_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_m
             seg->wa_name = name;
             seg->wa_src_offset = dataoff;
 
-            DEBUG_PRINT("%s index = %d name %s size = %d align = %d data-offset = %d\n", __func__, i, seg->wa_name, seg->wa_size, seg->wa_align, seg->wa_src_offset);
+            dbg_loading("%s index = %d name %s size = %d align = %d data-offset = %d\n", __func__, i, seg->wa_name, seg->wa_size, seg->wa_align, seg->wa_src_offset);
             seg++;
         }
 
@@ -2025,7 +1867,7 @@ wasm_process_chunk_v2(struct wasm_loader_dl_ctx *dlctx, struct wa_module_info *m
             sec_info->wa_name = wa_name;
             sec_info->wa_namesz = namesz;
             
-            DEBUG_PRINT("%s section-type = %d section-size = %d section-offset = %d name-size: %d name = %s", __func__, sec_info->wa_type, sec_info->wa_size, sec_info->wa_offset, sec_info->wa_namesz, sec_info->wa_name);
+            dbg_loading("%s section-type = %d section-size = %d section-offset = %d name-size: %d name = %s", __func__, sec_info->wa_type, sec_info->wa_size, sec_info->wa_offset, sec_info->wa_namesz, sec_info->wa_name);
         } else {
 
             sec_info = mm_arena_alloc_simple(dl_arena, sizeof(struct wa_section_info), NULL);
@@ -2037,7 +1879,7 @@ wasm_process_chunk_v2(struct wasm_loader_dl_ctx *dlctx, struct wa_module_info *m
             sec_info->wa_size = sec_size;
             sec_info->wa_offset = reloff + (sec_data_start - data_start);
             sec_info->wa_sectionStart = reloff + (sec_start - data_start);
-            DEBUG_PRINT("%s section-type = %d section-size = %d section-offset = %d\n", __func__, sec_type, sec_info->wa_size, sec_info->wa_offset);
+            dbg_loading("%s section-type = %d section-size = %d section-offset = %d\n", __func__, sec_type, sec_info->wa_size, sec_info->wa_offset);
         }
 
         if (module->wa_first_section == NULL) {
@@ -2147,7 +1989,7 @@ wasm_read_section_map_from_memory(struct wasm_loader_dl_ctx *dlctx, struct wa_mo
             sec_info->wa_name = wa_name;
             sec_info->wa_namesz = namesz;
             
-            DEBUG_PRINT("%s section-type = %d section-size = %d section-offset = %d name-size: %d name = %s", __func__, sec_info->wa_type, sec_info->wa_size, sec_info->wa_offset, sec_info->wa_namesz, sec_info->wa_name);
+            dbg_loading("%s section-type = %d section-size = %d section-offset = %d name-size: %d name = %s", __func__, sec_info->wa_type, sec_info->wa_size, sec_info->wa_offset, sec_info->wa_namesz, sec_info->wa_name);
         } else {
 
             sec_info = mm_arena_alloc_simple(dl_arena, sizeof(struct wa_section_info), NULL);
@@ -2159,7 +2001,7 @@ wasm_read_section_map_from_memory(struct wasm_loader_dl_ctx *dlctx, struct wa_mo
             sec_info->wa_size = sec_size;
             sec_info->wa_offset = (sec_data_start - ptr_start);
             sec_info->wa_sectionStart = (sec_start - ptr_start);
-            DEBUG_PRINT("%s section-type = %d section-size = %d section-offset = %d\n", __func__, sec_type, sec_info->wa_size, sec_info->wa_offset);
+            dbg_loading("%s section-type = %d section-size = %d section-offset = %d\n", __func__, sec_type, sec_info->wa_size, sec_info->wa_offset);
         }
 
         if (module->wa_first_section == NULL) {
@@ -2892,7 +2734,7 @@ wasm_loader_internal_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa
     if (chunksizes != NULL)
         mm_arena_free_simple(dl_arena, chunksizes);
 
-    DEBUG_PRINT("%s did all relocs\n", __func__);
+    dbg_loading("%s did all relocs\n", __func__);
 
     return (0);
 
@@ -3014,7 +2856,7 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
                 mem_off = alignUp(mem_off, data_seg->wa_align, &mem_pad);
                 data_seg->wa_dst_offset = mem_off;
                 mem_off += data_seg->wa_size;
-                DEBUG_PRINT("%s placing %s %s at %d\n", __func__, module->wa_module_name, data_seg->wa_name, data_seg->wa_dst_offset);
+                dbg_loading("%s placing %s %s at %d\n", __func__, module->wa_module_name, data_seg->wa_name, data_seg->wa_dst_offset);
             }
             data_seg++;
         }
@@ -3032,7 +2874,7 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
                 mem_off = alignUp(mem_off, data_seg->wa_align, &mem_pad);
                 data_seg->wa_dst_offset = mem_off;
                 mem_off += data_seg->wa_size;
-                DEBUG_PRINT("%s placing %s %s at %d\n", __func__, module->wa_module_name, data_seg->wa_name, data_seg->wa_dst_offset);
+                dbg_loading("%s placing %s %s at %d\n", __func__, module->wa_module_name, data_seg->wa_name, data_seg->wa_dst_offset);
             }
             data_seg++;
         }
@@ -3096,7 +2938,7 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
                 tbl_off = alignUp(tbl_off, elem_seg->wa_align, &tbl_pad);
                 elem_seg->wa_dst_offset = tbl_off;
                 tbl_off += elem_seg->wa_size;
-                DEBUG_PRINT("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
+                dbg_loading("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
             }
             elem_seg++;
         }
@@ -3112,7 +2954,7 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
                 tbl_off = alignUp(tbl_off, elem_seg->wa_align, &tbl_pad);
                 elem_seg->wa_dst_offset = tbl_off;
                 tbl_off += elem_seg->wa_size;
-                DEBUG_PRINT("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
+                dbg_loading("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
             }
             elem_seg++;
         }
@@ -3405,7 +3247,7 @@ wasm_loader_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_m
 
     dl_arena = dlctx->dl_arena;
 
-    DEBUG_PRINT("%s external reloc on module = %s addr = %p\n", __func__, module->wa_module_name, module);
+    dbg_loading("%s external reloc on module = %s addr = %p\n", __func__, module->wa_module_name, module);
 
     roff = section->src_offset;
     slen = section->size;
@@ -3420,13 +3262,13 @@ wasm_loader_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_m
     leb_start = leb_vec;
     rloc_cnt = (dlctx->dl_bufsz / sizeof(struct reloc_leb));
     leb_end = leb_vec + rloc_cnt;
-    DEBUG_PRINT("%s leb reloc-count = %d for bufsz = %d leb_start = %p leb_end %p\n", __func__, rloc_cnt, dlctx->dl_bufsz, leb_start, leb_end);
+    dbg_loading("%s leb reloc-count = %d for bufsz = %d leb_start = %p leb_end %p\n", __func__, rloc_cnt, dlctx->dl_bufsz, leb_start, leb_end);
 
     i32_vec = (struct reloc_i32 *)dlctx->dl_buf;
     i32_start = i32_vec;
     rloc_cnt = (dlctx->dl_bufsz / sizeof(struct reloc_i32));
     i32_end = i32_vec + rloc_cnt;
-    DEBUG_PRINT("%s leb reloc-count = %d for bufsz = %d i32_start = %p i32_end = %p\n", __func__, rloc_cnt, dlctx->dl_bufsz, i32_start, i32_end);
+    dbg_loading("%s leb reloc-count = %d for bufsz = %d i32_start = %p i32_end = %p\n", __func__, rloc_cnt, dlctx->dl_bufsz, i32_start, i32_end);
     rloc_cnt = 0;
 
 
@@ -3490,7 +3332,7 @@ wasm_loader_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_m
         ptr = ptr_start;
     }
 
-    DEBUG_PRINT("%s max-chunk-size = %d count %d module = %s\n", __func__, maxchunksz, count, module->wa_module_name);
+    dbg_loading("%s max-chunk-size = %d count %d module = %s\n", __func__, maxchunksz, count, module->wa_module_name);
 
     pgcnt = howmany(maxchunksz + 32, PAGE_SIZE);
     pg = kmem_page_alloc(pgcnt, 0);
@@ -3584,7 +3426,7 @@ wasm_loader_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_m
 
             found = true;
             src_base = exec_cmd.dlsym.symbol_addr;
-            DEBUG_PRINT("%s found symbol '%s' on module '%s' at = %p\n", __func__, tmpnamep, submod->wa_module_name, (void *)src_base);
+            dbg_loading("%s found symbol '%s' on module '%s' at = %p\n", __func__, tmpnamep, submod->wa_module_name, (void *)src_base);
         }
 
         if (!found) {
@@ -3943,6 +3785,91 @@ wasm_loader_sort_modules(struct wasm_loader_dl_ctx *dlctx)
     return (0);
 }
 
+// new approach which does the heavy lifting in rtld
+
+struct ldwasm_execpkg {
+    uintptr_t uesp;
+    uintptr_t rlocbase;
+};
+
+void
+ldwasm_exec_trampline(void *arg)
+{
+    struct ldwasm_execpkg *pkg;
+
+    pkg = arg;
+}
+
+int load_rtld_module_from_disk(void);
+int setup_ldwasm_module_from_cache(uintptr_t relocbase, int32_t mem_min, int32_t mem_max);
+
+int
+load_ldwasm_module(uintptr_t rlocbase, int32_t memory_min, int32_t memory_max)
+{
+    int error;
+
+    error = load_rtld_module_from_disk();
+    if (error)
+        return error;
+
+    error = setup_ldwasm_module_from_cache(rlocbase, memory_min, memory_max);
+
+    return error;
+}
+
+int
+exec_load_ldwasm_binary(struct lwp *l, struct exec_vmcmd *cmd)
+{
+    struct wash_exechdr_rt *hdr;
+    struct wasm_exechdr_secinfo *sec;
+    uintptr_t rlocbase;
+    uintptr_t uesp, uesp0, stacksz;
+    uint32_t min_stacksz;
+    int32_t memory_min, memory_max;
+    int error;
+
+    min_stacksz = 131072;
+    rlocbase = 1024;
+    // 1. get the exechdr
+
+    // 2. determine memory.initial & memory.maximum and let that be the base for all linking.
+    sec = _rtld_exechdr_find_section(hdr, WASM_SECTION_IMPORT, NULL);
+    memory_min = -1;
+    memory_max = -1;
+
+    // 3. determine stack-size and alloc that staring at reloc base
+    rlocbase = roundup2(rlocbase, PAGE_SIZE);
+    stacksz = hdr->stack_size_hint;
+    if (stacksz < min_stacksz)
+        stacksz = min_stacksz;
+    stacksz = roundup2(stacksz, PAGE_SIZE);
+    uesp0 = roundup2((rlocbase + stacksz), PAGE_SIZE);
+    rlocbase = uesp0;
+
+    //
+    error = load_ldwasm_module(rlocbase, memory_min, memory_max);
+
+    // setup trampoline to let rtld do the rest of the job.
+    struct switchframe *sf;
+    struct pcb *pcb;
+    struct ldwasm_execpkg *exec_arg;
+
+    pcb = lwp_getpcb(l);
+    sf = (struct switchframe *)pcb->pcb_esp;
+
+    if (sf->sf_ebx == (int)(NULL) || ((struct wasm32_execpkg_args *)sf->sf_ebx)->et_sign != WASM_EXEC_PKG_SIGN) {
+
+        exec_arg = kmem_zalloc(sizeof(struct ldwasm_execpkg), 0);
+        exec_arg->rlocbase = rlocbase;
+        exec_arg->uesp = uesp;
+        
+        sf->sf_esi = (int)ldwasm_exec_trampline;
+        sf->sf_ebx = (int)exec_arg;
+        sf->sf_eip = (int)lwp_trampoline;
+        printf("%s setting switchframe at %p for lwp %p\n", __func__, sf, wasm_curlwp);
+    }
+}
+
 void wasm_exec_trampline(void *);
 
 /**
@@ -4042,125 +3969,6 @@ exec_load_wasm32_binary(struct lwp *l, struct exec_vmcmd *cmd)
     }
 
     printf("stack_size_hint = %d\n", stack_size_hint);
-
-#if 0
-    wa_mod = mm_arena_zalloc_simple(dl_arena, sizeof(struct wa_module_info), NULL);
-    if (wa_mod == NULL) {
-        VOP_UNLOCK(vp);
-        printf("%s could not alloc wa module ctx... \n", __func__);
-        return ENOMEM;
-    }
-
-    wa_mod->wa_filesize = fsize;
-    wa_mod->wa_filepath = filepath;
-
-    exec_cmd.mkbuf.buffer = -1;
-    exec_cmd.mkbuf.size = fsize; // TODO: use exec_end_offset later on, but first we must get it up and running..
-    error = wasm_exec_ioctl(EXEC_IOCTL_MKBUF, &exec_cmd);
-    exec_bufid = exec_cmd.mkbuf.buffer;
-    wa_mod->wa_module_desc_id = exec_bufid;
-    //error = wasm_execbuf_alloc(fsize);
-    if (error != 0) {
-        VOP_UNLOCK(vp);
-        printf("%s error when wasm_execbuf_alloc() called %d\n", __func__, error);
-        return error;
-    }
-
-    printf("%s starting to load wasm executable of size = %d\n", __func__, fsize);
-
-    skiplen = 0;
-    buf = kmem_alloc(bsize, 0);
-    if (buf == NULL) {
-        VOP_UNLOCK(vp);
-        printf("%s ENOMEM when kmem_alloc() called\n", __func__);
-        return ENOMEM;
-    }
-    
-    dlctx->dl_buf = buf;
-    dlctx->dl_bufsz = bsize;
-
-    off = 0;
-    while (off < fsize) {
-        bufsz = MIN(bsize, fsize - off);
-        error = exec_read((struct lwp *)curlwp, vp, off, buf, bufsz, IO_NODELOCKED);
-        if (error != 0) {
-            printf("%s got error = %d from exec_read() \n", __func__, error);
-        }
-
-        // processing during loading
-        if (skiplen < bufsz) {
-            error = wasm_process_chunk_v2(dlctx, wa_mod, buf, bufsz, off, &skiplen);
-            //wasm_process_chunk(wa_mod, buf, bufsz, off, &skiplen);
-        } else {
-            skiplen -= bufsz;
-        }
-
-        exec_cmd.wrbuf.buffer = exec_bufid;
-        exec_cmd.wrbuf.offset = off;
-        exec_cmd.wrbuf.size = bufsz;
-        exec_cmd.wrbuf.src = buf;
-        error = wasm_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
-        // TODO: make assertion based upon module section content.
-        off += bufsz;
-    }
-
-    VOP_UNLOCK(vp);
-
-    count = wa_mod->wa_section_count;
-    wa_mod->wa_sections = mm_arena_zalloc_simple(dl_arena, sizeof(void *) * (count + 1), 0);
-    sec = wa_mod->wa_first_section;
-    for (int i = 0; i < count; i++) {
-        wa_mod->wa_sections[i] = sec;
-        sec = sec->wa_next;
-    }
-
-    // 1. find memory import
-    struct wasm_loader_meminfo meminfo;
-    sec = wasm_find_section(wa_mod, WASM_SECTION_IMPORT, NULL);
-    if (sec) {
-        wasm_loader_find_memory(dlctx, wa_mod, sec, exec_bufid, buf, bsize, &meminfo);
-        printf("%s meminfo min = %d max = %d shared = %d min_file_offset = %d min_lebsz = %d max_lebsz %d\n", __func__, meminfo.min, meminfo.max, meminfo.shared, meminfo.min_file_offset, meminfo.min_lebsz, meminfo.max_lebsz);
-    }
-
-    // 2. find data-segment info (just offset + size)
-    sec = wasm_find_section(wa_mod, WASM_SECTION_DATA, NULL);
-    if (sec) {
-        wasm_loader_data_segments_info(dlctx, wa_mod, sec, exec_bufid, buf, bsize);
-    }
-
-    // 3. find memory import
-    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
-    if (sec) {
-        wasm_loader_dylink0_subsection_info(dlctx, wa_mod, sec, exec_bufid, buf, bsize);
-    } else {
-        printf("missing dylink.0 section.. cannot link!");
-        return ENOEXEC;
-    }
-
-    wasm_loader_dylink0_decode_modules(dlctx, wa_mod, wa_mod->wa_dylink_data, exec_bufid, buf, bufsz);
-
-    wasm_loader_dylink0_decode_data_segs(dlctx, wa_mod, wa_mod->wa_dylink_data, exec_bufid, buf, bufsz);
-
-    count = dl_state->dl_modules_needed_count;
-    struct wa_module_needed *deps = dl_state->dl_modules_needed;
-    for (int i = 0; i < count; i++) {
-        struct wa_module_needed *dep = &dl_state->dl_modules_needed[i];
-        struct wa_module_info *depmod = wasm_loader_find_loaded(dlctx, dep->wa_module_name, dep->wa_module_vers);
-        if (depmod != NULL) {
-            dep->wa_module = depmod;
-        } else {
-            struct vnode *vp;
-            int32_t outbufsz = bufsz;
-            strncpy(buf, dep->wa_module_name, strlen(dep->wa_module_name) + 1);
-            vp = NULL;
-            error = wasm_find_dylib(buf, &outbufsz, &vp);
-            if (error != 0) {
-                printf("%s got error = %d from wasm_find_dylib()\n",__func__, error);
-                continue;
-            }
-        }
-    }
-#endif
 
     error = wasm_loader_dynld_load_module(l, dlctx, vp, filepath, exehdr_rt, NULL);
     if (error != 0) {
@@ -4572,7 +4380,7 @@ out:
 
 /**
  * In-memory variant of 
- *
+ * @param 
  */
 int
 rtld_find_module_memory(struct wasm_loader_dl_ctx *dlctx, struct wa_module_info *module, int execfd, char *buf, uint32_t bufsz, struct wasm_loader_meminfo *meminfo)
@@ -4914,7 +4722,7 @@ rtld_do_internal_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_mod
         ptr = sec_start + chunksz;
     }
 
-    DEBUG_PRINT("%s did all relocs\n", __func__);
+    dbg_loading("%s did all relocs\n", __func__);
 
     return (0);
 
@@ -4994,7 +4802,7 @@ rtld_reloc_place_segments(struct lwp *l, struct wasm_loader_dl_ctx *dlctx, struc
             tbl_off = alignUp(tbl_off, elem_seg->wa_align, &tbl_pad);
             elem_seg->wa_dst_offset = tbl_off;
             tbl_off += elem_seg->wa_size;
-            DEBUG_PRINT("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
+            dbg_loading("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
         }
         elem_seg++;
     }
@@ -5005,7 +4813,7 @@ rtld_reloc_place_segments(struct lwp *l, struct wasm_loader_dl_ctx *dlctx, struc
             tbl_off = alignUp(tbl_off, elem_seg->wa_align, &tbl_pad);
             elem_seg->wa_dst_offset = tbl_off;
             tbl_off += elem_seg->wa_size;
-            DEBUG_PRINT("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
+            dbg_loading("%s placing %s %s at %d\n", __func__, module->wa_module_name, elem_seg->wa_name, elem_seg->wa_dst_offset);
         }
         elem_seg++;
     }
@@ -5174,7 +4982,7 @@ rtld_do_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_modul
         return EINVAL;
     }
 
-    DEBUG_PRINT("%s external reloc on module = %s addr = %p\n", __func__, module->wa_module_name, module);
+    dbg_loading("%s external reloc on module = %s addr = %p\n", __func__, module->wa_module_name, module);
 
     file_start = (uint8_t *)module->wa_filebuf;
     ptr_start = file_start + section->src_offset;
@@ -5188,7 +4996,7 @@ rtld_do_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_modul
     count = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
 
-    DEBUG_PRINT("%s count %d module = %s\n", __func__, count, module->wa_module_name);
+    dbg_loading("%s count %d module = %s\n", __func__, count, module->wa_module_name);
 
 
     // 
@@ -5259,7 +5067,7 @@ rtld_do_extern_reloc_on_module(struct wasm_loader_dl_ctx *dlctx, struct wa_modul
 
             found = true;
             src_base = exec_cmd.dlsym.symbol_addr;
-            DEBUG_PRINT("%s found symbol '%s' on module '%s' at = %p\n", __func__, name, submod->wa_module_name, (void *)src_base);
+            dbg_loading("%s found symbol '%s' on module '%s' at = %p\n", __func__, name, submod->wa_module_name, (void *)src_base);
         }
 
         if (!found) {
@@ -5533,6 +5341,13 @@ rtld_read_dylink0_subsection_info(struct wasm_loader_dl_ctx *dlctx, struct wa_mo
     return (0);
 }
 
+/**
+ * Retrives the following parameters from the `netbsd.dylink0` section:
+ * - self module name + version
+ * - needed module names + version
+ * - element segments info.
+ * - data segments info.
+ */
 int
 rtld_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_module_info *module, struct wasm_loader_module_dylink_state *dl_state)
 {
@@ -5547,18 +5362,10 @@ rtld_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_module_i
     char *name;
     uint32_t verssz;
     uint32_t namesz;
-    uint8_t kind;
-    bool more_data, need_data;
-    int error;
-    uint32_t max_count, count, lebsz;
+    uint32_t count, lebsz;
     uint32_t min_data_off, max_data_off, data_off_start;
-    uint32_t roff, rlen, rend, slen;
-    uint32_t srcoff;
     uint8_t *ptr, *end, *ptr_start, *file_start;
     const char *errstr;
-    union {
-        struct wasm_loader_cmd_rdbuf rdbuf;
-    } exec_cmd;
 
     // find section
     section = wasm_dylink0_find_subsection(dl_state, NBDL_SUBSEC_MODULES);
@@ -5654,7 +5461,7 @@ rtld_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_module_i
         printf("%s needed module name '%s' vers = '%s'\n", __func__, wa_needed->wa_module_name, wa_needed->wa_module_vers);
         wa_needed++;
     }
-
+    // element segments
     count = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
 
@@ -5705,11 +5512,12 @@ rtld_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_module_i
         wa_elem->wa_align = seg_align;
         wa_elem->wa_dataSize = seg_dataSize;
 
-        DEBUG_PRINT("%s element-segment @%p type = %d name = %s (namesz = %d) size = %d (data-size: %d) align = %d\n", __func__, wa_elem, type, wa_elem->wa_name, namesz, wa_elem->wa_size, wa_elem->wa_dataSize, wa_elem->wa_align);
+        dbg_loading("%s element-segment @%p type = %d name = %s (namesz = %d) size = %d (data-size: %d) align = %d\n", __func__, wa_elem, type, wa_elem->wa_name, namesz, wa_elem->wa_size, wa_elem->wa_dataSize, wa_elem->wa_align);
 
         wa_elem++;
     }
 
+    // data segments
     count = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
 
@@ -5761,7 +5569,7 @@ rtld_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_module_i
             seg->wa_name = name;
             seg->wa_src_offset = dataoff;
 
-            DEBUG_PRINT("%s index = %d name %s size = %d align = %d data-offset = %d\n", __func__, i, seg->wa_name, seg->wa_size, seg->wa_align, seg->wa_src_offset);
+            dbg_loading("%s index = %d name %s size = %d align = %d data-offset = %d\n", __func__, i, seg->wa_name, seg->wa_size, seg->wa_align, seg->wa_src_offset);
             seg++;
         }
 
