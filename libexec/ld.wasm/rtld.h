@@ -30,11 +30,14 @@
  * SUCH DAMAGE.
  */
 
+#ifndef __RTLD_WASM_RTLD_H_
+#define __RTLD_WASM_RTLD_H_
 
 #include <sys/stdint.h>
 #include <sys/stdbool.h>
 
 // check what private flags are used for segments in rtld.c
+#define _RTLD_SEGMENT_NOT_EXPORTED (1 << 2)
 #define _RTLD_SEGMENT_ZERO_FILL (1 << 3)
 
 struct rtld_state_common {
@@ -54,3 +57,5 @@ struct rtld_state_common {
     bool    ld_trust;	                /* False for setuid and setgid programs */
     // private parts of rtld_state are declared in rtld.c
 };
+
+#endif /* __RTLD_WASM_RTLD_H_ */

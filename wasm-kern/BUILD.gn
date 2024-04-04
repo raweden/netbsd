@@ -81,6 +81,8 @@ config("kern_config") {
         "--export-all", # use this to check whats missing if everything where to be included by linker.
         "--no-entry",
         "--global-base=131072", # make the first two 64kb pages empty..
+        #"--relocatable",
+        #"--emit-relocs",
         #"--shared",
         #"--experimental-pic",
         #"--global-base=1024",
