@@ -167,7 +167,9 @@ fork(void)
 	mutex_lock(&atfork_lock);
 	SIMPLEQ_FOREACH(iter, &prepareq, next)
 		(*iter->fn)();
+#ifndef __wasm__
 	_malloc_prefork();
+#endif
 
 	ret = __sys_fork();
 
@@ -176,13 +178,17 @@ fork(void)
 		 * We are the parent. It doesn't matter here whether
 		 * the fork call succeeded or failed.
 		 */
+#ifndef __wasm__
 		_malloc_postfork();
+#endif
 		SIMPLEQ_FOREACH(iter, &parentq, next)
 			(*iter->fn)();
 		mutex_unlock(&atfork_lock);
 	} else {
 		/* We are the child */
+#ifndef __wasm__
 		_malloc_postfork_child();
+#endif
 		SIMPLEQ_FOREACH(iter, &childq, next)
 			(*iter->fn)();
 		/*
