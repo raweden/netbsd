@@ -558,6 +558,8 @@ cpu_bootconf(void)
 int opfsblk_init(void);
 int opfsblk_register(const char *path, devminor_t *dmin, uint64_t offset, uint64_t size);
 
+int display_serv_init(void);
+
 void
 cpu_rootconf(void)
 {
@@ -578,6 +580,8 @@ cpu_rootconf(void)
 	aprint_normal("boot device: %s\n",
 	    booted_device ? device_xname(booted_device) : "<unknown>");
 	//rootconf();
+
+	display_serv_init();
 }
 
 void

@@ -820,6 +820,12 @@ function setupDisplayServer() {
         return false;
 	});
 
+	// disable context menu for canvas..
+	canvas.addEventListener("contextmenu", function(evt) {
+		evt.preventDefault();
+		return false;
+	});
+
 	// Drag and Drop
 
 	canvas.addEventListener("drag", function(evt) {

@@ -844,6 +844,19 @@ function kexec_ioctl(cmd, argp) {
 
 			kmem.setBigInt64(argp, BigInt((__mclk_uptime / 1000) | 0), true);			// seconds
 			kmem.setInt32(argp + 8, ((__mclk_uptime % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
+			return 0;
+		}
+		case 754: {	// WASM_HYPER_DISP_PORT_INIT
+			if (argp == 0) 
+				return EINVAL;
+
+			self.postMessage({
+				cmd: "__dsrpc_server_head",
+				ptr: argp,
+				mem: kmemory
+			});
+
+			return 0;
 		}
 	}
 
