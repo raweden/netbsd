@@ -30,7 +30,6 @@
  * SUCH DAMAGE.
  */
 
-#include "errno.h"
 #include <sys/types.h>
 #include <sys/stdbool.h>
 #include <sys/fcntl.h>
@@ -45,6 +44,7 @@
 #include <unistd.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 
 // for WebAssembly /sbin/init also mounts the default file-system based on the /etc/fstab file
 
@@ -209,6 +209,17 @@ struct ptyfs_args {
 	int flags;
 };
 
+#define CONS_MAJOR 240
+#define CTTY_MAJOR 241
+#define MEM_MAJOR 242
+#define SWAP_MAJOR 243
+#define LOG_MAJOR 246
+#define FILEDESC_MAJOR 247
+#define RND_MAJOR 248
+#define KSYM_MAJOR 251
+#define OPFSBLK_DEVMAJOR 197
+#define DISPLAY_SERV_DEVMAJOR 215
+
 void
 finalize_mountroot_fstab(void)
 {
@@ -310,6 +321,16 @@ finalize_mountroot_fstab(void)
             data_arg.ptyfs.mode = 0777;
             mnt_data_sz = sizeof(struct ptyfs_args);
             mnt_data_ptr = &data_arg;
+        } else if (strcmp(ent.fs_vfstype, "tmpfs") == 0) {
+            memset(&data_arg, 0, sizeof(data_arg));
+            data_arg.tmpfs.ta_version = 1;
+            data_arg.tmpfs.ta_nodes_max = 1024;
+            data_arg.tmpfs.ta_root_uid = 1000;
+			data_arg.tmpfs.ta_root_gid = 1000;
+			data_arg.tmpfs.ta_size_max = 4096 * 1024;
+            data_arg.tmpfs.ta_root_mode = 0644;
+            mnt_data_sz = sizeof(struct tmpfs_args);
+            mnt_data_ptr = &data_arg;
         }
 
         if (strlen(ent.fs_file) == 1 && ent.fs_file[0] == '/') {
@@ -347,7 +368,37 @@ finalize_mountroot_fstab(void)
 			break;
     }
 
+	struct statvfs sb;
 
+	error = statvfs("/dev", &sb);
+
+	if (error == -1 || strcmp(sb.f_fstypename, "tmpfs") != 0) {
+		printf("no tmpfs mounted at '/dev'\n");
+		goto error_out;
+	}
+
+	mknod("/dev/console", S_IFCHR | 0600, makedev(CONS_MAJOR, 0));
+	mknod("/dev/constty", S_IFCHR | 0600, makedev(CONS_MAJOR, 1));
+	mknod("/dev/drum", S_IFCHR | 0640, makedev(SWAP_MAJOR, 0));
+	mknod("/dev/kmem", S_IFCHR | 0640, makedev(MEM_MAJOR, 1));
+	mknod("/dev/mem", S_IFCHR | 0640, makedev(MEM_MAJOR, 0));
+	mknod("/dev/null", S_IFCHR | 0666, makedev(MEM_MAJOR, 2));
+	mknod("/dev/full", S_IFCHR | 0666, makedev(MEM_MAJOR, 11));
+	mknod("/dev/zero", S_IFCHR | 0666, makedev(MEM_MAJOR, 12));
+	mknod("/dev/klog", S_IFCHR | 0600, makedev(LOG_MAJOR, 0));
+	mknod("/dev/ksyms", S_IFCHR | 0440, makedev(KSYM_MAJOR, 0));
+	mknod("/dev/random", S_IFCHR | 0444, makedev(RND_MAJOR, 0));
+	mknod("/dev/urandom", S_IFCHR | 0644, makedev(RND_MAJOR, 1));
+
+	mknod("/dev/tty", S_IFCHR | 0666, makedev(CTTY_MAJOR, 0));
+	mknod("/dev/stdin", S_IFCHR | 0666, makedev(FILEDESC_MAJOR, 0));
+	mknod("/dev/stdout", S_IFCHR | 0666, makedev(FILEDESC_MAJOR, 1));
+	mknod("/dev/stderr", S_IFCHR | 0666, makedev(FILEDESC_MAJOR, 2));
+
+	mknod("/dev/opfsblk0", S_IFCHR | S_IFBLK | 0666, makedev(OPFSBLK_DEVMAJOR, 0));
+	mknod("/dev/display-server0", S_IFCHR | 0666, makedev(DISPLAY_SERV_DEVMAJOR, 0));
+
+	printf("did setup of '/dev' char devices.\n");
     
     // int mount(const char *type, const char *dir, int flags, void *data, size_t data_len);
 
