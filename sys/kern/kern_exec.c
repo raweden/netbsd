@@ -1516,6 +1516,9 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	return EJUSTRETURN;
 
  exec_abort:
+#ifdef __wasm__
+	printf("%s : exec_abort\n", __func__);
+#endif
 	SDT_PROBE(proc, kernel, , exec__failure, error, 0, 0, 0, 0);
 	rw_exit(&p->p_reflock);
 	if (!no_local_exec_lock)

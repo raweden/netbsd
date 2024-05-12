@@ -49,6 +49,7 @@ __KERNEL_RCSID(0, "$NetBSD: kern_sleepq.c,v 1.74 2023/04/09 09:18:09 riastradh E
 #include <sys/systm.h>
 #include <sys/sleepq.h>
 #include <sys/ktrace.h>
+#include <sys/timevar.h>
 
 #ifdef __WASM_KDEBUG
 #include <wasm/wasm-extra.h>
@@ -393,15 +394,15 @@ sleepq_block(int timo, bool catch_p, struct syncobj *syncobj)
 		if (timo == 0) {
 			wa_timo = -1;
 		} else {
-#ifndef TICKS_TO_MSEC
-#define TICKS_TO_MSEC(x) (x)
-#endif
-			wa_timo = TICKS_TO_MSEC(timo) * 1000;
+			wa_timo = tick_to_ns(timo);
 		}
 		// WebAssembly TODO: convert timo into
 		// this one might need to be nested within it's own function in order to respond to
 		// certain changes..
 		wasm_lwp_wait(l, wa_timo);
+
+		if (l->l_sleepq)
+			sleepq_remove(l->l_sleepq, l);
 #endif
 	}
 

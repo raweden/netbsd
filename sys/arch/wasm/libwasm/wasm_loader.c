@@ -262,7 +262,7 @@ union i32_value {
 };
 
 /**
- * Returns a boolean true if a `netbsd.exec-hdr` custom section seams to be provided in the given buffer.
+ * Returns a boolean true if a `rtld.exec-hdr` custom section seams to be provided in the given buffer.
  */
 bool
 wasm_loader_has_exechdr_in_buf(const char *buf, size_t len, size_t *dataoff, size_t *datasz)
@@ -285,7 +285,7 @@ wasm_loader_has_exechdr_in_buf(const char *buf, size_t len, size_t *dataoff, siz
     namesz = decodeULEB128(ptr, &lebsz, end, NULL);
     ptr += lebsz;
 
-    if (namesz != 15 || strncmp((char *)ptr, "netbsd.exec-hdr", 15) != 0) {
+    if (namesz != 13 || strncmp((char *)ptr, "rtld.exec-hdr", 13) != 0) {
         return false;
     }
 
@@ -515,6 +515,9 @@ wasm_process_chunk(struct wasm_processing_ctx *ctx, const char *buf, size_t bufs
 #define EXEC_IOCTL_DYNLD_DLSYM_EARLY 566
 #define EXEC_IOCTL_BUF_REMAP 567
 #define EXEC_IOCTL_RUN_RTLD_INIT 570
+
+#define _RTLD_SEGMENT_NOT_EXPORTED (1 << 2)
+#define _RTLD_SEGMENT_ZERO_FILL (1 << 3)
 
 struct wasm_loader_cmd_mkbuf {
     int32_t buffer;
@@ -746,7 +749,7 @@ struct wasm_loader_dl_ctx {
 #define WASM_IMPORT_KIND_GLOBAL 0x03
 #define WASM_IMPORT_KIND_TAG 0x04
 
-static const char __dynld_module_path[] = "/stand/wasm/10.99.6/modules/rtld.wasm";
+static const char __dynld_module_path[] = "/libexec/ld-wasm.so.1";
 
 int
 wasm_loader_load_rtld_module(struct wasm_loader_dl_ctx *dlctx)
@@ -945,7 +948,7 @@ wasm_loader_load_rtld_module(struct wasm_loader_dl_ctx *dlctx)
 
     // 1. read exechdr if not loaded by exec subrutine
     if (wa_mod->wa_exechdr == NULL) {
-        sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "netbsd.exec-hdr");
+        sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "rtld.exec-hdr");
         if (sec) {
             wasm_loader_read_exechdr_early(modbuf + (sec->wa_offset + 16), sec->wa_size - 16, &wa_mod->wa_exechdr);
         }
@@ -968,7 +971,7 @@ wasm_loader_load_rtld_module(struct wasm_loader_dl_ctx *dlctx)
 #endif
 
     // 4. find dylink.0 section
-    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "rtld.dylink.0");
     if (sec) {
         rtld_read_dylink0_subsection_info(dlctx, wa_mod, sec);
     } else {
@@ -1691,6 +1694,8 @@ wasm_loader_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_m
 
     module->wa_elem_count = count;
 
+    DEBUG_PRINT("%s got %d element-segments\n", __func__, count);
+
     for (int i = 0; i < count; i++) {
         uint8_t type, vers_type;
         uint32_t segidx, seg_align, seg_size, seg_dataSize;
@@ -1730,6 +1735,8 @@ wasm_loader_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_m
 
     count = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
+
+    DEBUG_PRINT("%s got %d data-segments\n", __func__, count);
 
     if (count > 0) {
 
@@ -1860,8 +1867,8 @@ wasm_loader_dylink0_subsection_info(struct wasm_loader_dl_ctx *dlctx, struct wa_
 
     namesz = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
-    if (namesz != 15 || strncmp((const char *)ptr, "netbsd.dylink.0", namesz) != 0) {
-        printf("%s not a netbsd.dylink.0 section..\n", __func__);
+    if (namesz != 13 || strncmp((const char *)ptr, "rtld.dylink.0", namesz) != 0) {
+        printf("%s not a rtld.dylink.0 section..\n", __func__);
         return EINVAL;
     }
     ptr += namesz;
@@ -2016,6 +2023,10 @@ wasm_process_chunk_v2(struct wasm_loader_dl_ctx *dlctx, struct wa_module_info *m
             sec_info->wa_size = sec_size;
             sec_info->wa_offset = reloff + (sec_data_start - data_start);
             sec_info->wa_sectionStart = reloff + (sec_start - data_start);
+
+            if (namesz > 255) {
+                printf("ERROR: %s possible a namesz too large? %d\n", __func__, namesz);
+            }
             
             wa_name = mm_arena_alloc_simple(dl_arena, namesz + 1, NULL);
             if (sec_info == NULL) {
@@ -2383,15 +2394,15 @@ wasm_loader_dynld_load_module(struct lwp *l, struct wasm_loader_dl_ctx *dlctx, s
 
     // 1. read exechdr if not loaded by exec subrutine
     if (wa_mod->wa_exechdr == NULL) {
-        sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "netbsd.exec-hdr");
+        sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "rtld.exec-hdr");
         if (sec) {
             exec_cmd.rdbuf.buffer = exec_bufid;
-            exec_cmd.rdbuf.src = sec->wa_offset + 16;
-            exec_cmd.rdbuf.size = sec->wa_size - 16;
+            exec_cmd.rdbuf.src = sec->wa_offset + 14;
+            exec_cmd.rdbuf.size = sec->wa_size - 14;
             exec_cmd.rdbuf.dst = buf;
             error = wasm_exec_ioctl(EXEC_IOCTL_RDBUF, &exec_cmd);
             if (error == 0) {
-                error = wasm_loader_read_exechdr_early(buf, sec->wa_size - 16, &wa_mod->wa_exechdr);
+                error = wasm_loader_read_exechdr_early(buf, sec->wa_size - 14, &wa_mod->wa_exechdr);
                 if (error != 0) {
                     printf("%s got error = %d from wasm_loader_read_exechdr_early()\n", __func__, error);
                 }
@@ -2427,7 +2438,7 @@ wasm_loader_dynld_load_module(struct lwp *l, struct wasm_loader_dl_ctx *dlctx, s
 #endif
 
     // 4. read dylink.0 section
-    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "rtld.dylink.0");
     if (sec) {
         wasm_loader_dylink0_subsection_info(dlctx, wa_mod, sec, exec_bufid, buf, bsize);
     } else {
@@ -2967,15 +2978,18 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
     uintptr_t ps_addr;
     uint32_t strtbl_rt_size, strtbl_rt_off;
     uint32_t module_rt_size, module_rt_off;
+    uint32_t module_mem_rt_size, module_mem_rt_off, module_mem_rt_cnt;
     uint32_t modvec_rt_size, modvec_rt_off;
     uint32_t memdesc_rt_size, memdesc_rt_off; 
     struct wasm_module_rt *rtld_module_src;
+    struct rtld_segment data_segment_src;
     uintptr_t *modvec_src;
     bool memdesc_used;
 
     // compute initial data-segments
     // all .rodata are appended after each other
     // all .bss are appended after each other
+    module_mem_rt_cnt = 0;
     memdesc_used = false;
     modules = dlctx->dl_modules;
     count = dlctx->dl_module_count;
@@ -2983,6 +2997,7 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
         module = modules[i];
         segcount = module->wa_data_count;
         data_seg = module->wa_data_segments;
+        module_mem_rt_cnt += segcount;
         printf("%s module-name = %s address = %p\n", __func__, module->wa_module_name, module);
         for (int x = 0; x < segcount; x++) {
             if (data_seg->wa_name != NULL && strncmp(data_seg->wa_name, ".rodata", 7) == 0) {
@@ -3072,6 +3087,11 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
     mem_off = alignUp(mem_off, 8, &mem_pad);
     module_rt_off = mem_off;
     mem_off += module_rt_size;
+    // to keep all rtld_segment in runtime memory
+    module_mem_rt_size = sizeof(struct rtld_segment) * module_mem_rt_cnt;
+    mem_off = alignUp(mem_off, 8, &mem_pad);
+    module_mem_rt_off = mem_off;
+    mem_off += module_mem_rt_size;
     modvec_rt_size = sizeof(void *) * count;
     modvec_rt_size = alignUp(modvec_rt_size, 4, NULL);
     modvec_rt_off = mem_off;
@@ -3178,6 +3198,12 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
         segcount = module->wa_data_count;
         data_seg = module->wa_data_segments;
         for (int x = 0; x < segcount; x++) {
+            // skip non exported data-segments (such as .bss)
+            if ((data_seg->wa_flags & (_RTLD_SEGMENT_NOT_EXPORTED|_RTLD_SEGMENT_ZERO_FILL)) != 0) {
+                data_seg++;
+                continue;
+            }
+
             if (data_seg->wa_dst_offset != 0) {
                 
                 exec_cmd.cp_buf.buffer = module->wa_module_desc_id;
@@ -3235,6 +3261,8 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
 
     // creating and copying all module_rt data
     rtld_module_src = (struct wasm_module_rt *)buf;
+    memset(&data_segment_src, 0, sizeof(data_segment_src));
+
     for (int i = 0; i < count; i++) {
         struct wash_exechdr_rt *hdr;
         struct wa_data_segment_info *segment;
@@ -3300,6 +3328,26 @@ wasm_loader_dynld_do_internal_reloc(struct lwp *l, struct wasm_loader_dl_ctx *dl
             rtld_module_src->memdesc = (void *)memdesc_rt_off;
             memdesc_used = true;
         }
+
+        rtld_module_src->data_segments_count = module->wa_data_count;
+        rtld_module_src->data_segments = (void *)module_mem_rt_off;
+
+        int data_count = module->wa_data_count;
+        segment = module->wa_data_segments;
+        for (int x = 0; x < data_count; x++) {
+            data_segment_src.addr = segment->wa_dst_offset;
+            data_segment_src.size = segment->wa_size;
+            data_segment_src.align = segment->wa_align;
+            // TODO: copy name?? (not required since rtld are to be used for the loading instead..)
+
+            exec_cmd.cp_kmem.buffer = module->wa_module_desc_id;
+            exec_cmd.cp_kmem.dst_offset = module_mem_rt_off;
+            exec_cmd.cp_kmem.src = &data_segment_src;
+            exec_cmd.cp_kmem.size = sizeof(struct rtld_segment);
+            error = wasm_exec_ioctl(EXEC_IOCTL_CP_KMEM_TO_UMEM, &exec_cmd);
+            module_mem_rt_off += sizeof(struct rtld_segment);
+            segment++;
+        } 
 
         exec_cmd.cp_kmem.buffer = module->wa_module_desc_id;
         exec_cmd.cp_kmem.dst_offset = module_rt_off;
@@ -3834,7 +3882,7 @@ wasm_loader_dynld_compile_and_run(struct lwp *l, struct wasm_loader_dl_ctx *dlct
                 include = false;
             } else if (sec->wa_type == WASM_SECTION_CUSTOM) {
                 // 
-                if (strncmp(sec->wa_name, "netbsd.dylink.0", 15) == 0) {
+                if (strncmp(sec->wa_name, "rtld.dylink.0", 13) == 0) {
                     include = false;
                 } else if (include_custom_names == false && strncmp(sec->wa_name, "name", 4) == 0) {
                     include = false;
@@ -4129,7 +4177,7 @@ exec_load_wasm32_binary(struct lwp *l, struct exec_vmcmd *cmd)
     }
 
     // 3. find memory import
-    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+    sec = wasm_find_section(wa_mod, WASM_SECTION_CUSTOM, "rtld.dylink.0");
     if (sec) {
         wasm_loader_dylink0_subsection_info(dlctx, wa_mod, sec, exec_bufid, buf, bsize);
     } else {
@@ -4464,7 +4512,7 @@ wasm_find_dylib(const char *name, const char *vers, char *buf, int32_t *bufsz, s
 				    printf("%s ent->d_type = %d ent->d_name = %s\n", __func__, ent->d_type, ent->d_name);
 #endif
 
-				    if (ent->d_type == VREG) {
+				    if (ent->d_type == VREG || ent->d_type == DT_LNK) {
 
                         if (ent->d_namlen < namelen) {
                             printf("ent->d_namlen < namelen");
@@ -4472,12 +4520,27 @@ wasm_find_dylib(const char *name, const char *vers, char *buf, int32_t *bufsz, s
                         }
 
                         if (strncmp(ent->d_name, name, namelen) == 0) {
+
                             int newlen = (segl + ent->d_namlen + 1);
                             strlcpy(buf, tmpbuf, segl + 1);
                             buf[segl] = '/';
                             strlcpy(buf + segl + 1, ent->d_name, ent->d_namlen + 1);
                             *bufsz = newlen;
                             printf("%s found path '%s'\n", __func__, buf);
+                            if (ent->d_type == DT_LNK) {
+                                VOP_UNLOCK(vp);
+                                pb = pathbuf_create(buf);
+                                NDINIT(&nd, LOOKUP, FOLLOW | LOCKLEAF | TRYEMULROOT, pb);
+                                error = namei(&nd);
+                                if (error != 0) {
+                                    printf("%s got error = %d from namei() for symlink..\n", __func__, error);
+                                } else {
+                                    vp = nd.ni_vp;
+                                    vnode_to_path(buf, MAXPATHLEN, vp, l, l->l_proc);
+                                    printf("%s followed symlink to path '%s'\n", __func__, buf);
+                                    *bufsz = strlen(buf);
+                                }
+                            }
                             found = true;
                             //goto out;
                             break;
@@ -5489,8 +5552,8 @@ rtld_read_dylink0_subsection_info(struct wasm_loader_dl_ctx *dlctx, struct wa_mo
 
     namesz = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
-    if (namesz != 15 || strncmp((const char *)ptr, "netbsd.dylink.0", namesz) != 0) {
-        printf("%s not a netbsd.dylink.0 section..\n", __func__);
+    if (namesz != 13 || strncmp((const char *)ptr, "rtld.dylink.0", namesz) != 0) {
+        printf("%s not a rtld.dylink.0 section..\n", __func__);
         return EINVAL;
     }
     ptr += namesz;

@@ -40,7 +40,6 @@
 #include "stdlib.h"
 #include "rtld.h"
 
-//#include <libwasm/wasmloader.h>
 #include <arch/wasm/libwasm/libwasm.h>
 #include <arch/wasm/libwasm/wasmloader.h>
 #include <arch/wasm/include/wasm_inst.h>
@@ -207,19 +206,19 @@ void _rtld_mutex_enter(uint32_t *ld_mutex)
     uint32_t cnt;
     uint32_t val;
     cnt = 0;
-    val = atomic_cmpxchg32(ld_mutex, 0, 1);
+    val = __builtin_atomic_rmw_cmpxchg32(ld_mutex, 0, 1);
     while (val != 0) {
         if (cnt >= 10000) {
             __panic_abort();
         }
-        val = atomic_cmpxchg32(ld_mutex, 0, 1);
+        val = __builtin_atomic_rmw_cmpxchg32(ld_mutex, 0, 1);
     }
 }
 
 int _rtld_mutex_try_enter(uint32_t *ld_mutex)
 {
     uint32_t val;
-    val = atomic_cmpxchg32(ld_mutex, 0, 1);
+    val = __builtin_atomic_rmw_cmpxchg32(ld_mutex, 0, 1);
     if (val == 0) {
         return true;
     }
@@ -230,7 +229,7 @@ int _rtld_mutex_try_enter(uint32_t *ld_mutex)
 void _rtld_mutex_exit(uint32_t *ld_mutex)
 {
     uint32_t val;
-    val = atomic_cmpxchg32(ld_mutex, 1, 0);
+    val = __builtin_atomic_rmw_cmpxchg32(ld_mutex, 1, 0);
     if (val != 1) {
         __panic_abort();
     }
@@ -677,7 +676,33 @@ __dlsym_np(struct wasm_module_rt *dso_self, void * __restrict handle, const char
 int
 __dladdr(struct wasm_module_rt *dso_self, const void * __restrict addr, Dl_info * __restrict dli)
 {
+    struct wasm_module_rt *obj;
+    struct rtld_segment *segments, *segment;
+    uintptr_t ptr;
+    int count;
+    bool found;
 
+    uint16_t data_segments_count;
+    uint16_t elem_segments_count;
+
+    ptr = (uintptr_t)addr;
+
+    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+        count = obj->data_segments_count;
+        segments = obj->data_segments;
+        dbg("%s checking for %p in '%s'", __func__, addr, obj->filepath);
+        for (int i = 0; i < count; i++) {
+            segment = &segments[i];
+            dbg("%s start = %p end = %p", segment->name, (void *)segment->addr, (void *)(segment->addr + segment->size));
+            if (ptr >= segment->addr && ptr < (segment->addr + segment->size)) {
+                dli->dli_fname = obj->filepath;
+                dli->dli_fbase = (void *)segment->addr;
+                dli->dli_saddr = NULL;
+                dli->dli_sname = NULL;
+                return (1);
+            }
+        }
+    }
 
     return (0);
 }
@@ -1161,10 +1186,10 @@ found:
     return dso;
 }
 
-// reading netbsd.exec-hdr
+// reading rtld.exec-hdr custom section
 
 /**
- * Returns a boolean true if a `netbsd.exec-hdr` custom section seams to be provided in the given buffer.
+ * Returns a boolean true if a `rtld.exec-hdr` custom section seams to be provided in the given buffer.
  */
 bool
 _rtld_has_exechdr_in_buf(const uint8_t *buf, uint32_t len, uint32_t *dataoff, uint32_t *datasz)
@@ -1187,7 +1212,7 @@ _rtld_has_exechdr_in_buf(const uint8_t *buf, uint32_t len, uint32_t *dataoff, ui
     namesz = decodeULEB128(ptr, &lebsz, end, NULL);
     ptr += lebsz;
 
-    if (namesz != 15 || strncmp((char *)ptr, "netbsd.exec-hdr", 15) != 0) {
+    if (namesz != 13 || strncmp((char *)ptr, "rtld.exec-hdr", 13) != 0) {
         return false;
     }
 
@@ -2265,7 +2290,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
     elem_segments = NULL;
 
     if (*(ptr) != WASM_SECTION_CUSTOM) {
-        dbg("%s not a netbsd.dylink.0 section..\n", __func__);
+        dbg("%s not a rtld.dylink.0 section..\n", __func__);
         return ENOENT;
     }
 
@@ -2275,8 +2300,8 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
 
     namesz = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
-    if (namesz != 15 || strncmp((const char *)ptr, "netbsd.dylink.0", namesz) != 0) {
-        dbg("%s not a netbsd.dylink.0 section..\n", __func__);
+    if (namesz != 13 || strncmp((const char *)ptr, "rtld.dylink.0", namesz) != 0) {
+        dbg("%s not a rtld.dylink.0 section..\n", __func__);
         return ENOENT;
     }
     ptr += namesz;
@@ -2757,7 +2782,7 @@ _rtld_obj_free(struct wasm_module_rt*obj)
     __rtld_state.libc_free(obj);
 }
 
-// early mapping (getting essential information in netbsd.dylink.0 section)
+// early mapping (getting essential information in rtld.dylink.0 section)
 struct wasm_module_rt*
 _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
 {
@@ -2795,7 +2820,7 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
 
     ptr = (uint8_t *)buf;
 
-    // read magic + version and netbsd.exec-hdr
+    // read magic + version and rtld.exec-hdr
     ret = __rtld_state.__sys_read(fd, buf, bufsz);
     if (ret == -1) {
 
@@ -2816,12 +2841,12 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
     hdroff = 0;
     hdrsz = 0;
     if (_rtld_has_exechdr_in_buf(ptr, bufsz - 8, &hdroff, &hdrsz) == false) {
-        _rtld_error("Shared object \"%s\" missing netbsd.exec-hdr", filepath);
+        _rtld_error("Shared object \"%s\" missing rtld.exec-hdr", filepath);
         goto error_out;
     }
 
     if (hdroff == 0 || hdrsz == 0 || hdrsz >= bufsz) {
-        _rtld_error("Shared object \"%s\" invalid netbsd.exec-hdr", filepath);
+        _rtld_error("Shared object \"%s\" invalid rtld.exec-hdr", filepath);
         goto error_out;
     }
 
@@ -2834,7 +2859,7 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
     exehdr->hdr_size = hdrsz;
     ret = _rtld_read_exechdr(ptr + hdroff, hdrsz, exehdr);
     if (ret != 0) {
-        _rtld_error("Shared object \"%s\" invalid netbsd.exec-hdr", filepath);
+        _rtld_error("Shared object \"%s\" invalid rtld.exec-hdr", filepath);
         goto error_out;
     }
 
@@ -2848,15 +2873,15 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
     }
 #endif
 
-    dylink0 = _rtld_exechdr_find_section(exehdr, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+    dylink0 = _rtld_exechdr_find_section(exehdr, WASM_SECTION_CUSTOM, "rtld.dylink.0");
     if (dylink0 == NULL) {
-        _rtld_error("Shared object \"%s\" missing netbsd.dylink.0", filepath);
+        _rtld_error("Shared object \"%s\" missing rtld.dylink.0", filepath);
         goto error_out;
     }
 
     dylink0_off = dylink0->file_offset;
 
-    // read netbsd.dylink.0
+    // read rtld.dylink.0
     ret = __rtld_state.__sys_lseek(fd, dylink0_off, SEEK_SET);
     ret = __rtld_state.__sys_read(fd, buf, bufsz);
     // read in data-segments outline from dylink.0 section (to later pre-estimate memory malloc size)
@@ -3043,9 +3068,9 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
         sec++;
     }
 
-    dylink0 = _rtld_exechdr_find_section(hdr, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+    dylink0 = _rtld_exechdr_find_section(hdr, WASM_SECTION_CUSTOM, "rtld.dylink.0");
     if (dylink0 == NULL) {
-        _rtld_error("Shared object \"%s\" missing netbsd.dylink.0", obj->filepath);
+        _rtld_error("Shared object \"%s\" missing rtld.dylink.0", obj->filepath);
         //goto error_out;
     }
 
@@ -3391,9 +3416,9 @@ error_out:
         data++;
     }
 
-    dylink0 = _rtld_exechdr_find_section(hdr, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+    dylink0 = _rtld_exechdr_find_section(hdr, WASM_SECTION_CUSTOM, "rtld.dylink.0");
     if (dylink0 == NULL) {
-        _rtld_error("Shared object \"%s\" missing netbsd.dylink.0", obj->filepath);
+        _rtld_error("Shared object \"%s\" missing rtld.dylink.0", obj->filepath);
         //goto error_out;
     }
     
@@ -3511,7 +3536,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
         if (sec != NULL)
             obj_reloc_size += sec->sec_size;
         
-        sec = _rtld_exechdr_find_section(hdr, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+        sec = _rtld_exechdr_find_section(hdr, WASM_SECTION_CUSTOM, "rtld.dylink.0");
         if (sec != NULL)
             obj_reloc_size += sec->sec_size;
 
@@ -3589,6 +3614,12 @@ _rtld_map_objects(struct wasm_module_rt *first)
         
         for (int i = 0; i < count; i++) {
 
+            if ((data->flags & _RTLD_SEGMENT_ZERO_FILL) != 0) {
+                wasm_memory_fill((void *)data->addr, 0, data->size);
+                data++;
+                continue;
+            }
+
             ret = __rtld_state.__sys_lseek(fd, data->src_offset, SEEK_SET);
             ret = __rtld_state.__sys_read(fd, (void *)data->addr, data->size);
             if (ret == -1) {
@@ -3647,7 +3678,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
             continue;
         }
 
-        sec = _rtld_exechdr_find_section(obj->exechdr, WASM_SECTION_CUSTOM, "netbsd.dylink.0");
+        sec = _rtld_exechdr_find_section(obj->exechdr, WASM_SECTION_CUSTOM, "rtld.dylink.0");
         if (sec == NULL) {
             dbg("%s could not find dylink.0 for internal data reloc..", __func__);
             continue;
@@ -3888,11 +3919,11 @@ _rtld_load_dso_library(const char *filepath, struct wasm_module_rt **module)
         return NULL;
     }
 
-    // read netbsd.exec-hdr
+    // read rtld.exec-hdr
     ret = __rtld_state.__sys_read(fd, buf, bufsz);
 
 
-    // read netbsd.dylink.0
+    // read rtld.dylink.0
     ret = __rtld_state.__sys_lseek(fd, dylink0_off, 1);
     // read in data-segments outline from dylink.0 section (to later pre-estimate memory malloc size)
     // check modules which must be loaded first

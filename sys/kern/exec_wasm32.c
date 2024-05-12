@@ -310,7 +310,7 @@ exec_wasm32_makecmds(struct lwp *l, struct exec_package *epp)
         if (namesz > 0) {
             namecpy = kmem_alloc(namesz + 1, 0);
             if (namecpy != NULL)
-                strlcpy(namecpy, epp->ep_resolvedname, namesz);
+                strlcpy(namecpy, epp->ep_resolvedname, namesz + 1);
         } else {
             namecpy = NULL;
         }
@@ -332,8 +332,8 @@ exec_wasm32_makecmds(struct lwp *l, struct exec_package *epp)
         lebsz = 0;
         namesz = decodeULEB128(data, &lebsz, NULL, NULL);
         data += lebsz;
-        if (namesz == 15 && strncmp((char *)data, "netbsd.exec-hdr", 15) == 0) {
-            printf("%s first section is netbsd.exec-hdr of size = %d\n", __func__, secsz);
+        if (namesz == 13 && strncmp((char *)data, "rtld.exec-hdr", 13) == 0) {
+            printf("%s first section is rtld.exec-hdr of size = %d\n", __func__, secsz);
             
             sec_off = (char *)(data + namesz) - hdrstr;
             uint32_t load_off = 0;

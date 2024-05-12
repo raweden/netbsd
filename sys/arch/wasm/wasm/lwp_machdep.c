@@ -35,6 +35,7 @@
 #include <sys/lwp.h>
 
 #include <wasm/frame.h>
+#include <wasm/wasm_inst.h>
 #include <wasm/wasm-extra.h>
 
 
@@ -72,8 +73,9 @@ wasm_lwp_wait(lwp_t *l, int64_t timo)
 
 		result = __builtin_futex_wait32((uint32_t *)&l->l_md.md_wakesig, 0, timo);
 		if (result == ATOMIC_WAIT_NOT_EQUAL) {
-			printf("expected is non zero");
-			__panic_abort();
+			printf("expected is non zero (%d) skipping sleep", __builtin_atomic_load32((uint32_t *)&l->l_md.md_wakesig));
+		} else if (result == ATOMIC_WAIT_TIMEOUT) {
+			break;
 		}
 		
 		sig = __builtin_atomic_load32((uint32_t *)&l->l_md.md_wakesig);

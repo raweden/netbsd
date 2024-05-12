@@ -45,6 +45,10 @@ __KERNEL_RCSID(0, "$NetBSD: subr_time.c,v 1.38 2023/07/08 20:02:10 riastradh Exp
 #include <sys/timetc.h>
 #include <sys/intr.h>
 
+#ifdef __wasm__
+#include <sys/stdint.h>
+#endif
+
 /*
  * Compute number of hz until specified time.  Used to compute second
  * argument to callout_reset() from an absolute time.
@@ -160,6 +164,14 @@ tstohz(const struct timespec *ts)
 	TIMESPEC_TO_TIMEVAL(&tv, ts);
 	return tvtohz(&tv);
 }
+
+#ifdef __wasm__
+int64_t
+tick_to_ns(int ticks)
+{
+	return (((ticks) * 1000) / hz) * 1000;
+}
+#endif
 
 /*
  * Check that a proposed value to load into the .it_value or

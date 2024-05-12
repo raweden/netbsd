@@ -779,10 +779,11 @@ const _kexp = {};
 			SHELL: "/bin/bash",
 			HOME: "/home/test-user",
 			USERNAME: "test-user",
-			LC_NAME: "en_US.UTF-8",
-			LC_MONETARY: "en_US.UTF-8",
-			LC_PAPER: "sv_SE.UTF-8",
-			LANG: "en_US.UTF-8",
+			LC_NAME: "en-US.UTF-8",
+			LC_MONETARY: "en-US.UTF-8",
+			LC_PAPER: "sv-SE.UTF-8",
+			LANG: "en-US",
+			LANGUAGES: "en-US",	// according to newLanguages() in NSUserDefaults.m
 			PWD: "/home/test-user",
 			USER: "test-user",
 			LOGNAME: "test-user",
@@ -805,21 +806,23 @@ const _kexp = {};
 				const FC_OBJTYPES = 4096;   // Display message when value typechecks fail
 			*/
 			// FC_DEBUG: FC_MATCH, // | FC_FONTSET | FC_OBJTYPES | FC_CONFIG;
-			FC_DEBUG: 1024 /* FC_CONFIG */ | 16 /* FC_CACHE */ | 32 /* FC_CACHEV */ | 128 /* FC_SCAN */ | 1 /* FC_MATCH */,
+			//FC_DEBUG: 1024 /* FC_CONFIG */ | 16 /* FC_CACHE */ | 32 /* FC_CACHEV */ | 128 /* FC_SCAN */ | 1 /* FC_MATCH */,
 			XDG_CACHE_HOME: "/home/test-user"
 		};
 
 		console.log("init_did_finish called");
 		let exec_path = "/GnuStep/System/Applications/GWorkspace.app/GWorkspace";
-		//lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
+		lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
 
 		/*exec_path = "/home/test-user/socket_server.wasm";
 		lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
 
 		Atomics.wait(kheap32, 10, 0, 5000);*/
 
-		exec_path = "/home/test-user/socket_client.wasm";
-		lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
+		/*exec_path = "/home/test-user/socket_client.wasm";
+		lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})*/
+		//exec_path = "/home/test-user/ds-client.wasm";
+		//lwp_spawn_user(exec_path, [exec_path, "--test"], exec_env); // [], {})
 	}
 
 
@@ -1099,7 +1102,7 @@ const _kexp = {};
 			outfn = console.log;
 		}
 		
-		if (str.indexOf("] panic:") != -1 || str.indexOf(" ERROR ") != -1 || str.indexOf("error:") != -1) {
+		if (str.indexOf("] panic:") != -1 || str.indexOf(" ERROR ") != -1 || str.indexOf("error:") != -1 || str.startsWith("ERROR:")) {
 			console.error(str);
 		} else {
 			str.trimEnd();
@@ -1576,6 +1579,7 @@ const _kexp = {};
 					// Example (phase 2) errors:
 					// LinkError: WebAssembly.Instance(): Import #11 module="env" function="frexp": function import requires a callable
 					console.error(err);
+					self.postMessage({cmd: "lwp_coredump", buffer: buf.slice(), filename: "execbuf.wasm"});
 					umem.setInt32(argp + 24, ENOEXEC, true);
 					let str = err.message;
 					if (errmsgp !== 0) {
@@ -1864,6 +1868,7 @@ const _kexp = {};
 					// CompileError: WebAssembly.Module(): length overflow while decoding functions count @+34986
 					// CompileError: WebAssembly.Module(): length overflow while decoding body size @+70393
 					console.error(err);
+					self.postMessage({cmd: "lwp_coredump", buffer: buf.slice(), filename: "execbuf.wasm"});
 					kmem.setInt32(argp + 24, ENOEXEC, true);
 					let str = err.message;
 					if (errmsgp !== 0) {

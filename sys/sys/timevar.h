@@ -220,6 +220,9 @@ int	gettimeleft(struct timespec *, struct timespec *);
 void	timerupcall(struct lwp *);
 void	time_init(void);
 bool	time_wraps(struct timespec *, struct timespec *);
+#ifdef __wasm__
+int64_t tick_to_ns(int);
+#endif
 
 void	itimer_init(struct itimer *, const struct itimer_ops *,
 	    clockid_t, struct itlist *);

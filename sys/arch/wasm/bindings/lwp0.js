@@ -837,6 +837,7 @@ function kexec_ioctl(cmd, argp) {
 
 			kmem.setBigInt64(argp, BigInt((__wclk_uptime / 1000) | 0), true);			// seconds
 			kmem.setInt32(argp + 8, ((__wclk_uptime % 1000) * 1000 * 1000) | 0, true);	// nanoseconds
+			return 0;
 		}
 		case 489: {	// KEXEC_IOCTL_UPTIME_MONO_CLK
 			if (argp == 0) 
@@ -940,15 +941,6 @@ function bootstrap_kern(kmodule) {
 			});
 		}
 		*/
-
-		if (info.__dsrpc_server_head) {
-			__dsrpc_server_head = info.__dsrpc_server_head;
-			self.postMessage({
-				cmd: "__dsrpc_server_head",
-				ptr: info.__dsrpc_server_head,
-				mem: kmemory
-			});
-		}
 
 		if (info.__kmem_data) {
 			self.postMessage({
