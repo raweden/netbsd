@@ -164,4 +164,60 @@ struct wasm_module_rt {
     int obj_execdesc;       // like a fd that links against a object in JavaScript land that holds reference to the WebAssembly.Instance
 };
 
+struct ldwasm_aux {
+    uint32_t a_type;
+    uint32_t a_val;
+};
+
+#define LDWASM_AT_NULL 0
+#define LDWASM_AT_EXECFD 2
+#define LDWASM_AT_PAGESZ 6
+
+
+struct wasm_exechdr_secinfo *_rtld_exechdr_find_section(struct wash_exechdr_rt *, int, const char *);
+
+// wasmloader
+
+struct reloc_param {
+    struct {
+        uintptr_t relocbase;
+        int32_t initial;
+        int32_t maximum;
+    } memory;
+    struct {
+        uintptr_t relocbase;
+        int32_t initial;
+        int32_t maximum;  
+    } indirect_table;
+}
+
+struct wasm_import {
+    uint16_t wa_modulesz;
+    uint16_t wa_namesz;
+    const char *wa_module;
+    const char *wa_name;
+};
+
+struct wasm_loader_meminfo {
+    uint32_t min;
+    uint32_t max;
+    struct wasm_import import;
+    uint32_t min_file_offset;
+    uint8_t min_lebsz;
+    uint8_t max_lebsz;
+    uint8_t limit;
+    bool shared;
+};
+
+struct wasm_loader_tblinfo {
+    uint32_t min;
+    uint32_t max;
+    struct wasm_import import;
+    uint32_t min_file_offset;
+    uint8_t min_lebsz;
+    uint8_t max_lebsz;
+    uint8_t limit;
+    bool shared;
+};
+
 #endif /* _WASM_WASMEXEC_H_*/

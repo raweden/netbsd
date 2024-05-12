@@ -47,7 +47,11 @@
 #include <arch/wasm/include/wasm/builtin.h>
 #include <arch/wasm/include/wasm_module.h>
 
+#include "internal.h"
+#include "stdlib.h"
+#include "rtld.h"
 #include "rtsys.h"
+#include "rtld_paths.h"
 
 #ifndef NULL
 #define NULL ((void *)0)
@@ -61,64 +65,18 @@
 #define NAME_MAX 128
 #define VERS_MAX 32
 
-#define DEBUG_RTLD 1
-
-#ifdef DEBUG_RTLD
-void _rtld_debug_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-#define dbg(...) _rtld_debug_printf(__VA_ARGS__)
-#else
-#define dbg(...)
-#endif
-
-#ifdef DEBUG_LOADING
-void _rtld_debug_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-#define dbg_loading(...) _rtld_debug_printf(__VA_ARGS__)
-#else
-#define dbg_loading(...)
-#endif
 
 #ifndef RTLD_DEFAULT_LIBRARY_PATH
 #define RTLD_DEFAULT_LIBRARY_PATH "/usr/lib"
 #endif
 
-// _rtld_exec_ioctl is the main interface from the runtime-loader/linker to the hosting
-// WebAssembly virtual-machine, which requires to step into JavaScript land.
 
-int _rtld_exec_ioctl(int cmd, uintptr_t argp) __WASM_IMPORT(rtld, rtld_exec_ioctl);
-
-#define RTLD_IOCTL_EXECBUF_MAP_FROM_MEMORY 569
-
-struct execbuf_map_param {
-    uint32_t dst;
-    uint32_t src;
-    uint32_t len;
-};
-
-// 
-struct rtld_cmd_map_execbuf {
-    int exec_fd;
-    uint32_t buf_size;
-    uint32_t map_count;
-    struct buf_remap_param *maplist;
-};
-
-struct rtld_cmd_compile_v2 {
-    int32_t buffer;             // exec buffer identifier (exec_fd)
-    int32_t flags;
-    uintptr_t __dso_handle;     // provided as dso_self on the __dsym, __dlopen calls.
-    uintptr_t __tls_handle;
-    char *export_name;          // dso defines regular exports required for subsequent loading (set to NULL if not used)
-    uint8_t export_namesz;      // length of export_name if non-NULL.
-    uint8_t errphase;
-    int32_t errno;
-    uint32_t errmsgsz;
-    char *errmsg;
-};
 
 // wasm builtins; replaced by the linker
 void wasm_table_get(int tableidx, int index) __WASM_BUILTIN(table_get);
 void wasm_table_set(int tableidx, int index) __WASM_BUILTIN(table_get);
 
+#if 0
 struct rtld_state {
     struct rtld_state_common rtld;
     // for dynamic loading after entering main() and when memory.grow is not a option.
@@ -136,6 +94,8 @@ struct rtld_state {
     ssize_t (*__sys_readlink)(const char *path, char *buf, size_t count);
     int (*__sys_fcntl)(int fd, int cmd, ...);   // damn what these dots always causes trouble & bugs...
 };
+#endif
+
 
 #define STATIC_DEFINED_PATH(x) { .sp_pathlen = (sizeof((x)) - 1), .sp_path = (x)};
 
@@ -144,7 +104,12 @@ struct _rtld_search_path _rtld_usr_lib = STATIC_DEFINED_PATH(RTLD_DEFAULT_LIBRAR
 #define RTLD_STATE_UNINIT 0
 #define RTLD_STATE_INIT 1
 
-struct rtld_state __rtld_state;
+struct wasm_module_rt __rtld_objself;
+
+struct rtld_state_common __rtld_state = {
+    .objself = &__rtld_objself,
+};
+
 int errno;
 
 // rtld
@@ -154,50 +119,8 @@ void _rtld_error(const char *format, ...) __attribute__((__format__ (__printf__,
 struct wasm_module_rt* _rtld_load_object(const char *name, int flags);
 struct wasm_module_rt *_rtld_find_dso_handle_by_name(const char *name, const char *vers);
 int _rtld_load_needed_objects(struct wasm_module_rt *obj, int flags);
-int _rtld_link_against_libc(struct wasm_module_rt *libc_dso);
 int __dlsym_early(struct dlsym_rt * restrict start, struct dlsym_rt * restrict end, unsigned int namesz, const char * restrict name, unsigned char type);
 void _rtld_add_paths(const char *execname, struct _rtld_search_path **phead, const char *path);
-
-// rtld exex_cmd
-
-#define EXEC_IOCTL_COMPILE 557
-#define EXEC_IOCTL_MKBUF 552
-#define EXEC_IOCTL_WRBUF 553
-#define EXEC_IOCTL_COREDUMP 580
-
-int rtld_exec_ioctl(int cmd, void *arg) __WASM_IMPORT(rtld, exec_ioctl);
-
-struct wasm_loader_cmd_mkbuf {
-    int32_t objdesc;
-    uint32_t size;
-};
-
-struct wasm_loader_cmd_wrbuf {
-    int32_t objdesc;
-    void *src;
-    uint32_t offset;
-    uint32_t size;
-};
-
-struct wasm_loader_cmd_compile_v2 {
-    int32_t objdesc;
-    int32_t flags;
-    uintptr_t __dso_handle;
-    uintptr_t __tls_handle;
-    char *export_name;
-    uint8_t export_namesz;
-    uint8_t errphase;
-    int32_t errno;
-    uint32_t errmsgsz;
-    char *errmsg;
-};
-
-struct wasm_loader_cmd_coredump {
-    int32_t objdesc;
-    const char *filename;
-    uint32_t offset;
-    uint32_t size;
-};
 
 //
 
@@ -271,28 +194,10 @@ __rtld_init(void)
 {
     struct wasm_module_rt *libc_dso;
 
-    __rtld_state.rtld.ld_state = RTLD_STATE_INIT;
-    __rtld_state.__sys_open = __sys_open;
-    __rtld_state.__sys_close = __sys_close;
-    __rtld_state.__sys_lseek = __sys_lseek;
-    __rtld_state.__sys_getdents = __sys_getdents;
-    __rtld_state.__sys_read = __sys_read;
-    __rtld_state.__sys_write = __sys_write;
-    __rtld_state.__sys_fstat = __sys_fstat;
-    __rtld_state.__sys_lstat = __sys_lstat;
-    __rtld_state.__sys_readlink = __sys_readlink;
-    __rtld_state.__sys_fcntl = __sys_fcntl;
-
-    // libc is needed for memory malloc/free (unlike elf rtld which likley uses mmap for this)
-    libc_dso = _rtld_find_dso_handle_by_name("libc", NULL);
-    if (libc_dso != NULL) {
-        _rtld_link_against_libc(libc_dso);
-    }
+    __rtld_state.ld_state = RTLD_STATE_INIT;
 
     // TODO: rtld must declare malloc of it own to use this before linking is fully done in kernel based linking
-    //_rtld_add_paths(NULL, &__rtld_state.rtld.ld_default_paths, RTLD_DEFAULT_LIBRARY_PATH);
-
-    __rtld_state.rtld.ld_default_paths = &_rtld_usr_lib;
+    _rtld_add_paths(NULL, &__rtld_state.ld_default_paths, STANDARD_LIBRARY_PATH);
 }
 
 #if 0
@@ -322,19 +227,6 @@ alignUp(uintptr_t addr, uint32_t align, uint32_t *pad)
     return addr;
 }
 
-int 
-_rtld_link_against_libc(struct wasm_module_rt *libc_dso)
-{
-    __rtld_state.libc_free = (void (*)(void *))__dlsym_early((struct dlsym_rt *)libc_dso->dlsym_start, (struct dlsym_rt *)libc_dso->dlsym_end, 4, "free", 1);
-    __rtld_state.libc_malloc = (void* (*)(unsigned long))__dlsym_early((struct dlsym_rt *)libc_dso->dlsym_start, (struct dlsym_rt *)libc_dso->dlsym_end, 6, "malloc", 1);
-
-
-    dbg("%s linking for libc_free %p", __func__, __rtld_state.libc_free);
-    dbg("%s linking for libc_malloc %p", __func__, __rtld_state.libc_malloc);
-
-    return (0);
-}
-
 // rtld debug
 
 #ifdef DEBUG_RTLD
@@ -353,7 +245,214 @@ void _rtld_debug_printf(const char *fmt, ...)
 }
 #endif
 
-// 
+// main entry point
+
+static const char bind_var[] = "LD_BIND_NOW=";
+static const char debug_var[] =  "LD_DEBUG=";
+static const char path_var[] = "LD_LIBRARY_PATH=";
+static const char preload_var[] = "LD_PRELOAD=";
+
+struct wasm_module_rt *
+_rtld_load_object_expl(const char *objpath, int fd, const struct stat *sb)
+{
+
+    return NULL;
+}
+
+int
+_rtld_preload(const char *preload_path)
+{
+    struct wasm_module_rt *dso, *objtail;
+    const char *path;
+    char *cp, *buf;
+    size_t strsz;
+    int error = 0;
+
+    if (preload_path != NULL && *preload_path != '\0') {
+        strsz = strlen(preload_path);
+        buf = __crt_malloc(strsz + 1);
+        if (buf == NULL)
+            return ENOMEM;
+
+        objtail = __rtld_state.objtail;
+
+        wasm_memory_copy(buf, preload_path, strsz);
+        path = buf;
+        cp = strchr(path, ':');
+        if (cp != NULL)
+            *cp = '\0';
+        while (path != NULL) {
+
+            dso = _rtld_load_library(__rtld_state.objself, path, __rtld_state.objmain, 0);
+            if (dso == NULL) {
+                error = ENOENT;
+                goto loading_failure;
+            }
+
+            // since preloading might specify a library which is a dependency of a library loaded earlier by
+            // the preloader, the only safe way to check if a new library was loaded is by checking 
+            // if anything was appended to the tail.
+            if (objtail->next != NULL) {
+                error = _rtld_load_needed_objects(dso, 0);
+                if (error != 0) {
+                    goto loading_failure;
+                }
+                objtail = __rtld_state.objtail;
+            }
+            
+            if (cp != NULL) {
+                path = cp + 1;
+                cp = strchr(path, ':');
+                if (cp != NULL)
+                    *cp = '\0';
+            } else {
+                path = NULL;
+            }
+        }
+
+        __crt_free(buf);
+    }
+
+    return (0);
+
+loading_failure:
+
+    __crt_free(buf);
+
+    return error;
+}
+
+int
+_rtld_main(uintptr_t uesp, uintptr_t rlocbase)
+{
+    struct wasm_module_rt *objmain;
+    struct ldwasm_aux *auxinfo, *auxp; 
+    uint32_t *sp;
+    char **env, **oenvp;
+    char **argv;
+    char *ld_bind_now, *ld_preload, *ld_library_path, *ld_debug;
+    long argc;
+    int error, execfd;
+#ifdef DEBUG_RTLD
+    int i;
+#endif
+
+    sp = (uint32_t *)uesp;
+    sp += 2;    // skip return argument, eg. exit() return space
+    argv = (char **)&sp[1];
+    argc = *(long *)sp;
+    sp += 2 + argc;
+    
+    env = (char **)sp;
+    while (*sp++ != 0) {
+#ifdef DEBUG_RTLD
+        dbg("env[%d] = %p %s\n", i++, (void *)sp[-1], (char *)sp[-1]);
+#endif
+    }
+
+    auxinfo = (struct ldwasm_aux *)sp;
+
+    for (auxp = auxinfo; auxp->a_type != LDWASM_AT_NULL; auxp++) {
+        switch (auxp->a_type) {
+            case LDWASM_AT_EXECFD:
+                execfd = auxp->a_val;
+                break;
+        }
+    }
+
+    execfd = -1;
+    // handle aux vector
+    // elf transports the fd trough aux (which is a better option than arg0)
+
+    // handle LD_* named enviroment variables.
+    ld_debug = NULL;
+    ld_bind_now = NULL;
+    ld_library_path = NULL;
+    ld_preload = NULL;
+    // LD_BIND_NOW
+    // LD_DEBUG
+    // LD_LIBRARY_PATH
+    // LD_PRELOAD
+    for (oenvp = env; *oenvp != NULL; oenvp++) {
+
+        if ((*oenvp)[0] != 'L' || (*oenvp)[1] != 'D') {
+            continue;
+        } else if (strncmp(*oenvp, debug_var, sizeof(debug_var)) == 0) {
+            
+            ld_debug = *env + sizeof(debug_var);
+        
+        } else if (strncmp(*oenvp, bind_var, sizeof(bind_var)) == 0) {
+            
+            ld_bind_now = *env + sizeof(bind_var);
+
+        } else if (strncmp(*oenvp, path_var, sizeof(path_var)) == 0) {
+            
+            ld_library_path = *env + sizeof(path_var);
+
+        } else if (strncmp(*oenvp, preload_var, sizeof(preload_var)) == 0) {
+            
+            ld_preload = *env + sizeof(preload_var);
+
+        } else {
+            continue;
+        }
+    }
+
+    // TODO: if trusted
+    if (ld_library_path != NULL && *ld_library_path != '\0') {
+        _rtld_add_paths(NULL, &__rtld_state.ld_paths, ld_library_path);
+    }
+
+
+    // load main program
+    if (execfd != -1) {
+        const char *obj_path = argv[0] ? argv[0] : "main program";
+        objmain = _rtld_load_object_expl(obj_path, execfd, NULL);
+        __rtld_state.objmain = objmain;
+        __sys_close(execfd);
+        
+        if (objmain == NULL) {
+            dbg("could not load main object..\n");
+            __panic_abort();
+        }
+
+    } else {
+        dbg("no execfd found for main object\n");
+        error = ENOEXEC;
+        goto loading_failure;
+    }
+
+    __rtld_state.objtail->next = objmain;
+    __rtld_state.objtail = objmain;
+    __rtld_state.objcount++;
+    __rtld_state.objloads++;
+
+    if (ld_preload) {
+        dbg("preloading objects\n");
+        error = _rtld_preload(ld_preload);
+        if (error != 0) {
+            goto loading_failure;
+        }
+    }
+
+    dbg("loading needed objects");
+    error = _rtld_load_needed_objects(objmain, 0);
+    if (error != 0) {
+        goto loading_failure;
+    }
+
+    // TODO: return the entry-point eg. __start
+
+    return (0);
+
+loading_failure:
+
+    dbg("loading faulure with error = %d\n", error);
+
+    __panic_abort();
+
+    return error;
+}
 
 // all user supplied handles are piped trough this function which allows for checking if the handle is valid.
 struct wasm_module_rt *
@@ -361,7 +460,7 @@ _rtld_find_dso_handle(void *handle)
 {
     struct wasm_module_rt *obj;
 
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         if (obj == (struct wasm_module_rt *)handle) {
             return obj;
         }
@@ -380,7 +479,7 @@ _rtld_find_dso_handle_by_name(const char *name, const char *vers)
     namesz = strnlen(name, NAME_MAX);
     verssz = vers != NULL ? strnlen(vers, NAME_MAX) : 0;
 
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         if (obj->dso_namesz == namesz && strncmp(obj->dso_name, name, namesz) == 0 && (verssz == 0 || strncmp(obj->dso_vers, vers, verssz) == 0)) {
             return obj;
         }
@@ -401,7 +500,7 @@ _rtld_find_dso_path(const char *filepath, const char *pathbuf, uint32_t *pathsz)
 
     // check pwd (current working directory)
 
-    fd = __rtld_state.__sys_open(".", FREAD | O_DIRECTORY, 0);
+    fd = __sys_open(".", FREAD | O_DIRECTORY, 0);
     if (fd == -1) {
         error = errno;
         return error;
@@ -522,11 +621,11 @@ __dlopen(struct wasm_module_rt *dso_self, const char *filepath, int flags)
     struct stat sbuf;
     int error;
 
-    if (__rtld_state.rtld.ld_state == RTLD_STATE_UNINIT) {
+    if (__rtld_state.ld_state == RTLD_STATE_UNINIT) {
         __rtld_init();
     }
 
-    oldtail = __rtld_state.rtld.objtail;
+    oldtail = __rtld_state.objtail;
 
     if (oldtail->next != NULL) {
         dbg("%s old tail is not null %p", __func__, oldtail->next);
@@ -534,10 +633,10 @@ __dlopen(struct wasm_module_rt *dso_self, const char *filepath, int flags)
 
     // return handle for the main program
     if (filepath == NULL) {
-        dso = __rtld_state.rtld.objmain;
+        dso = __rtld_state.objmain;
         dso->ld_refcount++;
     } else {
-        dso = _rtld_load_library(dso_self, filepath, __rtld_state.rtld.objmain, flags);
+        dso = _rtld_load_library(dso_self, filepath, __rtld_state.objmain, flags);
         dbg("%s got %p from _rtld_load_library()", __func__, dso);
     }
 
@@ -646,10 +745,10 @@ __dlsym(struct wasm_module_rt *dso_self, void * __restrict handle, const char * 
     } else if (handle == RTLD_SELF) {
         obj = _rtld_find_dso_handle(dso_self);
     } else if (handle == RTLD_DEFAULT) {
-        obj = __rtld_state.rtld.objlist;
+        obj = __rtld_state.objlist;
     }
 
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         
     }
 
@@ -773,8 +872,8 @@ const char *
 __dlerror(struct wasm_module_rt *dso_self)
 {
     const char *msg;
-    msg = __rtld_state.rtld.error_message;
-    __rtld_state.rtld.error_message = NULL;
+    msg = __rtld_state.error_message;
+    __rtld_state.error_message = NULL;
     return msg;
 }
 
@@ -792,7 +891,7 @@ _rtld_error(const char *fmt, ...)
 	va_start(ap, fmt);
 	vsnprintf(buf, sizeof buf, fmt, ap);
 	dbg("%s: %s", __func__, buf);
-	__rtld_state.rtld.error_message = buf;
+	__rtld_state.error_message = buf;
 	va_end(ap);
 }
 
@@ -829,7 +928,7 @@ call_pre_init_array(void)
     uint32_t *fp;
     void (*pre_ctor)(void);
 
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         if ((obj->flags & RTLD_PRE_INIT_ARR_DONE) != 0) {
             continue;
         }
@@ -856,7 +955,7 @@ call_init_array(void)
     uint32_t *fp;
     void (*ctor)(void);
 
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         if ((obj->flags & RTLD_INIT_ARR_DONE) != 0) {
             continue;
         }
@@ -1036,10 +1135,10 @@ _rtld_append_path(struct _rtld_search_path **head_p, struct _rtld_search_path **
 	if (_rtld_find_path(*head_p, bp, ep - bp) != NULL)
 		return path_p;
 
-    npath = __rtld_state.libc_malloc(len + 1);
+    npath = __crt_malloc(len + 1);
     strlcpy(npath, epath, len + 1);
 
-	path = __rtld_state.libc_malloc(sizeof(struct _rtld_search_path));
+	path = __crt_malloc(sizeof(struct _rtld_search_path));
 	path->sp_pathlen = len;
 	path->sp_path = npath;
 	path->sp_next = (*path_p);
@@ -1121,7 +1220,7 @@ _rtld_load_library(struct wasm_module_rt *dso_self, const char *name, struct was
     int namelen;
 
     if (strchr(name, '/') != NULL) {
-        if (name[0] != '/' && __rtld_state.rtld.ld_trust == false) {
+        if (name[0] != '/' && __rtld_state.ld_trust == false) {
             _rtld_error("absolute pathname required for shared object \"%s\"", name);
             return NULL;
         }
@@ -1140,7 +1239,7 @@ _rtld_load_library(struct wasm_module_rt *dso_self, const char *name, struct was
 
     namelen = strlen(name);
 
-    for (sp = __rtld_state.rtld.ld_paths; sp != NULL; sp = sp->sp_next) {
+    for (sp = __rtld_state.ld_paths; sp != NULL; sp = sp->sp_next) {
         if ((dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags)) != NULL)
             goto pathfound;
     }
@@ -1159,7 +1258,7 @@ _rtld_load_library(struct wasm_module_rt *dso_self, const char *name, struct was
         }
     }
 
-    for (sp = __rtld_state.rtld.ld_default_paths; sp != NULL; sp = sp->sp_next) {
+    for (sp = __rtld_state.ld_default_paths; sp != NULL; sp = sp->sp_next) {
         if ((dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags)) != NULL)
             goto pathfound;
     }
@@ -1947,7 +2046,7 @@ rtld_do_extern_reloc_on_module(struct wasm_module_rt *obj, char *relocbuf, uint3
         // IF not found check from objhead for GLOBAL
         if (sym == NULL) {
             bool is_in_needed;
-            for (objglob = __rtld_state.rtld.objlist; objglob != NULL; objglob = objglob->next) {
+            for (objglob = __rtld_state.objlist; objglob != NULL; objglob = objglob->next) {
 
                 if (objglob == obj || objglob->dlsym_start == NULL) {
                     continue;
@@ -2219,7 +2318,7 @@ rtld_setup_memory_descriptors(struct wasm_module_rt *obj,  char *relocbuf, uint3
                 shared = true;
             }
 
-            objmain = __rtld_state.rtld.objmain;
+            objmain = __rtld_state.objmain;
             
             if (objmain != NULL && objmain->memdesc != NULL) {
                 memdesc = objmain->memdesc;
@@ -2322,13 +2421,13 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
         end = (ptr + subsz);
     } else {
         // if the binary has a large heading alloc a temporary chunk.
-        tmpbuf = __rtld_state.libc_malloc(namesz + 1);
+        tmpbuf = __crt_malloc(namesz + 1);
         if (tmpbuf == NULL) {
             return ENOMEM;
         }
         file_offset = file_offset + (ptr - ptr_start);
-        error = __rtld_state.__sys_lseek(fd, file_offset, SEEK_SET);
-        error = __rtld_state.__sys_read(fd, tmpbuf, secsz);
+        error = __sys_lseek(fd, file_offset, SEEK_SET);
+        error = __sys_read(fd, tmpbuf, secsz);
         ptr = (uint8_t *)tmpbuf;
         end = ptr + subsz;
         ptr_start = ptr;
@@ -2345,7 +2444,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
         goto error_out;
     }
     if (namesz != 0) {
-        namep = __rtld_state.libc_malloc(namesz + 1);
+        namep = __crt_malloc(namesz + 1);
         if (namep == NULL) {
             error = ENOMEM;
             goto error_out;
@@ -2366,7 +2465,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
         goto error_out;
     }
     if (verssz != 0) {
-        versp = __rtld_state.libc_malloc(verssz + 1);
+        versp = __crt_malloc(verssz + 1);
         if (versp == NULL) {
             error = ENOMEM;
             goto error_out;
@@ -2438,7 +2537,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
             verssz = 0;
         }
 
-        needed = __rtld_state.libc_malloc(memsz);
+        needed = __crt_malloc(memsz);
         if (needed == NULL) {
             error = ENOMEM;
             goto error_out;
@@ -2476,7 +2575,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
 
     if (cnt > 0) {
 
-        elem_segments = __rtld_state.libc_malloc(sizeof(struct rtld_segment) * cnt);
+        elem_segments = __crt_malloc(sizeof(struct rtld_segment) * cnt);
         if (elem_segments == NULL) {
             error = ENOMEM;
             goto error_out;
@@ -2504,7 +2603,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
                 error = ENAMETOOLONG;
                 goto error_out;
             } else if (namesz != 0) {
-                namep = __rtld_state.libc_malloc(namesz + 1);   // TODO: what if we fail here?
+                namep = __crt_malloc(namesz + 1);   // TODO: what if we fail here?
                 if (namep != NULL)
                     strlcpy(namep, (const char *)ptr, namesz + 1);
                 ptr += namesz;
@@ -2538,7 +2637,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
 
     if (cnt > 0) {
 
-        data_segments = __rtld_state.libc_malloc(sizeof(struct rtld_segment) * cnt);
+        data_segments = __crt_malloc(sizeof(struct rtld_segment) * cnt);
         if (data_segments == NULL) {
             error = ENOMEM;
             goto error_out;
@@ -2598,7 +2697,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
                 if (namep != NULL) {
                     flags |= _RTLD_SEGMENT_COMMON_NAME;
                 } else {
-                    namep = __rtld_state.libc_malloc(namesz + 1);
+                    namep = __crt_malloc(namesz + 1);
                     if (namep)
                         strlcpy(namep, (const char *)ptr, namesz + 1);
                 }
@@ -2620,7 +2719,7 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
 
     if (ptr >= end) {
         if (tmpbuf)
-            __rtld_state.libc_free(tmpbuf);
+            __crt_free(tmpbuf);
         return (0);
     }
 
@@ -2634,14 +2733,14 @@ _rtld_read_dylink0_early(struct wasm_module_rt *obj, struct wash_exechdr_rt *exe
     // ... repeat of field count ....
 
     if (tmpbuf)
-        __rtld_state.libc_free(tmpbuf);
+        __crt_free(tmpbuf);
 
     return (0);
 
 error_out:
 
     if (tmpbuf)
-        __rtld_state.libc_free(tmpbuf);
+        __crt_free(tmpbuf);
     
     // elem_segments, data_segments if allocated are freed using _rtld_obj_free()
 
@@ -2675,8 +2774,8 @@ _rtld_read_data_segments_info(struct wasm_module_rt *obj, struct wash_exechdr_rt
     errstr = NULL;
 
     file_offset = section->file_offset;
-    ret = __rtld_state.__sys_lseek(fd, file_offset, SEEK_SET);
-    ret = __rtld_state.__sys_read(fd, buf, bufsz);
+    ret = __sys_lseek(fd, file_offset, SEEK_SET);
+    ret = __sys_read(fd, buf, bufsz);
 
     if (*(ptr) != WASM_SECTION_DATA) {
         dbg("%s not a data section at offset %d", __func__, file_offset);
@@ -2695,7 +2794,7 @@ _rtld_read_data_segments_info(struct wasm_module_rt *obj, struct wash_exechdr_rt
     count = decodeULEB128(ptr, &lebsz, end, &errstr);
     ptr += lebsz;
 
-    data_segments = __rtld_state.libc_malloc(sizeof(struct rtld_segment) * count);
+    data_segments = __crt_malloc(sizeof(struct rtld_segment) * count);
     if (data_segments == NULL)
         return ENOMEM;
 
@@ -2723,8 +2822,8 @@ _rtld_read_data_segments_info(struct wasm_module_rt *obj, struct wash_exechdr_rt
         // if there is not atleast 20 bytes to read read at the start of the next segment.
         if (ptr > (end - 20) && i != count - 1) {
             file_offset = file_offset + (ptr - ptr_start);
-            ret = __rtld_state.__sys_lseek(fd, file_offset, SEEK_SET);
-            ret = __rtld_state.__sys_read(fd, buf, bufsz);
+            ret = __sys_lseek(fd, file_offset, SEEK_SET);
+            ret = __sys_read(fd, buf, bufsz);
             ptr = ptr_start;
         }
     }
@@ -2743,7 +2842,7 @@ _rtld_read_data_segments_info(struct wasm_module_rt *obj, struct wash_exechdr_rt
 error_out:
 
     if (data_segments)
-        __rtld_state.libc_free(data_segments);
+        __crt_free(data_segments);
 
     return (error);
 }
@@ -2757,29 +2856,29 @@ _rtld_obj_free(struct wasm_module_rt*obj)
     }
 
     if (obj->fd != -1) {
-        __rtld_state.__sys_close(obj->fd);
+        __sys_close(obj->fd);
         obj->fd = -1;
     }
 
     if (obj->data_segments != NULL)
-        __rtld_state.libc_free((void *)obj->data_segments);
+        __crt_free((void *)obj->data_segments);
 
     if (obj->elem_segments != NULL)
-        __rtld_state.libc_free((void *)obj->elem_segments);
+        __crt_free((void *)obj->elem_segments);
 
     if (obj->filepath != NULL)
-        __rtld_state.libc_free((void *)obj->filepath);
+        __crt_free((void *)obj->filepath);
 
     if (obj->dso_name != NULL)
-        __rtld_state.libc_free((void *)obj->dso_name);
+        __crt_free((void *)obj->dso_name);
 
     if (obj->dso_vers != NULL)
-        __rtld_state.libc_free((void *)obj->dso_vers);
+        __crt_free((void *)obj->dso_vers);
 
     if (obj->exechdr != NULL)
-        __rtld_state.libc_free((void *)obj->exechdr);
+        __crt_free((void *)obj->exechdr);
 
-    __rtld_state.libc_free(obj);
+    __crt_free(obj);
 }
 
 // early mapping (getting essential information in rtld.dylink.0 section)
@@ -2798,15 +2897,15 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
 
 
     bufsz = 4096;
-    buf = __rtld_state.libc_malloc(bufsz);
+    buf = __crt_malloc(bufsz);
     if (obj == NULL) {
         dbg("%s ENOMEN for file-buf", __func__);
         return NULL;
     }
 
-    obj = __rtld_state.libc_malloc(sizeof(struct wasm_module_rt));
+    obj = __crt_malloc(sizeof(struct wasm_module_rt));
     if (obj == NULL) {
-        __rtld_state.libc_free(buf);
+        __crt_free(buf);
         dbg("%s ENOMEN for wasm_module_rt", __func__);
         return NULL;
     }
@@ -2821,7 +2920,7 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
     ptr = (uint8_t *)buf;
 
     // read magic + version and rtld.exec-hdr
-    ret = __rtld_state.__sys_read(fd, buf, bufsz);
+    ret = __sys_read(fd, buf, bufsz);
     if (ret == -1) {
 
     }
@@ -2850,7 +2949,7 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
         goto error_out;
     }
 
-    exehdr = __rtld_state.libc_malloc(hdrsz);
+    exehdr = __crt_malloc(hdrsz);
     if (exehdr == NULL) {
         dbg("%s ENOMEN for exehdr", __func__);
         goto error_out;
@@ -2882,8 +2981,8 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
     dylink0_off = dylink0->file_offset;
 
     // read rtld.dylink.0
-    ret = __rtld_state.__sys_lseek(fd, dylink0_off, SEEK_SET);
-    ret = __rtld_state.__sys_read(fd, buf, bufsz);
+    ret = __sys_lseek(fd, dylink0_off, SEEK_SET);
+    ret = __sys_read(fd, buf, bufsz);
     // read in data-segments outline from dylink.0 section (to later pre-estimate memory malloc size)
     // check modules which is needed first, use name + vers to match against already loaded modules.
     // malloc memory for all data-segments of all modules that is to be linked
@@ -2900,11 +2999,11 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
         int strsz, error;
 
         wasm_memory_fill(buf , 0, PATH_MAX + 1);
-        error = __rtld_state.__sys_fcntl(fd, F_GETPATH, (long)buf);
+        error = __sys_fcntl(fd, F_GETPATH, (long)buf);
         strsz = strnlen((const char *)buf, PATH_MAX);
 
         if (error != -1 && strsz > 0) {
-            str = __rtld_state.libc_malloc(strsz + 1);
+            str = __crt_malloc(strsz + 1);
             if (str != NULL) {
                 wasm_memory_copy(str, buf, strsz);
                 str[strsz] = '\x00';
@@ -2923,7 +3022,7 @@ _rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags)
 
 error_out:
     if (buf != NULL)
-        __rtld_state.libc_free(buf);
+        __crt_free(buf);
 
     if (obj != NULL)
         _rtld_obj_free(obj);
@@ -3086,8 +3185,8 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
     size = dylink0->sec_size;
     dylink0_map.addr = (uintptr_t)dylink0_p;
     dylink0_map.sec = dylink0;
-    ret = __rtld_state.__sys_lseek(fd, dylink0->file_offset, SEEK_SET);
-    ret = __rtld_state.__sys_read(fd, dylink0_p, size);
+    ret = __sys_lseek(fd, dylink0->file_offset, SEEK_SET);
+    ret = __sys_read(fd, dylink0_p, size);
     if (ret == -1) {
         dbg("%s Error on read() errno = %d", __func__, errno);
     }
@@ -3098,8 +3197,8 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
         importsec_map->addr = (uintptr_t)impsec_p;
         sec = importsec_map->sec;
         size = sec->sec_size;
-        ret = __rtld_state.__sys_lseek(fd, sec->file_offset, SEEK_SET);
-        ret = __rtld_state.__sys_read(fd, impsec_p, size);
+        ret = __sys_lseek(fd, sec->file_offset, SEEK_SET);
+        ret = __sys_read(fd, impsec_p, size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3111,8 +3210,8 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
         memorysec_map->addr = (uintptr_t)memsec_p;
         sec = memorysec_map->sec;
         size = sec->sec_size;
-        ret = __rtld_state.__sys_lseek(fd, sec->file_offset, SEEK_SET);
-        ret = __rtld_state.__sys_read(fd, memsec_p, size);
+        ret = __sys_lseek(fd, sec->file_offset, SEEK_SET);
+        ret = __sys_read(fd, memsec_p, size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3124,8 +3223,8 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
         codesec_map->addr = (uintptr_t)codesec_p;
         sec = codesec_map->sec;
         size = sec->sec_size;
-        ret = __rtld_state.__sys_lseek(fd, sec->file_offset, SEEK_SET);
-        ret = __rtld_state.__sys_read(fd, codesec_p, size);
+        ret = __sys_lseek(fd, sec->file_offset, SEEK_SET);
+        ret = __sys_read(fd, codesec_p, size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3136,7 +3235,7 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
         exec_cmd.dump.filename = "code-section.txt";
         exec_cmd.dump.offset = (uint32_t)codesec_p;
         exec_cmd.dump.size = size;
-        rtld_exec_ioctl(EXEC_IOCTL_COREDUMP, &exec_cmd);
+        _rtld_exec_ioctl(EXEC_IOCTL_COREDUMP, &exec_cmd);
 #endif
         relocbuf += size;
     }
@@ -3163,7 +3262,7 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
     
     exec_cmd.mkbuf.objdesc = -1;
     exec_cmd.mkbuf.size = execbuf_offset;
-    error = rtld_exec_ioctl(EXEC_IOCTL_MKBUF, &exec_cmd);
+    error = _rtld_exec_ioctl(EXEC_IOCTL_MKBUF, &exec_cmd);
     if (error != 0) {
         goto error_out;
     }
@@ -3179,7 +3278,7 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
             exec_cmd.wrbuf.size = c_map->sec->sec_size;
             exec_cmd.wrbuf.src = (void *)c_map->addr;
             dbg("%s write buf start %d end %d (from mem) wasm-type = %d org-file-offset = %d\n", __func__, c_map->dst_offset, c_map->dst_offset + c_map->sec->sec_size, c_map->sec->wasm_type, c_map->sec->file_offset);
-            error = rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
+            error = _rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
             if (error != 0) {
                 goto error_out;
             }
@@ -3194,7 +3293,7 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
     exec_cmd.wrbuf.offset = 0;
     exec_cmd.wrbuf.size = 8;
     exec_cmd.wrbuf.src = &tmpmagic;
-    error = rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
+    error = _rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
     if (error != 0) {
         goto error_out;
     }
@@ -3232,8 +3331,8 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
 
             if (read_now) {
 
-                ret = __rtld_state.__sys_lseek(fd, file_start, SEEK_SET);
-                ret = __rtld_state.__sys_read(fd, relocbuf, read_size);
+                ret = __sys_lseek(fd, file_start, SEEK_SET);
+                ret = __sys_read(fd, relocbuf, read_size);
                 if (ret == -1) {
                     dbg("%s Error on read() errno = %d", __func__, errno);
                 }
@@ -3242,7 +3341,7 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
                 exec_cmd.wrbuf.offset = dst_start;
                 exec_cmd.wrbuf.size = read_size;
                 exec_cmd.wrbuf.src = (void *)relocbuf;
-                error = rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
+                error = _rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
                 if (error != 0) {
                     goto error_out;
                 }
@@ -3260,19 +3359,19 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
     exec_cmd.run.__dso_handle = (uintptr_t)obj;
     exec_cmd.run.errmsg = tmperror;
     exec_cmd.run.errmsgsz = sizeof(tmperror);
-    error = rtld_exec_ioctl(EXEC_IOCTL_COMPILE, &exec_cmd);
+    error = _rtld_exec_ioctl(EXEC_IOCTL_COMPILE, &exec_cmd);
     if (error != 0) {
         goto error_out;
     }
 
-    __rtld_state.__sys_close(fd);
+    __sys_close(fd);
     obj->fd = -1;
 
     return (0);
 
 error_out:
 
-    __rtld_state.__sys_close(fd);
+    __sys_close(fd);
     obj->fd = -1;
 
     return error;
@@ -3310,30 +3409,30 @@ error_out:
         map = NULL;
         if (sec->wasm_type == WASM_SECTION_CUSTOM) {
             if (sec->namesz == 4 &&  strncmp(sec->name, "name", 4) == 0) {
-                map = __rtld_state.libc_malloc(sizeof(struct section_copy_map));
+                map = __crt_malloc(sizeof(struct section_copy_map));
                 wasm_memory_fill(map, 0, sizeof(struct section_copy_map));
                 mapcnt++;
             }
         } else if (sec->wasm_type == WASM_SECTION_CODE) {
-            map = __rtld_state.libc_malloc(sizeof(struct section_copy_map));
+            map = __crt_malloc(sizeof(struct section_copy_map));
             wasm_memory_fill(map, 0, sizeof(struct section_copy_map));
             codemap = map;
             mapcnt++;
 
         } else if (sec->wasm_type == WASM_SECTION_IMPORT) {
-            map = __rtld_state.libc_malloc(sizeof(struct section_copy_map));
+            map = __crt_malloc(sizeof(struct section_copy_map));
             wasm_memory_fill(map, 0, sizeof(struct section_copy_map));
             importmap = map;
             mapcnt++;
 
         } else if (sec->wasm_type == WASM_SECTION_MEMORY) {
-            map = __rtld_state.libc_malloc(sizeof(struct section_copy_map));
+            map = __crt_malloc(sizeof(struct section_copy_map));
             wasm_memory_fill(map, 0, sizeof(struct section_copy_map));
             memorymap = map;
             mapcnt++;
         
         } else if (sec->wasm_type != WASM_SECTION_DATA && sec->wasm_type != WASM_SECTION_DATA_COUNT) {
-            map = __rtld_state.libc_malloc(sizeof(struct section_copy_map));
+            map = __crt_malloc(sizeof(struct section_copy_map));
             wasm_memory_fill(map, 0, sizeof(struct section_copy_map));
             mapcnt++;
         }
@@ -3355,7 +3454,7 @@ error_out:
         sec++;
     }
 
-    fd = __rtld_state.__sys_open(obj->filepath, O_RDONLY | O_REGULAR, 0);
+    fd = __sys_open(obj->filepath, O_RDONLY | O_REGULAR, 0);
     if (fd == -1) {
         error = errno;
         dbg("%s Error on open() errno = %d", __func__, errno);
@@ -3390,7 +3489,7 @@ error_out:
     dbg("%s needed table space = %d", __func__, tbl_off);
     dbg("%s needed memory space = %d", __func__, mem_off);
 
-    membase = __rtld_state.libc_malloc(mem_size);
+    membase = __crt_malloc(mem_size);
     obj->membase = (uintptr_t)membase;
     obj->memsize = mem_size;
 
@@ -3407,7 +3506,7 @@ error_out:
     for (int i = 0; i < count; i++) {
         if (membase != NULL && data->align != 0)
             membase = (void *)alignUp((uintptr_t)membase, data->align, NULL);
-        ret = __rtld_state.__sys_read(fd, membase, data->size);
+        ret = __sys_read(fd, membase, data->size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3423,7 +3522,7 @@ error_out:
     }
     
     dylink0_p = relocbuf;
-    ret = __rtld_state.__sys_read(fd, dylink0_p, dylink0->sec_size);
+    ret = __sys_read(fd, dylink0_p, dylink0->sec_size);
     if (ret == -1) {
         dbg("%s Error on read() errno = %d", __func__, errno);
     }
@@ -3432,7 +3531,7 @@ error_out:
         relocbuf += dylink0->sec_size;
         import_p = relocbuf;
         importmap->addr = (uintptr_t)import_p;
-        ret = __rtld_state.__sys_read(fd, import_p, importmap->sec->sec_size);
+        ret = __sys_read(fd, import_p, importmap->sec->sec_size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3442,7 +3541,7 @@ error_out:
     if (memorymap != NULL) {        
         memory_p = relocbuf;
         memorymap->addr = (uintptr_t)memory_p;
-        ret = __rtld_state.__sys_read(fd, memory_p, memorymap->sec->sec_size);
+        ret = __sys_read(fd, memory_p, memorymap->sec->sec_size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3452,7 +3551,7 @@ error_out:
     if (codemap != NULL) {
         code_p = relocbuf;
         codemap->addr = (uintptr_t)code_p;
-        ret = __rtld_state.__sys_read(fd, code_p, codemap->sec->sec_size);
+        ret = __sys_read(fd, code_p, codemap->sec->sec_size);
         if (ret == -1) {
             dbg("%s Error on read() errno = %d", __func__, errno);
         }
@@ -3464,22 +3563,22 @@ error_out:
 
     // external reloc
 
-    __rtld_state.__sys_close(fd);
+    __sys_close(fd);
 
     for (map = head; map != NULL; map = map->next) {
-        __rtld_state.libc_free(map);
+        __crt_free(map);
     }
 
     return (0);
 
 error_out: 
 
-    __rtld_state.__sys_close(fd);
+    __sys_close(fd);
 
-    __rtld_state.libc_free(membase);
+    __crt_free(membase);
 
     for (map = head; map != NULL; map = map->next) {
-        __rtld_state.libc_free(map);
+        __crt_free(map);
     }
 
     return error;
@@ -3552,7 +3651,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
     // TODO: It might be better to allocate relocbuf mem after data memory, since then it directly below the brk() which
     //       would allow a greater segment to be allocated elsewhere.
 
-    execbufmap = __rtld_state.libc_malloc(max_sec_count * sizeof(struct execbuf_mapping));
+    execbufmap = __crt_malloc(max_sec_count * sizeof(struct execbuf_mapping));
     if (execbufmap == NULL) {
         error = ENOMEM;
         dbg("%s ENOMEM for execbuf mapping", __func__);
@@ -3574,7 +3673,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
             data++;
         }
 
-        membase = __rtld_state.libc_malloc(mem_size);
+        membase = __crt_malloc(mem_size);
         if (membase == NULL) {
             error = ENOMEM;
             dbg("%s ENOMEM for initial memory of size %d for object = %s", __func__, mem_size, obj->dso_name);
@@ -3598,7 +3697,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
         }
     }
 
-    relocbuf = __rtld_state.libc_malloc(max_reloc_size);
+    relocbuf = __crt_malloc(max_reloc_size);
     if (relocbuf == NULL) {
         error = ENOMEM;
         dbg("%s ENOMEM for max_reloc_size = %d", __func__, max_reloc_size);
@@ -3620,8 +3719,8 @@ _rtld_map_objects(struct wasm_module_rt *first)
                 continue;
             }
 
-            ret = __rtld_state.__sys_lseek(fd, data->src_offset, SEEK_SET);
-            ret = __rtld_state.__sys_read(fd, (void *)data->addr, data->size);
+            ret = __sys_lseek(fd, data->src_offset, SEEK_SET);
+            ret = __sys_read(fd, (void *)data->addr, data->size);
             if (ret == -1) {
                 error = errno;
                 dbg("%s Error on read() errno = %d", __func__, error);
@@ -3685,8 +3784,8 @@ _rtld_map_objects(struct wasm_module_rt *first)
         }
 
         
-        ret = __rtld_state.__sys_lseek(fd, sec->file_offset, SEEK_SET);
-        ret = __rtld_state.__sys_read(fd, relocbuf, sec->sec_size);
+        ret = __sys_lseek(fd, sec->file_offset, SEEK_SET);
+        ret = __sys_read(fd, relocbuf, sec->sec_size);
         if (ret == -1) {
             error = errno;
             dbg("%s Error on read() errno = %d", __func__, error);
@@ -3719,11 +3818,11 @@ error_out:
     for (obj = first; obj != NULL; obj = obj->next) {
         membase = (char *)obj->membase;
         if (membase != NULL)
-            __rtld_state.libc_free(membase);
+            __crt_free(membase);
     }
 
     if (relocbuf != NULL)
-        __rtld_state.libc_free(relocbuf);
+        __crt_free(relocbuf);
 
     dbg("%s error_out with error %d", __func__, error);
 
@@ -3826,7 +3925,7 @@ _rtld_load_object(const char *filepath, int flags)
     pathlen = strlen(filepath);
 
     // it might be possible to match by just the filepath, but its a longshot.
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         if (obj->filepath != NULL && obj->dso_pathlen && pathlen == obj->dso_pathlen && strncmp(obj->filepath, filepath, pathlen) == 0) {
             dbg("%s found %p for %s by fullpath match", __func__, obj, filepath);
             break;
@@ -3838,7 +3937,7 @@ _rtld_load_object(const char *filepath, int flags)
     // due to double slashes, symbolic links, and mount points etc. to avoid implementing namei subrutine
     // we open the filepath and compare fsid and fileid of the file-system with the link object.
     if (obj == NULL) {
-        fd = __rtld_state.__sys_open(filepath, O_RDONLY | O_REGULAR, 0);
+        fd = __sys_open(filepath, O_RDONLY | O_REGULAR, 0);
         if (fd == -1) {
             error = errno;
             _rtld_error("Cannot open \"%s\" errno = %d", filepath, error);
@@ -3846,17 +3945,17 @@ _rtld_load_object(const char *filepath, int flags)
         }
 
         wasm_memory_fill(&sbuf, 0, sizeof(sbuf));
-        ret = __rtld_state.__sys_fstat(fd, &sbuf);
+        ret = __sys_fstat(fd, &sbuf);
         if (ret == -1) {
             error = errno; 
             _rtld_error("Cannot fstat \"%s\" errno = %d", filepath, error);
-			__rtld_state.__sys_close(fd);
+			__sys_close(fd);
 			return NULL;
         }
 
-        for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+        for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
             if (obj->ld_ino == sbuf.st_ino && obj->ld_dev == sbuf.st_dev) {
-                __rtld_state.__sys_close(fd);
+                __sys_close(fd);
                 dbg("%s found %p (object->name = %s) for %s by inode num match %llu == %llu", __func__, obj, obj->dso_name, filepath, obj->ld_ino, sbuf.st_ino);
                 break;
             }
@@ -3869,14 +3968,14 @@ _rtld_load_object(const char *filepath, int flags)
     }
 
     obj = _rtld_read_object_info(filepath, fd, &sbuf, flags);
-    //__rtld_state.__sys_close(fd);   // TODO: might be better to keep the file open?
+    //__sys_close(fd);   // TODO: might be better to keep the file open?
     if (obj) {
-        tmp = __rtld_state.rtld.objtail;
+        tmp = __rtld_state.objtail;
         if (tmp != NULL)
             tmp->next = obj;
-        __rtld_state.rtld.objtail = obj;
-        __rtld_state.rtld.objcount++;
-        __rtld_state.rtld.objloads++;
+        __rtld_state.objtail = obj;
+        __rtld_state.objcount++;
+        __rtld_state.objloads++;
     }
 
     return obj;
@@ -3892,7 +3991,7 @@ _rtld_load_dso_library(const char *filepath, struct wasm_module_rt **module)
     uint32_t filesz, bufsz;
     int fd, ret;
 
-    fd = __rtld_state.__sys_open(filepath, FREAD | O_REGULAR, 0);
+    fd = __sys_open(filepath, FREAD | O_REGULAR, 0);
     if (fd == -1) {
         if (errp)
             *errp = errno;
@@ -3900,19 +3999,19 @@ _rtld_load_dso_library(const char *filepath, struct wasm_module_rt **module)
     }
 
     wasm_memory_fill(&st_buf, 0, sizeof(struct stat));
-    ret = __rtld_state.__sys_fstat(fd, &st_buf);
+    ret = __sys_fstat(fd, &st_buf);
     if (ret == -1) {
         if (errp)
             *errp = errno;
         return NULL;   
     }
 
-    module = __rtld_state.libc_malloc(sizeof(struct wasm_module_rt));
+    module = __crt_malloc(sizeof(struct wasm_module_rt));
     wasm_memory_fill(&module, 0, sizeof(struct wasm_module_rt));
 
     filesz = st_buf.st_size;
     bufsz = 4096;
-    buf = __rtld_state.libc_malloc(bufsz);
+    buf = __crt_malloc(bufsz);
     if (buf == NULL) {
         if (errp)
             *errp = ENOMEM;
@@ -3920,11 +4019,11 @@ _rtld_load_dso_library(const char *filepath, struct wasm_module_rt **module)
     }
 
     // read rtld.exec-hdr
-    ret = __rtld_state.__sys_read(fd, buf, bufsz);
+    ret = __sys_read(fd, buf, bufsz);
 
 
     // read rtld.dylink.0
-    ret = __rtld_state.__sys_lseek(fd, dylink0_off, 1);
+    ret = __sys_lseek(fd, dylink0_off, 1);
     // read in data-segments outline from dylink.0 section (to later pre-estimate memory malloc size)
     // check modules which must be loaded first
     // malloc data-segments * [modules now linking]

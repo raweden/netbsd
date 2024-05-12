@@ -1,7 +1,12 @@
 
 #include <sys/stdint.h>
+#ifdef __NetBSD__
 #include <sys/stdbool.h>
 #include <sys/null.h>
+#elif defined(__FreeBSD__)
+#include <sys/_null.h>
+#include <stdbool.h>
+#endif
 
 
 

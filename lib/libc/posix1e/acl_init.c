@@ -49,6 +49,10 @@ __RCSID("$NetBSD: acl_init.c,v 1.1 2020/05/16 18:31:47 christos Exp $");
 
 __CTASSERT(1 << _ACL_T_ALIGNMENT_BITS > sizeof(struct acl_t_struct));
 
+#ifdef __wasm__
+#include <wasm-crt.h>
+#endif
+
 acl_t
 acl_init(int count)
 {
@@ -64,8 +68,13 @@ acl_init(int count)
 		return (NULL);
 	}
 
+#ifdef __wasm__
+	error = 0;
+	acl = __crt_mmap(NULL, sizeof(struct acl_t_struct), 0, 0, 0, 0, &error);
+#else
 	error = posix_memalign((void *)&acl, 1 << _ACL_T_ALIGNMENT_BITS,
 	    sizeof(struct acl_t_struct));
+#endif
 	if (error) {
 		errno = error;
 		return (NULL);
