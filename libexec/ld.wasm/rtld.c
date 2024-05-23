@@ -104,10 +104,20 @@ struct _rtld_search_path _rtld_usr_lib = STATIC_DEFINED_PATH(RTLD_DEFAULT_LIBRAR
 #define RTLD_STATE_UNINIT 0
 #define RTLD_STATE_INIT 1
 
-struct wasm_module_rt __rtld_objself;
+struct wasm_module_rt __rtld_objself = {
+    .fd = -1,
+};
+
+struct rtld_memory_descriptor __rtld_memdesc = {
+    .initial = -1,
+    .maximum = -1,
+};
 
 struct rtld_state_common __rtld_state = {
     .objself = &__rtld_objself,
+    .objlist = &__rtld_objself,
+    .objtail = &__rtld_objself,
+    .main_mem = &__rtld_memdesc,
 };
 
 int errno;
@@ -188,17 +198,6 @@ struct dl_phdr_info {
 #define RTLD_INIT_ARR_DONE 0x020000
 #define RTLD_FNIT_ARR_SETUP_DONE 0x040000
 
-__attribute__((constructor))
-void
-__rtld_init(void) 
-{
-    struct wasm_module_rt *libc_dso;
-
-    __rtld_state.ld_state = RTLD_STATE_INIT;
-
-    // TODO: rtld must declare malloc of it own to use this before linking is fully done in kernel based linking
-    _rtld_add_paths(NULL, &__rtld_state.ld_default_paths, STANDARD_LIBRARY_PATH);
-}
 
 #if 0
 __attribute__((destructor))
@@ -245,6 +244,8 @@ void _rtld_debug_printf(const char *fmt, ...)
 }
 #endif
 
+struct wasm_module_rt*_rtld_read_object_info(const char *filepath, int fd, struct stat *st, int flags);
+
 // main entry point
 
 static const char bind_var[] = "LD_BIND_NOW=";
@@ -255,8 +256,28 @@ static const char preload_var[] = "LD_PRELOAD=";
 struct wasm_module_rt *
 _rtld_load_object_expl(const char *objpath, int fd, const struct stat *sb)
 {
+    struct wasm_module_rt *obj, *tmp;
+    struct stat sbuf;
+    int error = 0;
+    int flags = 0;
 
-    return NULL;
+    if (sb == NULL) {
+        error = __sys_fstat(fd, &sbuf);
+        sb = &sbuf;
+    }
+
+    obj = _rtld_read_object_info(objpath, fd, sb, flags);
+    //__sys_close(fd);   // TODO: might be better to keep the file open?
+    if (obj) {
+        tmp = __rtld_state.objtail;
+        if (tmp != NULL)
+            tmp->next = obj;
+        __rtld_state.objtail = obj;
+        __rtld_state.objcount++;
+        __rtld_state.objloads++;
+    }
+
+    return obj;
 }
 
 int
@@ -322,35 +343,63 @@ loading_failure:
     return error;
 }
 
+struct ps_strings {
+	char	**ps_argvstr;	/* first of 0 or more argument strings */
+	int	ps_nargvstr;	/* the number of argument strings */
+	char	**ps_envstr;	/* first of 0 or more environment strings */
+	int	ps_nenvstr;	/* the number of environment strings */
+};
+
+struct ps_strings ps_str;
+
 int
 _rtld_main(uintptr_t uesp, uintptr_t rlocbase)
 {
-    struct wasm_module_rt *objmain;
+    struct wasm_module_rt *objmain, *obj;
     struct ldwasm_aux *auxinfo, *auxp; 
     uint32_t *sp;
     char **env, **oenvp;
     char **argv;
     char *ld_bind_now, *ld_preload, *ld_library_path, *ld_debug;
     long argc;
+    long envc;
     int error, execfd;
 #ifdef DEBUG_RTLD
     int i;
 #endif
+
+    __rtld_state.ld_state = RTLD_STATE_INIT;
+
+    __crt_mmap_init(); // must be called before any malloc
+
+    // TODO: rtld must declare malloc of it own to use this before linking is fully done in kernel based linking
+    _rtld_add_paths(NULL, &__rtld_state.ld_default_paths, STANDARD_LIBRARY_PATH);
 
     sp = (uint32_t *)uesp;
     sp += 2;    // skip return argument, eg. exit() return space
     argv = (char **)&sp[1];
     argc = *(long *)sp;
     sp += 2 + argc;
+
+    ps_str.ps_argvstr = argv;
+    ps_str.ps_nargvstr = argc;
     
+    envc = 0;
     env = (char **)sp;
+    ps_str.ps_envstr = env;
     while (*sp++ != 0) {
 #ifdef DEBUG_RTLD
         dbg("env[%d] = %p %s\n", i++, (void *)sp[-1], (char *)sp[-1]);
 #endif
+        envc++;
     }
 
+    ps_str.ps_nenvstr = envc;
+
     auxinfo = (struct ldwasm_aux *)sp;
+    execfd = -1;
+
+    dbg("%s auxinfo = %p\n", __func__, auxinfo);
 
     for (auxp = auxinfo; auxp->a_type != LDWASM_AT_NULL; auxp++) {
         switch (auxp->a_type) {
@@ -360,7 +409,6 @@ _rtld_main(uintptr_t uesp, uintptr_t rlocbase)
         }
     }
 
-    execfd = -1;
     // handle aux vector
     // elf transports the fd trough aux (which is a better option than arg0)
 
@@ -403,7 +451,6 @@ _rtld_main(uintptr_t uesp, uintptr_t rlocbase)
         _rtld_add_paths(NULL, &__rtld_state.ld_paths, ld_library_path);
     }
 
-
     // load main program
     if (execfd != -1) {
         const char *obj_path = argv[0] ? argv[0] : "main program";
@@ -417,20 +464,27 @@ _rtld_main(uintptr_t uesp, uintptr_t rlocbase)
         }
 
     } else {
-        dbg("no execfd found for main object\n");
-        error = ENOEXEC;
-        goto loading_failure;
+        execfd = __sys_open(argv[0], 0, 0);
+        if (execfd == -1) {
+            error = ENOENT;
+            goto loading_failure;
+        }
+        objmain = _rtld_load_object_expl(argv[0], execfd, NULL);
+        if (objmain == NULL) {
+            dbg("no execfd found for main object\n");
+            __sys_close(execfd);
+            error = ENOEXEC;
+            goto loading_failure;
+        } else {
+            __rtld_state.objmain = objmain;
+        }
     }
-
-    __rtld_state.objtail->next = objmain;
-    __rtld_state.objtail = objmain;
-    __rtld_state.objcount++;
-    __rtld_state.objloads++;
 
     if (ld_preload) {
         dbg("preloading objects\n");
         error = _rtld_preload(ld_preload);
         if (error != 0) {
+            dbg("failed in _rtld_preload()\n");
             goto loading_failure;
         }
     }
@@ -438,10 +492,38 @@ _rtld_main(uintptr_t uesp, uintptr_t rlocbase)
     dbg("loading needed objects");
     error = _rtld_load_needed_objects(objmain, 0);
     if (error != 0) {
+        dbg("failed in _rtld_load_needed_objects()\n");
         goto loading_failure;
     }
 
+    //_rtld_call_init_functions(objmain);
+
     // TODO: return the entry-point eg. __start
+    uintptr_t args[4];
+    uintptr_t start_fn;
+    struct dlsym_rt *main_fn;
+
+    main_fn = __dlsym_internal(objmain->dlsym_start, objmain->dlsym_end, 4, "main", 1);
+    if (main_fn == NULL) {
+        main_fn = __dlsym_internal(objmain->dlsym_start, objmain->dlsym_end, 4, "__main_argc_argv", 1);
+    }
+    start_fn = 0;
+
+    for (obj = objmain; obj != NULL; obj = obj->next) {
+        struct wash_exechdr_rt *hdr = obj->exechdr;
+        if (hdr->exec_start_funcidx != -1) {
+            start_fn = obj->elem_segments[hdr->exec_start_elemidx].addr + hdr->exec_start_funcidx;
+            break;
+        }
+    }
+
+    dbg("%s start_fn = %lu main_fn = %lu \n", __func__, start_fn, main_fn != NULL ? main_fn->addr : 0);
+
+    args[0] = start_fn;
+    args[1] = main_fn != NULL ? main_fn->addr : 0;
+    args[2] = 0;                    // cleanup_fn
+    args[3] = (uintptr_t)&ps_str;   // psarg
+    _rtld_exec_ioctl(EXEC_IOCTL_SET_START, &args);
 
     return (0);
 
@@ -621,10 +703,6 @@ __dlopen(struct wasm_module_rt *dso_self, const char *filepath, int flags)
     struct stat sbuf;
     int error;
 
-    if (__rtld_state.ld_state == RTLD_STATE_UNINIT) {
-        __rtld_init();
-    }
-
     oldtail = __rtld_state.objtail;
 
     if (oldtail->next != NULL) {
@@ -786,13 +864,11 @@ __dladdr(struct wasm_module_rt *dso_self, const void * __restrict addr, Dl_info 
 
     ptr = (uintptr_t)addr;
 
-    for (obj = __rtld_state.rtld.objlist; obj != NULL; obj = obj->next) {
+    for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
         count = obj->data_segments_count;
         segments = obj->data_segments;
-        dbg("%s checking for %p in '%s'", __func__, addr, obj->filepath);
         for (int i = 0; i < count; i++) {
             segment = &segments[i];
-            dbg("%s start = %p end = %p", segment->name, (void *)segment->addr, (void *)(segment->addr + segment->size));
             if (ptr >= segment->addr && ptr < (segment->addr + segment->size)) {
                 dli->dli_fname = obj->filepath;
                 dli->dli_fbase = (void *)segment->addr;
@@ -1159,7 +1235,9 @@ _rtld_add_paths(const char *execname, struct _rtld_search_path **path_p, const c
         return;
 
     if (pathstr[0] == ':') {
-        path_p = &(*path_p)->sp_next;
+        while (path_p != NULL) {
+            path_p = &(*path_p)->sp_next;
+        }
     }
 
     while (true) {
@@ -1170,6 +1248,10 @@ _rtld_add_paths(const char *execname, struct _rtld_search_path **path_p, const c
         }
 
         path_p = _rtld_append_path(head_p, path_p, execname, bp, ep);
+
+        if (ep[0] == '\0')
+            break;
+        pathstr = ep + 1;
     }
 
     return;
@@ -1240,26 +1322,30 @@ _rtld_load_library(struct wasm_module_rt *dso_self, const char *name, struct was
     namelen = strlen(name);
 
     for (sp = __rtld_state.ld_paths; sp != NULL; sp = sp->sp_next) {
-        if ((dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags)) != NULL)
+        dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags);
+        if (dso != NULL)
             goto pathfound;
     }
 
     if (dso_main != NULL) {
         for (sp = dso_main->rpaths; sp != NULL; sp = sp->sp_next) {
-            if ((dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags)) != NULL)
+            dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags);
+            if (dso != NULL)
                 goto pathfound;
         }
     }
 
     if (dso_self != NULL) {
         for (sp = dso_self->rpaths; sp != NULL; sp = sp->sp_next) {
-            if ((dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags)) != NULL)
+            dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags);
+            if (dso != NULL)
                 goto pathfound;
         }
     }
 
     for (sp = __rtld_state.ld_default_paths; sp != NULL; sp = sp->sp_next) {
-        if ((dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags)) != NULL)
+        dso = _rtld_search_library_path(name, namelen, sp->sp_path, sp->sp_pathlen, flags);
+        if (dso != NULL)
             goto pathfound;
     }
 
@@ -2317,13 +2403,10 @@ rtld_setup_memory_descriptors(struct wasm_module_rt *obj,  char *relocbuf, uint3
                 max_lebsz = lebsz;
                 shared = true;
             }
-
-            objmain = __rtld_state.objmain;
             
-            if (objmain != NULL && objmain->memdesc != NULL) {
-                memdesc = objmain->memdesc;
-                encodeULEB128(memdesc->initial, min_leb_p, min_lebsz);
-                encodeULEB128(memdesc->maximum, max_leb_p, max_lebsz);
+            if (__rtld_memdesc.initial != -1) {
+                encodeULEB128(__rtld_memdesc.initial, min_leb_p, min_lebsz);
+                encodeULEB128(__rtld_memdesc.maximum, max_leb_p, max_lebsz);
                 dbg("%s did setup memdesc min-leb %p value = %d max-leb %p value %d", __func__, min_leb_p, memdesc->initial, max_leb_p, memdesc->maximum);
                 return (0);
             } else {
@@ -3277,7 +3360,7 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
             exec_cmd.wrbuf.offset = c_map->dst_offset;
             exec_cmd.wrbuf.size = c_map->sec->sec_size;
             exec_cmd.wrbuf.src = (void *)c_map->addr;
-            dbg("%s write buf start %d end %d (from mem) wasm-type = %d org-file-offset = %d\n", __func__, c_map->dst_offset, c_map->dst_offset + c_map->sec->sec_size, c_map->sec->wasm_type, c_map->sec->file_offset);
+            dbg("%s write buf start %d end %d (size = %d) (from mem) wasm-type = %d org-file-offset = %d\n", __func__, c_map->dst_offset, c_map->dst_offset + c_map->sec->sec_size, c_map->sec->sec_size, c_map->sec->wasm_type, c_map->sec->file_offset);
             error = _rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
             if (error != 0) {
                 goto error_out;
@@ -3301,40 +3384,52 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
     // second pass everything that is keept as in the file, reuse anything in relocbuf for temp buffering
     uint32_t file_start;
     uint32_t dst_start;
-    uint32_t read_size;
+    uint32_t read_size, sec_size;
     file_start = 0;
     dst_start = 0;
     read_size = 0;
     c_map = mapping;
+    relocbuf = relocbuf_start;
     for (int i = 0; i < mapcnt; i++) {
-        bool read_now = true;
+        
         if (c_map->addr == 0) {
-            // TODO: block-align might yield better performance..
-            
-            if (read_size != 0) {
-                read_size += c_map->sec->sec_size;
+
+            file_start = c_map->sec->file_offset;
+            dst_start = c_map->dst_offset;
+            sec_size = c_map->sec->sec_size;
+            read_size = sec_size;
+
+            dbg("%s write buf start %d end %d (size = %d) wasm-type = %d org-file-offset = %d\n", __func__, c_map->dst_offset, c_map->dst_offset + c_map->sec->sec_size, c_map->sec->sec_size, c_map->sec->wasm_type, c_map->sec->file_offset);
+
+            if (read_size > relocbufsz) {
+                ret = __sys_lseek(fd, file_start, SEEK_SET);
+                while (sec_size > 0) {
+                    read_size = sec_size > relocbufsz ? relocbufsz : sec_size;
+                    wasm_memory_fill(relocbuf, 0, read_size);
+                    ret = __sys_read(fd, relocbuf, read_size);
+                    if (ret == -1) {
+                        dbg("%s Error on read() errno = %d", __func__, errno);
+                    }
+
+                    exec_cmd.wrbuf.objdesc = objdesc;
+                    exec_cmd.wrbuf.offset = dst_start;
+                    exec_cmd.wrbuf.size = read_size;
+                    exec_cmd.wrbuf.src = (void *)relocbuf;
+                    error = _rtld_exec_ioctl(EXEC_IOCTL_WRBUF, &exec_cmd);
+                    if (error != 0) {
+                        goto error_out;
+                    }
+                    dst_start += read_size;
+                    sec_size -= read_size;
+                }
             } else {
-                file_start = c_map->sec->file_offset;
-                dst_start = c_map->dst_offset;
-                read_size = c_map->sec->sec_size;
-            }
-
-            dbg("%s write buf start %d end %d wasm-type = %d org-file-offset = %d\n", __func__, c_map->dst_offset, c_map->dst_offset + c_map->sec->sec_size, c_map->sec->wasm_type, c_map->sec->file_offset);
-
-            n_map = (i < mapcnt - 1) ? c_map + 1 : NULL;
-
-            if (n_map && n_map->addr == 0 && (dst_start + size == n_map->dst_offset) && (file_start + size == n_map->sec->file_offset) && (read_size + n_map->sec->sec_size) < relocbufsz) {
-                read_now = false;
-            } else {
-                read_now = true;
-            }
-
-            if (read_now) {
-
+                wasm_memory_fill(relocbuf, 0, read_size);
                 ret = __sys_lseek(fd, file_start, SEEK_SET);
                 ret = __sys_read(fd, relocbuf, read_size);
                 if (ret == -1) {
                     dbg("%s Error on read() errno = %d", __func__, errno);
+                } else if (ret != read_size) {
+                    dbg("%s expected to read %d but only read %d", __func__, read_size, ret);
                 }
 
                 exec_cmd.wrbuf.objdesc = objdesc;
@@ -3345,10 +3440,6 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
                 if (error != 0) {
                     goto error_out;
                 }
-                file_start = 0;
-                dst_start = 0;
-                read_size = 0;
-
             }
         }
         c_map++;
@@ -3359,6 +3450,14 @@ _rtld_map_object(struct wasm_module_rt *obj, char *relocbuf, size_t relocbufsz, 
     exec_cmd.run.__dso_handle = (uintptr_t)obj;
     exec_cmd.run.errmsg = tmperror;
     exec_cmd.run.errmsgsz = sizeof(tmperror);
+
+    // only libobjc2 is exported using regular wasm exports.
+    // TODO: but this should realy be a flag within dylink.0
+    if (obj->dso_namesz == 8 && strncmp(obj->dso_name, "libobjc2", 8) == 0) {
+        exec_cmd.run.export_name = (char *)obj->dso_name;
+        exec_cmd.run.export_namesz = obj->dso_namesz;
+    }
+
     error = _rtld_exec_ioctl(EXEC_IOCTL_COMPILE, &exec_cmd);
     if (error != 0) {
         goto error_out;
@@ -3585,6 +3684,122 @@ error_out:
 #endif
 }
 
+struct mapsort {
+    struct mapsort *prev;
+    struct mapsort *next;
+    struct wasm_module_rt *obj;
+    bool visted;
+};
+
+struct maphead {
+    struct mapsort *head;
+    struct mapsort *tail;
+    struct mapsort *vecp;
+    uint32_t count;
+};
+
+struct mapsort *
+_rtld_mapsort_entry_for(struct mapsort *svec, uint32_t cnt, struct wasm_module_rt *obj)
+{
+    struct mapsort *ent = svec;
+    for (int i = 0; i < cnt; i++) {
+        if (ent->obj == obj) {
+            return ent;
+        }
+        ent++;
+    }
+
+    return NULL;
+}
+
+void
+_rtld_sort_insert_before(struct maphead *head, struct mapsort *ent, struct mapsort *before)
+{
+    struct mapsort *prev, *next;
+
+    if (head->head == ent) {
+        head->head = ent->next;
+    }
+
+    if (head->tail == ent) {
+        head->tail = ent->prev;
+    }
+
+    if (ent->prev != NULL) {
+        ent->prev->next = ent->next;
+    }
+
+    if (ent->next != NULL) {
+        ent->next->prev = ent->prev;
+    }
+
+    ent->prev = NULL;
+    ent->next = NULL;
+
+    if (head->head == before) {
+        head->head = ent;
+    }
+
+    if (before->prev != NULL) {
+        before->prev->next = ent;
+        ent->prev = before->prev;
+    }
+
+    before->prev = ent;
+    ent->next = before;
+}
+
+void
+_rtld_sort_insert_at_tail(struct maphead *head, struct mapsort *ent)
+{
+    struct mapsort *prev, *next;
+
+    if (ent->prev != NULL) {
+        ent->prev->next = ent->next;
+    }
+
+    if (head->head == ent) {
+        head->head = ent->next;
+    }
+
+    if (ent->next != NULL) {
+        ent->next->prev = ent->prev;
+        ent->next = NULL;
+    }
+
+    ent->prev = head->tail;
+    head->tail->next = ent;
+    head->tail = ent;
+}
+
+void
+_rtld_sort_objects(struct maphead *head, struct mapsort *before, struct wasm_module_rt *first)
+{
+    struct wasm_module_rt *obj;
+    struct _rtld_needed_entry *needed;
+    struct mapsort *ent, *self_ent;
+
+    self_ent = _rtld_mapsort_entry_for(head->vecp, head->count, first);
+
+    if (self_ent == NULL || self_ent->visted) {
+        return;
+    }
+
+    self_ent->visted = true;
+
+    for (needed = first->needed; needed != NULL; needed = needed->next) {
+        obj = needed->obj;
+        _rtld_sort_objects(head, self_ent, obj);
+    }
+
+    if (before == NULL) {
+        _rtld_sort_insert_at_tail(head, self_ent);
+    } else {
+        _rtld_sort_insert_before(head, self_ent, before);
+    }
+}
+
+
 /**
  * late stage mapping, until now rtld have only been loading data to detetermine the needs for all objects to be loaded
  */
@@ -3597,8 +3812,10 @@ _rtld_map_objects(struct wasm_module_rt *first)
     struct wash_exechdr_rt *hdr;
     struct rtld_segment *elem, *data;
     struct execbuf_mapping *execbufmap;
+    struct mapsort *svec, *cobj, *pobj, *tobj, *hobj;
     char *relocbuf;                  // temporary memory for reloc every code section one at a time
     char *membase;
+    struct maphead objsort;
     uint32_t obj_reloc_size;
     uint32_t max_reloc_size;    // needed temporary buffer to hold non memory relocation in user-space memory
     uint32_t max_align;
@@ -3606,7 +3823,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
     uint32_t mapcnt;
     uint32_t mem_off, mem_size;
     uint32_t tbl_off, tbl_size;
-    uint32_t count;
+    uint32_t count, objcount, npg;
     int32_t tblbase;
     int fd, ret, error;
 
@@ -3646,6 +3863,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
         if (hdr->section_cnt > max_sec_count) {
             max_sec_count = hdr->section_cnt;
         }
+        objcount++;
     }
 
     // TODO: It might be better to allocate relocbuf mem after data memory, since then it directly below the brk() which
@@ -3792,23 +4010,86 @@ _rtld_map_objects(struct wasm_module_rt *first)
             goto error_out;
         }
 
-        // map where memory segment where place
+        // map where memory segment where placed
         error = _rtld_do_internal_data_reloc(obj, relocbuf, max_reloc_size, relocbuf, relocbuf + sec->sec_size);
         if (error != 0) {
-            dbg("%s Error on _rtld_do_internal_data_reloc() errno = %d", __func__, error);
+            dbg("%s Error on _rtld_do_internal_data_reloc() for %s errno = %d (sec->file_offset = %d sec->sec_size = %d)", __func__, obj->filepath, error, sec->file_offset, sec->sec_size);
             goto error_out;
         }
     }
 
-    // now when initial memory is in memory, load each object at a time
-    for (obj = first; obj != NULL; obj = obj->next) {
+    if (objcount > 1) {
 
-        error = _rtld_map_object(obj, relocbuf, max_reloc_size, execbufmap);
-        if (error != 0) {
-            dbg("%s Error on _rtld_map_object() errno = %d", __func__, error);
-            goto error_out;
+        // sorting so that needed objects are mapped before the objects that depends on it.
+        svec = __crt_malloc(objcount * sizeof(struct mapsort));
+        wasm_memory_fill(svec, 0, objcount * sizeof(struct mapsort));
+
+        pobj = NULL;
+        cobj = svec;
+        // now when initial memory is in memory, load each object at a time
+        for (obj = first; obj != NULL; obj = obj->next) {
+
+            cobj->obj = obj;
+            cobj->prev = pobj;
+            if (pobj != NULL) {
+                pobj->next = cobj;
+            }
+            pobj = cobj;
+            cobj++;
         }
+
+        hobj = svec;
+        tobj = pobj;
+
+        objsort.head = svec;
+        objsort.tail = pobj;
+        objsort.vecp = svec;
+        objsort.count = objcount;
+
+        _rtld_sort_objects(&objsort, NULL, first);
+
+        // now when initial memory is in memory, load each object at a time
+        cobj = svec;
+        for (int i = 0; i < objcount; i++) {
+            obj = cobj->obj;
+            dbg("mapsort %p prev = %p next %p obj %s\n", cobj, cobj->prev, cobj->next, obj->filepath);
+            cobj++;
+        }
+
+        // now when initial memory is in memory, load each object at a time
+        for (cobj = objsort.head; cobj != NULL; cobj = cobj->next) {
+            obj = cobj->obj;
+            dbg("%s obj %s\n", __func__, obj->filepath);
+        }
+
+        // now when initial memory is in memory, load each object at a time
+        for (cobj = objsort.head; cobj != NULL; cobj = cobj->next) {
+
+            obj = cobj->obj;
+            error = _rtld_map_object(obj, relocbuf, max_reloc_size, execbufmap);
+            if (error != 0) {
+                dbg("%s Error on _rtld_map_object() errno = %d", __func__, error);
+                goto error_out;
+            }
+        }
+
+        __crt_free(svec);
+
+    } else {
+
+        // now when initial memory is in memory, load each object at a time
+        for (obj = first; obj != NULL; obj = obj->next) {
+
+            error = _rtld_map_object(obj, relocbuf, max_reloc_size, execbufmap);
+            if (error != 0) {
+                dbg("%s Error on _rtld_map_object() obj %p (%s) errno = %d", __func__, obj, obj->filepath, error);
+                goto error_out;
+            }
+        }
+
     }
+
+    __crt_free(relocbuf);
 
     return (0);
 
@@ -3831,7 +4112,7 @@ error_out:
 
 #define LIBNAMEBUFSZ NAME_MAX + VERS_MAX + 1
 
-int
+int 
 _rtld_load_by_name(const char *name, const char *vers, struct wasm_module_rt *obj, struct _rtld_needed_entry **needed, int flags)
 {
     struct wasm_module_rt *res;
@@ -3839,7 +4120,7 @@ _rtld_load_by_name(const char *name, const char *vers, struct wasm_module_rt *ob
     char *libp;
     uint32_t namesz = (*needed)->name == name ? (*needed)->namesz : strlen(name);
 
-    dbg("load by name %s", name);
+    dbg("load by name = %s vers = %s", name, vers);
     res = _rtld_find_dso_handle_by_name(name, vers);
     if (res) {
         (*needed)->obj = res;
@@ -3870,7 +4151,7 @@ _rtld_load_by_name(const char *name, const char *vers, struct wasm_module_rt *ob
             libp = strstr(name, "lib");
             if (libp != name && libp != name + (namesz - 3)) {
                 if (vers != NULL) {
-                    sprintf(tmpname, LIBNAMEBUFSZ, "lib%s%s", name, ".so.", vers);
+                    sprintf(tmpname, LIBNAMEBUFSZ, "lib%s%s%s", name, ".so.", vers);
                 } else {
                     sprintf(tmpname, LIBNAMEBUFSZ, "lib%s%s", name, ".so");
                 }
@@ -3887,27 +4168,41 @@ _rtld_load_by_name(const char *name, const char *vers, struct wasm_module_rt *ob
 int
 _rtld_load_needed_objects(struct wasm_module_rt *first, int flags)
 {
-    struct wasm_module_rt *obj;
+    struct wasm_module_rt *obj, *last, *prev, *orgfirst;
     struct _rtld_needed_entry *needed;
     uint32_t result, status = 0;
 
-    for (obj = first; obj != NULL; obj = obj->next) {
+    last = __rtld_state.objtail;
+    orgfirst = first;
 
-        for (needed = obj->needed; needed != NULL; needed = needed->next) {
-            
-            result = _rtld_load_by_name(needed->name, needed->vers, obj, &needed, flags);
-            if (!result) {
-                status = -1;
+    while (true) {
+        
+        for (obj = first; obj != NULL; obj = obj->next) {
+
+            for (needed = obj->needed; needed != NULL; needed = needed->next) {
+                
+                result = _rtld_load_by_name(needed->name, needed->vers, obj, &needed, flags);
+                if (!result) {
+                    status = -1;
+                }
             }
+
+            prev = obj;
+            if (obj == last)
+                break;
+        }
+
+        if (last != __rtld_state.objtail) {
+            last = __rtld_state.objtail;
+            first = prev->next;
+        } else {
+            break;
         }
     }
 
     if (status != -1) {
-        
-        result = _rtld_map_objects(first);
-
-         //_rtld_map_object(const char *filepath, int fd, struct stat *st, int flags)
-        
+        result = _rtld_map_objects(orgfirst);
+        //_rtld_map_object(const char *filepath, int fd, struct stat *st, int flags)
     }
 
     return status;
@@ -3926,7 +4221,7 @@ _rtld_load_object(const char *filepath, int flags)
 
     // it might be possible to match by just the filepath, but its a longshot.
     for (obj = __rtld_state.objlist; obj != NULL; obj = obj->next) {
-        if (obj->filepath != NULL && obj->dso_pathlen && pathlen == obj->dso_pathlen && strncmp(obj->filepath, filepath, pathlen) == 0) {
+        if (obj->filepath != NULL && obj->dso_pathlen != 0 && pathlen == obj->dso_pathlen && strncmp(obj->filepath, filepath, pathlen) == 0) {
             dbg("%s found %p for %s by fullpath match", __func__, obj, filepath);
             break;
             // simply break, if we get to the end obj will be NULL anyways.
