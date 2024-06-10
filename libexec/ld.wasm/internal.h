@@ -11,6 +11,9 @@
 
 #include <arch/wasm/include/wasm_module.h>
 
+#ifndef IN_RTLD
+#define IN_RTLD 1
+#endif
 
 // common macros
 #ifndef roundup2
@@ -22,6 +25,10 @@
 
 #ifndef howmany
 #define	howmany(x, y)	(((x)+((y)-1))/(y))
+#endif
+
+#ifndef __noinline
+#define	__noinline	__attribute__((__noinline__))
 #endif
 
 // debug log
@@ -58,6 +65,7 @@ int _rtld_exec_ioctl(int cmd, void *argp) __WASM_IMPORT(rtld, exec_ioctl);
 #define EXEC_IOCTL_MKBUF 552
 #define EXEC_IOCTL_WRBUF 553
 #define EXEC_IOCTL_COREDUMP 580
+#define EXEC_IOCTL_SET_START 581
 
 int rtld_exec_ioctl(int cmd, void *arg) __WASM_IMPORT(rtld, exec_ioctl);
 
@@ -148,5 +156,13 @@ extern size_t page_size;
 int __crt_mmap_init(void);
 int __crt_munmap(void *, size_t);
 void *__crt_mmap(void *, size_t, int, int, int, int64_t, int *);
+
+
+#undef PAGE_SIZE
+#undef PAGE_SHIFT
+#define PAGE_SIZE 4096
+#define PAGE_SHIFT 12
+
+#define WASM_PAGE_SIZE 65536
 
 #endif /* __RTLD_WASM_INTERNAL_H_ */

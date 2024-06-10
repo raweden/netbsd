@@ -609,7 +609,7 @@ int	__signbitl(long double);
 __END_DECLS
 
 #if defined(__WASM) && !defined(_KERNEL)
-
+#if 0
 #if __has_builtin(__builtin_acos)
 #define acos __builtin_acos
 #else
@@ -724,7 +724,7 @@ __END_DECLS
 #else
 #error "no __builtin_fmod"
 #endif
-
+#endif
 #endif
 
 #if 0

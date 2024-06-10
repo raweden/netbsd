@@ -39,6 +39,7 @@ int wasm_exec_ioctl(int cmd, void *arg) __WASM_IMPORT(kern, exec_ioctl);
 #define EXEC_IOCTL_DYNLD_DLSYM_EARLY 566
 #define EXEC_IOCTL_BUF_REMAP 567
 #define EXEC_IOCTL_RUN_RTLD_INIT 570
+#define EXEC_IOCTL_RUN_RTLD_MAIN 571
 
 
 struct wasm_loader_cmd_mkbuf {

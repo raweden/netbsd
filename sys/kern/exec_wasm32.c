@@ -54,6 +54,7 @@ __KERNEL_RCSID(0, "$NetBSD: exec_elf32.c,v 1.143 2019/11/20 19:37:53 pgoyette Ex
 
 #include <wasm/../libwasm/libwasm.h>
 #include <wasm/../libwasm/wasmloader.h>
+#include <wasm/../libwasm/kld_ioctl.h>
 
 #ifdef DEBUG_EXEC
 #define COPYPRINTF(s, a, b) printf("%s, %d: copyout%s @%p %zu\n", __func__, \
@@ -118,6 +119,7 @@ static int netbsd_wasm32_probe(struct lwp *, struct exec_package *, void *, char
 static void wasm_proc_exec(struct proc *p, struct exec_package *epp);
 
 // wasm_loader.c
+int exec_load_ldwasm_binary(struct lwp *l, struct exec_vmcmd *cmd);
 int exec_load_wasm32_binary(struct lwp *, struct exec_vmcmd *);
 int wasm_loader_static_exec(struct lwp *, struct exec_vmcmd *);
 bool wasm_loader_has_exechdr_in_buf(const char *, size_t, size_t *, size_t *);
@@ -407,7 +409,7 @@ exec_wasm32_makecmds(struct lwp *l, struct exec_package *epp)
 
     // push into ep_vmcmds, to load the binary when execve_runproc() is called.
     if (vmcmd_arg != NULL) {
-        new_vmcmd(&epp->ep_vmcmds, exec_load_wasm32_binary, -1, (vaddr_t)vmcmd_arg, epp->ep_vp, 0, VM_PROT_EXECUTE, 0);
+        new_vmcmd(&epp->ep_vmcmds, exec_load_ldwasm_binary, -1, (vaddr_t)vmcmd_arg, epp->ep_vp, 0, VM_PROT_EXECUTE, 0);
     } else {
         new_vmcmd(&epp->ep_vmcmds, wasm_loader_static_exec, -1, (vaddr_t)NULL, epp->ep_vp, 0, VM_PROT_EXECUTE, 0);
     }
@@ -466,6 +468,7 @@ wasm32_copyargs_pre(struct lwp *lwp, struct exec_package *pack, struct ps_string
 {
     printf("%s called", __func__);
     struct wasm32_execpkg_args *exec_arg;
+    struct ldwasm_aux aux;
     char	**cpp, *dp, *sp;
 	size_t	len;
 	void	*nullp;
@@ -555,7 +558,7 @@ wasm32_copyargs_pre(struct lwp *lwp, struct exec_package *pack, struct ps_string
         sf->sf_ebx = (int)exec_arg;
         sf->sf_eip = (int)lwp_trampoline;
         printf("%s setting switchframe at %p for lwp %p\n", __func__, sf, lwp);
-    } else if (((struct wasm32_execpkg_args *)sf->sf_ebx)->et_sign == WASM_EXEC_PKG_SIGN){
+    } else if (((struct wasm32_execpkg_args *)sf->sf_ebx)->et_sign == WASM_EXEC_PKG_SIGN  && ((struct wasm32_execpkg_args *)sf->sf_ebx)->et_type != RTLD_ET_EXEC_RTLD_MAIN){
         struct ps_strings *psarg;
         exec_arg = (struct wasm32_execpkg_args *)(sf->sf_ebx);
         psarg = exec_arg->ps_addr;
@@ -698,11 +701,11 @@ wasm32_copyargs_post(struct lwp *lwp, struct wasm32_execpkg_args *pkg, char **st
     pkg->ps_envstr = (char **)(strp);
 
     uint32_t stkhdrsz = (pkg->ep_size - offsetof(struct wasm32_execpkg_args, ps_argvstr));
-    copyout(((char *)pkg) + offsetof(struct wasm32_execpkg_args, ps_argvstr), *stackp, stkhdrsz);
+    //copyout(((char *)pkg) + offsetof(struct wasm32_execpkg_args, ps_argvstr), *stackp, stkhdrsz);
 
     // TODO: align stack to nearest 8 bytes.
 
-    *stackp = (char *)(dstsoff + stkhdrsz);
+    //*stackp = (char *)(dstsoff + stkhdrsz);
 
     printf("%s stackp = %p at exit\n", __func__, *stackp);
 
@@ -719,10 +722,15 @@ wasm_exec_setup_stack(struct lwp *lwp, struct exec_package *epp)
 
 #define EXEC_IOCTL_EXEC_CTORS 568
 
+struct ldwasm_main_args {
+    uintptr_t rlocbase;
+    uintptr_t sp;
+};
+
 void
 wasm_exec_trampline(void *arg)
 {
-
+    struct ldwasm_main_args ldwasm_args;
     struct wasm32_execpkg_args *pkg = (struct wasm32_execpkg_args *)arg;
     struct ps_strings *psarg;
     void *argp;
@@ -767,6 +775,12 @@ wasm_exec_trampline(void *arg)
 
         // should never return
         wasm_exec_entrypoint(argc, argp, envp);
+    } else if (pkg->et_type == RTLD_ET_EXEC_RTLD_MAIN) {
+        ldwasm_args.rlocbase = pkg->rlocbase;
+        ldwasm_args.sp = pkg->uesp0;
+
+        error = wasm_exec_ioctl(EXEC_IOCTL_RUN_RTLD_MAIN, &ldwasm_args);
+
     } else if (pkg->et_type == RTLD_ET_EXEC_START) {
         psarg = pkg->ps_addr;
         int (*__start)(void(*)(void), struct ps_strings *) = (void *)pkg->__start;

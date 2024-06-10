@@ -61,7 +61,7 @@ typedef char * caddr_t;
  * Pre-allocate mmap'ed pages
  */
 #define	NPOOLPAGES	(128*1024/pagesz)
-static caddr_t	pagepool_start, pagepool_end;
+static volatile caddr_t	pagepool_start, pagepool_end;
 
 /*
  * The overhead on a block is at least 4 bytes.  When free, this space
@@ -81,7 +81,7 @@ union	overhead {
 	} ovu;
 #define	ov_magic	ovu.ovu_magic
 #define	ov_index	ovu.ovu_index
-};
+} __attribute__((aligned(8))) ;
 
 static void morecore(int bucket);
 static int morepages(int n);
@@ -128,8 +128,10 @@ __crt_malloc(size_t nbytes)
 	while (nbytes > amt - sizeof(*op)) {
 		amt <<= 1;
 		bucket++;
-		if (amt == 0 || bucket >= NBUCKETS)
+		if (amt == 0 || bucket >= NBUCKETS) {
+			dbg("ERROR: %s returning NULL\n", __func__);
 			return (NULL);
+		}
 	}
 	/*
 	 * If nothing in hash bucket right now,
@@ -137,8 +139,10 @@ __crt_malloc(size_t nbytes)
 	 */
   	if ((op = nextf[bucket]) == NULL) {
   		morecore(bucket);
-  		if ((op = nextf[bucket]) == NULL)
+  		if ((op = nextf[bucket]) == NULL) {
+			dbg("ERROR: %s returning NULL\n", __func__);
   			return (NULL);
+		}
 	}
 	/* remove from linked list */
   	nextf[bucket] = op->ov_next;

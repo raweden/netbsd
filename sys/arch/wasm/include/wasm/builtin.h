@@ -60,8 +60,16 @@ void wasm_memory_fill(void * dst, int32_t val, uint32_t len) __WASM_BUILTIN(memo
  */
 void wasm_memory_copy(void * dst, const void *src, uint32_t len) __WASM_BUILTIN(memory_copy);
 
-
+/**
+ * translates to `memory.grow` instruction in post-edit or at link-time with ylinker.
+ * @param pgcnt The number of wasm pages to grow memory with
+ * @return The previous number of wasm pages or `-1` if memory could not be grown.
+ */
 int wasm_memory_grow(int pgcnt) __WASM_BUILTIN(memory_grow);
+/**
+ * translates to `memory.size` instruction in post-edit or at link-time with ylinker.
+ * @return The number of wasm pages that the memory is currently grown to.
+ */
 int wasm_memory_size(void) __WASM_BUILTIN(memory_size);
 
 int wasm_table_grow(int incr) __WASM_BUILTIN(table_grow);

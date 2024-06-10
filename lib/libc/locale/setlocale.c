@@ -46,10 +46,7 @@ __RCSID("$NetBSD: setlocale.c,v 1.65 2018/01/04 20:57:29 kamil Exp $");
 const char *_PathLocale = NULL;
 
 #ifdef __WASM
-const char *_generic_LC_ALL_setlocale(const char * __restrict, struct _locale * __restrict)
-{
-	return NULL;
-}
+const char *_generic_LC_ALL_setlocale(const char * __restrict, struct _locale * __restrict);
 
 const char *_dummy_LC_COLLATE_setlocale(const char * __restrict, struct _locale * __restrict)
 {

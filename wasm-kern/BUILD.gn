@@ -157,6 +157,7 @@ common_src = [
     "../sys/arch/wasm/mm/mm-test.c",
     "../sys/arch/wasm/libwasm/leb128.c",
     "../sys/arch/wasm/libwasm/wasm_loader.c",
+    "../sys/arch/wasm/libwasm/ldwasm_cache.c",
     "../sys/arch/wasm/wasm/superentropy.c",
     "../sys/arch/wasm/wasm/wasm_log.c",
     "../sys/arch/wasm/wasm/lwp_jsworker.c",

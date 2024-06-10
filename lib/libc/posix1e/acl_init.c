@@ -49,7 +49,7 @@ __RCSID("$NetBSD: acl_init.c,v 1.1 2020/05/16 18:31:47 christos Exp $");
 
 __CTASSERT(1 << _ACL_T_ALIGNMENT_BITS > sizeof(struct acl_t_struct));
 
-#ifdef __wasm__
+#if defined(__wasm__) && !defined(__WASM_LIBC_STATIC)
 #include <wasm-crt.h>
 #endif
 
@@ -68,7 +68,7 @@ acl_init(int count)
 		return (NULL);
 	}
 
-#ifdef __wasm__
+#if defined(__wasm__) && !defined(__WASM_LIBC_STATIC)
 	error = 0;
 	acl = __crt_mmap(NULL, sizeof(struct acl_t_struct), 0, 0, 0, 0, &error);
 #else

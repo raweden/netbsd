@@ -505,7 +505,7 @@ _rtld_main(uintptr_t uesp, uintptr_t rlocbase)
 
     main_fn = __dlsym_internal(objmain->dlsym_start, objmain->dlsym_end, 4, "main", 1);
     if (main_fn == NULL) {
-        main_fn = __dlsym_internal(objmain->dlsym_start, objmain->dlsym_end, 4, "__main_argc_argv", 1);
+        main_fn = __dlsym_internal(objmain->dlsym_start, objmain->dlsym_end, 16, "__main_argc_argv", 1);
     }
     start_fn = 0;
 
@@ -3812,7 +3812,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
     struct wash_exechdr_rt *hdr;
     struct rtld_segment *elem, *data;
     struct execbuf_mapping *execbufmap;
-    struct mapsort *svec, *cobj, *pobj, *tobj, *hobj;
+    struct wasm_module_rt **sortedobjs;
     char *relocbuf;                  // temporary memory for reloc every code section one at a time
     char *membase;
     struct maphead objsort;
@@ -4020,52 +4020,35 @@ _rtld_map_objects(struct wasm_module_rt *first)
 
     if (objcount > 1) {
 
+        int idx = 0;
+
         // sorting so that needed objects are mapped before the objects that depends on it.
-        svec = __crt_malloc(objcount * sizeof(struct mapsort));
-        wasm_memory_fill(svec, 0, objcount * sizeof(struct mapsort));
+        sortedobjs = __crt_malloc(objcount * sizeof(void *));
+        wasm_memory_fill(sortedobjs, 0, objcount * sizeof(void *));
 
-        pobj = NULL;
-        cobj = svec;
-        // now when initial memory is in memory, load each object at a time
         for (obj = first; obj != NULL; obj = obj->next) {
-
-            cobj->obj = obj;
-            cobj->prev = pobj;
-            if (pobj != NULL) {
-                pobj->next = cobj;
+            if (obj->dso_namesz == 8 && strncmp(obj->dso_name, "libobjc2", 8) == 0) {
+                sortedobjs[idx++] = obj;
+                break;
             }
-            pobj = cobj;
-            cobj++;
         }
 
-        hobj = svec;
-        tobj = pobj;
+        for (obj = first; obj != NULL; obj = obj->next) {
+            if (obj->dso_namesz == 8 && strncmp(obj->dso_name, "libobjc2", 8) == 0) {
+                continue;
+            } else {
+                sortedobjs[idx++] = obj;
+            }
+        }
 
-        objsort.head = svec;
-        objsort.tail = pobj;
-        objsort.vecp = svec;
-        objsort.count = objcount;
-
-        _rtld_sort_objects(&objsort, NULL, first);
-
-        // now when initial memory is in memory, load each object at a time
-        cobj = svec;
         for (int i = 0; i < objcount; i++) {
-            obj = cobj->obj;
-            dbg("mapsort %p prev = %p next %p obj %s\n", cobj, cobj->prev, cobj->next, obj->filepath);
-            cobj++;
+            obj = sortedobjs[i];
+            dbg("mapsort obj %p obj %s\n", obj, obj->filepath);
         }
 
         // now when initial memory is in memory, load each object at a time
-        for (cobj = objsort.head; cobj != NULL; cobj = cobj->next) {
-            obj = cobj->obj;
-            dbg("%s obj %s\n", __func__, obj->filepath);
-        }
-
-        // now when initial memory is in memory, load each object at a time
-        for (cobj = objsort.head; cobj != NULL; cobj = cobj->next) {
-
-            obj = cobj->obj;
+         for (int i = 0; i < objcount; i++) {
+            obj = sortedobjs[i];
             error = _rtld_map_object(obj, relocbuf, max_reloc_size, execbufmap);
             if (error != 0) {
                 dbg("%s Error on _rtld_map_object() errno = %d", __func__, error);
@@ -4073,7 +4056,7 @@ _rtld_map_objects(struct wasm_module_rt *first)
             }
         }
 
-        __crt_free(svec);
+        __crt_free(sortedobjs);
 
     } else {
 

@@ -215,7 +215,7 @@ __sys_fcntl(int fd, int cmd, long arg)
 	td_frame.tf_t[0] = 92;
 	td_frame.tf_a[0] = fd;
 	td_frame.tf_a[1] = cmd;
-	td_frame.tf_a[2] = (uintptr_t)(arg != 0 ? *((long *)(arg)) : 0);
+	td_frame.tf_a[2] = arg;
 	syscall_trap(&td_frame);
 	if ((td_frame.tf_t[0] & PSL_C) != 0) {
 		errno = td_frame.tf_a[0];

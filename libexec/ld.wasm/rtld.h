@@ -52,10 +52,14 @@ struct rtld_state_common {
     const char *error_message;
     struct _rtld_search_path *ld_paths;
     struct _rtld_search_path *ld_default_paths;
+    struct rtld_memory_descriptor *main_mem;
     uint32_t objcount;
     uint32_t objloads;
     bool    ld_trust;	                /* False for setuid and setgid programs */
     // private parts of rtld_state are declared in rtld.c
 };
+
+void _rtld_call_init_functions(struct wasm_module_rt *first);
+struct dlsym_rt *__dlsym_internal(struct dlsym_rt * restrict start, struct dlsym_rt * restrict end, unsigned int namesz, const char * restrict name, unsigned char type);
 
 #endif /* __RTLD_WASM_RTLD_H_ */

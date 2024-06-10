@@ -249,6 +249,14 @@ union i32_value {
     unsigned char bytes[4];
 };
 
+#define DEBUG_WASM_LOADER 1
+
+#ifdef DEBUG_WASM_LOADER
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...)
+#endif
+
 /**
  * Returns a boolean true if a `rtld.exec-hdr` custom section seams to be provided in the given buffer.
  */
@@ -300,7 +308,7 @@ rtld_reloc_exechdr(char *buf)
     const char *max_addr;
 
     hdrsz = *((uint32_t *)(buf)); // possible un-aligned
-    hdr = (struct wash_exechdr_rt *)hdr;
+    hdr = (struct wash_exechdr_rt *)(buf);
     min_addr = buf;
     max_addr = buf + hdrsz;
     // string table reloc
@@ -315,6 +323,7 @@ rtld_reloc_exechdr(char *buf)
         for (int i = 0; i < secinfo_cnt; i++) {
             if (secinfo->name != NULL)
                 secinfo->name += (uintptr_t)(buf);
+            printf("%s sec->type = %d sec->hdrsz = %d sec->size = %d sec->file_offset %d", __func__, secinfo->wasm_type, secinfo->hdrsz, secinfo->sec_size, secinfo->file_offset);
             secinfo++;
         }
     }
@@ -1610,7 +1619,7 @@ wasm_loader_dylink0_decode_modules(struct wasm_loader_dl_ctx *dlctx, struct wa_m
             if (dataoff >= min_data_off && dataoff < max_data_off) {
                 dataoff += data_off_start;
             } else if (dataoff != 0) {
-                printf("%s data-offset %d for data segment is out of range (min: %d max: %d) %d\n", __func__, dataoff, min_data_off, max_data_off);
+                printf("%s data-offset %d for data segment is out of range (min: %d max: %d)\n", __func__, dataoff, min_data_off, max_data_off);
                 return EINVAL;
             }
             
@@ -1940,7 +1949,7 @@ wasm_read_section_map_from_memory(struct wasm_loader_dl_ctx *dlctx, struct wa_mo
 
     ptr = (uint8_t *)buf;
     ptr_start = ptr;
-    end = bufend;
+    end = (uint8_t *)bufend;
     dl_arena = dlctx->dl_arena;
 
 
@@ -3845,42 +3854,60 @@ ldwasm_exec_trampline(void *arg)
     pkg = arg;
 }
 
+void wasm_exec_trampline(void *);
+
 int load_rtld_module_from_disk(void);
-int setup_ldwasm_module_from_cache(uintptr_t relocbase, int32_t mem_min, int32_t mem_max);
+int setup_ldwasm_module_from_cache(uintptr_t *relocbase, int32_t mem_min, int32_t mem_max);
 
 int
-load_ldwasm_module(uintptr_t rlocbase, int32_t memory_min, int32_t memory_max)
+load_ldwasm_module(uintptr_t *rlocbase, int32_t memory_min, int32_t memory_max)
 {
     int error;
-
-    error = load_rtld_module_from_disk();
-    if (error)
-        return error;
 
     error = setup_ldwasm_module_from_cache(rlocbase, memory_min, memory_max);
 
     return error;
 }
 
-int
+int __noinline
 exec_load_ldwasm_binary(struct lwp *l, struct exec_vmcmd *cmd)
 {
+    struct wasm_loader_args *args;
     struct wash_exechdr_rt *hdr;
     struct wasm_exechdr_secinfo *sec;
     uintptr_t rlocbase;
     uintptr_t uesp, uesp0, stacksz;
     uint32_t min_stacksz;
     int32_t memory_min, memory_max;
+    char *filepath;
     int error;
 
     min_stacksz = 131072;
     rlocbase = 1024;
+    args = NULL;
+    hdr = NULL;
+
+    // reading the supplied arguments
+    if (cmd->ev_addr != 0) {
+        args = (struct wasm_loader_args *)cmd->ev_addr;
+        //exec_flags = args->exec_flags;
+        if (args->ep_exechdr) {
+            hdr = args->ep_exechdr;
+            min_stacksz = hdr->stack_size_hint;
+        }
+
+    } else {
+        filepath = NULL;
+    }
+
     // 1. get the exechdr
+    if (hdr == NULL) {
+
+    }
 
     // 2. determine memory.initial & memory.maximum and let that be the base for all linking.
-    sec = _rtld_exechdr_find_section(hdr, WASM_SECTION_IMPORT, NULL);
-    memory_min = -1;
-    memory_max = -1;
+    memory_min = 1;
+    memory_max = 4096;
 
     // 3. determine stack-size and alloc that staring at reloc base
     rlocbase = roundup2(rlocbase, PAGE_SIZE);
@@ -3891,31 +3918,39 @@ exec_load_ldwasm_binary(struct lwp *l, struct exec_vmcmd *cmd)
     uesp0 = roundup2((rlocbase + stacksz), PAGE_SIZE);
     rlocbase = uesp0;
 
+    // reset user stack-pointer
+    wasm_exec_ioctl(517, (void *)uesp0);
+
     //
-    error = load_ldwasm_module(rlocbase, memory_min, memory_max);
+    error = load_ldwasm_module(&rlocbase, memory_min, memory_max);
+
+    // copy ep_resolvedname into aux arguments.
+    if (args != NULL && args->ep_resolvedname != NULL) {
+            
+    }
 
     // setup trampoline to let rtld do the rest of the job.
     struct switchframe *sf;
     struct pcb *pcb;
-    struct ldwasm_execpkg *exec_arg;
+    struct wasm32_execpkg_args *exec_arg;
 
     pcb = lwp_getpcb(l);
     sf = (struct switchframe *)pcb->pcb_esp;
 
-    if (sf->sf_ebx == (int)(NULL) || ((struct wasm32_execpkg_args *)sf->sf_ebx)->et_sign != WASM_EXEC_PKG_SIGN) {
+    exec_arg = kmem_zalloc(sizeof(struct wasm32_execpkg_args), 0);
+    exec_arg->rlocbase = rlocbase;
+    exec_arg->uesp0 = uesp0;
+    exec_arg->et_sign = WASM_EXEC_PKG_SIGN;
+    exec_arg->et_type = RTLD_ET_EXEC_RTLD_MAIN;
+    exec_arg->__start = 0;
+    
+    sf->sf_esi = (int)wasm_exec_trampline;
+    sf->sf_ebx = (int)exec_arg;
+    sf->sf_eip = (int)lwp_trampoline;
+    printf("%s setting switchframe at %p for lwp %p\n", __func__, sf, wasm_curlwp);
 
-        exec_arg = kmem_zalloc(sizeof(struct ldwasm_execpkg), 0);
-        exec_arg->rlocbase = rlocbase;
-        exec_arg->uesp = uesp;
-        
-        sf->sf_esi = (int)ldwasm_exec_trampline;
-        sf->sf_ebx = (int)exec_arg;
-        sf->sf_eip = (int)lwp_trampoline;
-        printf("%s setting switchframe at %p for lwp %p\n", __func__, sf, wasm_curlwp);
-    }
+    return (0);
 }
-
-void wasm_exec_trampline(void *);
 
 /**
  * Unlike other vmcmd this one is used to hoist the binary from disk and into 

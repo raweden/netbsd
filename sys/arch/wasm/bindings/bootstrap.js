@@ -805,10 +805,14 @@ function setupDisplayServer() {
 
 	canvas.addEventListener("click", function(evt) {
 		console.log(evt);
+		evt.preventDefault();
+		return false;
 	});
 
 	canvas.addEventListener("dblclick", function(evt) {
 		console.log(evt);
+		evt.preventDefault();
+		return false;
 	});
 
 	canvas.addEventListener("mousemove", function(evt) {
@@ -896,12 +900,14 @@ function setupDisplayServer() {
 		// https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/getModifierState#modifier_keys_on_firefox
 		// "CapsLock", "NumLock", "AltGraph", "ScrollLock"	
 		jsonrpc.notify(fb_worker, "ui_event", copyKeyboardEvent(evt));
+		evt.preventDefault();
 	});
 
 	// The "keypress" event is basically the same as a keyup but also fires for repeat. 
 
 	window.addEventListener("keyup", function(evt) {
 		jsonrpc.notify(fb_worker, "ui_event", copyKeyboardEvent(evt));
+		evt.preventDefault();
 	});
 
 	// check other projects where input proxying is implemented.
@@ -924,12 +930,22 @@ function setupDisplayServer() {
 
 		console.log(keyCharMap);
 	});
-	/*
-	navigator.keyboard.addEventListener("layoutchange", function() {
-  		// Update user keyboard map settings
-  		updateGameControlSettingsPage();
-	});
-	 */
+
+	// only some runtimes have this events..
+	if (typeof navigator.keyboard.addEventListener == "function") {
+		navigator.keyboard.addEventListener("layoutchange", function() {
+			// Update user keyboard map settings
+			navigator.keyboard.getLayoutMap().then(function(keyboardLayoutMap) {
+
+				let keyCharMap = {};
+				keyboardLayoutMap.forEach(function(chr, key) {
+					keyCharMap[key] = chr;
+				});
+		
+				jsonrpc.notify(fb_worker, "ui_event", {type: "keyboard.layoutchange", keyCharMap: keyCharMap})
+			});
+		});
+	}
 	
 	//window.addEventListener("resize", domWindowOnResize);
 		
@@ -1050,9 +1066,23 @@ function setupDisplayServer() {
 
 	{
 		// What's in this closure is not needed for the event closures..
-
 		let transfer = [offscreen];
 		let opts = {};
+		let init_params = {
+			offscreenCanvas: offscreen,
+			devicePixelRatio: window.devicePixelRatio,
+			keyCharMap: null,
+			capabilities: null,
+			prefersColorScheme: "no-preference",
+			options: opts,
+		};
+		let init_msg = {
+			jsonrpc: "2.0",
+			id: "abc123",
+			method: "display_server_init",
+			params: init_params,
+			_transfer: transfer
+		};
 		if (mmblkd_worker) {
 			let ch = new MessageChannel();
 			opts.mmblkd_port = ch.port1;
@@ -1065,7 +1095,7 @@ function setupDisplayServer() {
 			opts.__dsrpc_server_head;
 		}
 
-		let capabilities = {
+		init_params.capabilities = {
 			EditContext: (typeof window.EditContext == "function"),
 			// https://developer.mozilla.org/en-US/docs/Web/API/EyeDropper
 			EyeDropper: (typeof window.EyeDropper == "function"),
@@ -1073,27 +1103,31 @@ function setupDisplayServer() {
 
 		let initialColorScheme;
 		if (window.matchMedia("(prefers-color-scheme: dark)")) {
-			initialColorScheme = "dark";
+			init_params.prefersColorScheme = "dark";
 		} else if (window.matchMedia("(prefers-color-scheme: light)")) {
-			initialColorScheme = "light";
+			init_params.prefersColorScheme = "light";
 		} else {
-			initialColorScheme = "no-preference";
+			init_params.prefersColorScheme = "no-preference";
 		}
 
-		fb_worker.postMessage({
-			jsonrpc: "2.0",
-			id: "abc123",
-			method: "display_server_init",
-			params: {
-				offscreenCanvas: offscreen,
-				devicePixelRatio: window.devicePixelRatio,
-				prefersColorScheme: initialColorScheme,
-				keyCharMap: keyCharMap,
-				capabilities: capabilities,
-				options: opts,
-			},
-			_transfer: transfer
-		}, transfer);
+		if (navigator.keyboard) {
+			
+			navigator.keyboard.getLayoutMap().then(function(keyboardLayoutMap) {
+
+				let keyCharMap = {};
+				keyboardLayoutMap.forEach(function(chr, key) {
+					keyCharMap[key] = chr;
+				});
+
+				init_params.keyCharMap = keyCharMap;
+				fb_worker.postMessage(init_msg, transfer);
+
+			});
+
+		} else {
+			init_params.keyCharMap = {};
+			fb_worker.postMessage(init_msg, transfer);
+		}
 
 		windowManagerWorker = fb_worker;
 	}

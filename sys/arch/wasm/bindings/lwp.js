@@ -94,6 +94,8 @@ const _kexp = {};
 	/** @type {WebAssembly.Instance} */
 	let _rtld_inst;
 	let _rtld_exports;
+	let _rtld__start;
+	let __main_fn;
 
 	// checks so that we are not holding onto a old ref to kernel memory,
 	// might happen if another thread calls memory.grow
@@ -1037,13 +1039,19 @@ const _kexp = {};
 		let mlen;
 		let ret;
 
-		if (!_userexp) {
-			_userexp = _execfds[1].instance.exports;
-		}
+		if (__main_fn) {
+			mainfn = _exectbl.get(__main_fn);
+			__main_fn = undefined;
+		} else {
 
-		mainfn = _userexp.main;
-		if (!mainfn) {
-			mainfn = _userexp.__main_argc_argv;
+			if (!_userexp) {
+				_userexp = _execfds[1].instance.exports;
+			}
+
+			mainfn = _userexp.main;
+			if (!mainfn) {
+				mainfn = _userexp.__main_argc_argv;
+			}
 		}
 
 		mlen = mainfn.length;
@@ -1234,6 +1242,11 @@ const _kexp = {};
 		}
 		obj.env.exp = function (x) {
 			return Math.exp(x);
+		}
+
+		obj.env.posix_memalign = function(a, b, c) {
+			kern_panic();
+			return 0;
 		}
 
 		// alloca is a builtin and should be replaced at link/compile time to use __stack_point
@@ -1585,12 +1598,12 @@ const _kexp = {};
 					if (errmsgp !== 0) {
 						let strlen = lengthBytesUTF8(str);
 						if (strlen < errmsgsz) {
-							stringToUTF8Bytes(kheapu8, errmsgp, str);
+							stringToUTF8Bytes(uheapu8, errmsgp, str);
 							umem.setUint32(argp + 28, strlen, true);
 						} else {
 							str = str.substring(0, errmsgsz);
 							strlen = lengthBytesUTF8(str);
-							stringToUTF8Bytes(kheapu8, errmsgp, str);
+							stringToUTF8Bytes(uheapu8, errmsgp, str);
 							umem.setUint32(argp + 28, strlen, true);
 						}
 					}
@@ -1600,7 +1613,7 @@ const _kexp = {};
 
 				// if export name is specified its added to _execImportObject for subsequent compile and instanciation.
 				if (expname !== 0 && expnamesz > 0) {
-					expname = UTF8ArrayToString(kheapu8, expname, expnamesz);						
+					expname = UTF8ArrayToString(uheapu8, expname, expnamesz);						
 					if (_execImportObject.hasOwnProperty(expname)) {
 						let dst = _execImportObject[expname];
 						let src = instance.exports;
@@ -1649,6 +1662,24 @@ const _kexp = {};
 				}
 				return 0;
 			}
+			case 581: // EXEC_IOCTL_SET_START
+			{
+				if (argp == 0)
+					return EINVAL;
+				let start_fn = umem.getUint32(argp, true);
+				let main_fn = umem.getUint32(argp + 4, true);
+				let cleanup_fn = umem.getUint32(argp + 8, true);
+				let psarg = umem.getUint32(argp + 12, true);
+				_rtld__start = {start: start_fn, main: main_fn, cleanup: cleanup_fn, psarg: psarg};
+			}
+			case 599: 	// EXEC_IOCTL_UMEM_INFO
+			{
+				if (argp == 0)
+					return EINVAL;
+				umem.setInt32(argp, 1, true);
+				umem.setInt32(argp + 4, 4096, true);
+				return 0;
+			}
 		}
 	}
 
@@ -1664,6 +1695,14 @@ const _kexp = {};
 
 			case 513: { // set user stack-pointer
 				__uesp.value = argp;
+				break;
+			}
+			case 517: { // reset user stack-pointer
+				if (__uesp === undefined) {
+					__uesp = new WebAssembly.Global({value: 'i32', mutable: true}, 0);
+				}
+				__uesp.value = argp;
+				__uesp0 = argp;
 				break;
 			}
 			case 537: {
@@ -1944,6 +1983,7 @@ const _kexp = {};
 					uheapu8 = new Uint8Array(_execmem.buffer);
 					if (!umemory)
 						umemory = mem;
+					umem = new DataView(umemory.buffer);
 				} catch (err) {
 					console.error(err);
 					return ENOMEM;
@@ -2099,6 +2139,20 @@ const _kexp = {};
 				if (_rtld_exports) {
 					if (_rtld_exports.__wasm_ctor_dylib_tbl)
 						_rtld_exports.__wasm_ctor_dylib_tbl();
+
+					// export some of the rtld functions.
+					let dst;
+					if (_execImportObject.hasOwnProperty("rtld")) {
+						dst = _execImportObject.rtld;
+					} else {
+						dst = {};
+						_execImportObject.rtld = dst;
+					}
+					for (let p in _rtld_exports) {
+						if (p.startsWith("__dl") || p.startsWith("__crt")) {
+							dst[p] = _rtld_exports[p];
+						}
+					}
 				}
 
 				return 0;
@@ -2232,6 +2286,26 @@ const _kexp = {};
 				if (!_rtld_exports || typeof _rtld_exports.__rtld_init != "function")
 					return ENOENT;
 				_rtld_exports.__rtld_init(); // todo use __wasm_ctor for rtld..
+				return 0;
+			}
+			case 571: {					// EXEC_IOCTL_RUN_RTLD_MAIN
+				if (!_rtld_exports || typeof _rtld_exports._rtld_main != "function")
+					return ENOENT;
+				if (argp == 0)
+					return EINVAL;
+				let rlocbase = kmem.getUint32(argp, true);
+				// FIXME: ps_string shuld be copied to tls storage (not to user stack..) change stack-pointer to enter where expected.
+				let uesp = __uesp.value;
+				uesp += 8;
+				__uesp.value = uesp;
+				_rtld__start = undefined;
+				_rtld_exports._rtld_main(uesp, rlocbase); // todo use __wasm_ctor for rtld..
+				if (_rtld__start) {
+					throw _rtld__start;
+				} else {
+					console.error("call to _rtld_main() did not set start jump..");
+				}
+				
 				return 0;
 			}
 			/*
@@ -2513,7 +2587,17 @@ const _kexp = {};
 					_kernexp.lwp_trampoline();
 					didret = true;
 				} catch (err) {
-					if (err !== unwind4exec) {
+					if (_rtld__start && err == _rtld__start) {
+						didret = false;
+						console.log("reset kernel stack-pointer old: %d new %d", __kesp.value, orgkesp);
+						__kesp.value = orgkesp;
+						let cleanup_fn = _rtld__start.cleanup !== undefined ? _rtld__start.cleanup : 0;
+						let psarg = _rtld__start.psarg !== undefined ? _rtld__start.psarg : 0;
+						let start_fn = _rtld__start.start;
+						__main_fn = _rtld__start.main;
+						_rtld__start = undefined;
+						exec_start(start_fn, cleanup_fn, psarg)
+					} else if (err !== unwind4exec) {
 						//debugger;
 						//self.postMessage({cmd: "lwp_died"});
 						//self.close();

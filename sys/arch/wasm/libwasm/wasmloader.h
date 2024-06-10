@@ -16,6 +16,7 @@ struct ps_strings;
 #define RTLD_ET_EXTERN_MAIN_ENTRYPOINT 1
 #define RTLD_ET_EXEC_RTLD 2
 #define RTLD_ET_EXEC_START 3
+#define RTLD_ET_EXEC_RTLD_MAIN 4
 
 #define WASM_EXEC_PKG_SIGN 0x77614550        // waEP
 
@@ -36,6 +37,8 @@ struct wasm32_execpkg_args {
     struct ps_strings *ps_addr;              // ps_strings in user-space
     int (*rtld)(uintptr_t *, uintptr_t);
     int (*__start)(void(*)(void), struct ps_strings *);
+    uintptr_t rlocbase;
+    uintptr_t uesp0;
 };
 
 struct wasm_exechdr_secinfo { 
@@ -131,12 +134,12 @@ struct wasm_module_rt {
     const char *filepath;
     struct _rtld_search_path *rpaths;
     struct rtld_memory_descriptor *memdesc;  // TODO: need support for replicating more complex multi-memory layout
-    struct dlsym *dlsym_start;
-    struct dlsym *dlsym_end;
-    struct dlsym *dlsym_func_start;
-    struct dlsym *dlsym_func_end;
-    struct dlsym *dlsym_data_start;
-    struct dlsym *dlsym_data_end;
+    struct dlsym_rt *dlsym_start;
+    struct dlsym_rt *dlsym_end;
+    struct dlsym_rt *dlsym_func_start;
+    struct dlsym_rt *dlsym_func_end;
+    struct dlsym_rt *dlsym_data_start;
+    struct dlsym_rt *dlsym_data_end;
     uint16_t pre_init_array_count;
     uint16_t init_array_count;
     uint16_t fnit_array_count;
@@ -189,7 +192,7 @@ struct reloc_param {
         int32_t initial;
         int32_t maximum;  
     } indirect_table;
-}
+};
 
 struct wasm_import {
     uint16_t wa_modulesz;

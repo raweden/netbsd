@@ -723,8 +723,7 @@ public:
 #if defined(__GLIBC__) || defined(__EMSCRIPTEN__)
     static const int* __classic_upper_table() _NOEXCEPT;
     static const int* __classic_lower_table() _NOEXCEPT;
-#endif
-#if defined(__NetBSD__)
+#elif defined(__NetBSD__)
     static const short* __classic_upper_table() _NOEXCEPT;
     static const short* __classic_lower_table() _NOEXCEPT;
 #endif

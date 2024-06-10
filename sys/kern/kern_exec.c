@@ -2494,6 +2494,7 @@ spawn_return(void *arg)
 	return;
 
  report_error:
+	printf("ERROR: %s got error = %d", __func__, error);
 	if (have_reflock) {
 		/*
 		 * We have not passed through execve_runproc(),
