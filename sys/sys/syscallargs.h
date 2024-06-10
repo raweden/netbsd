@@ -3393,6 +3393,14 @@ struct sys_memfd_create_args {
 check_syscall_args(sys_memfd_create)
 #endif /* !RUMP_CLIENT */
 
+#ifdef __wasm__
+struct sys_wasm_ioctrl_args {
+	syscallarg(int) cmd;
+	syscallarg(void *) arg;
+};
+check_syscall_args(sys_wasm_ioctrl)
+#endif
+
 /*
  * System call prototypes.
  */

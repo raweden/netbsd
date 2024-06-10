@@ -2454,9 +2454,17 @@ struct sysent sysent[] = {
 	{
 		.sy_call = sys_nosys,
 	},		/* 504 = filler */
+#if 0 // __wasm__
+	{
+		ns(struct sys_wasm_ioctrl_args),
+		.sy_flags = SYCALL_ARG_PTR,
+		.sy_call = (sy_call_t *)sys_wasm_ioctrl
+	},		/* 499 = __wasm_ioctrl */
+#else
 	{
 		.sy_call = sys_nosys,
 	},		/* 505 = filler */
+#endif
 	{
 		.sy_call = sys_nosys,
 	},		/* 506 = filler */

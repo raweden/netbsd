@@ -555,7 +555,11 @@ const char *const syscallnames[] = {
 	/* 502 */	"# filler",
 	/* 503 */	"# filler",
 	/* 504 */	"# filler",
+#ifdef __wasm__
+	/* 505 */	"# __wasm_ioctrl",
+#else
 	/* 505 */	"# filler",
+#endif
 	/* 506 */	"# filler",
 	/* 507 */	"# filler",
 	/* 508 */	"# filler",
